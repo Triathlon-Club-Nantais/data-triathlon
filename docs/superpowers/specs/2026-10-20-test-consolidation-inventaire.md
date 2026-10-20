@@ -36,7 +36,7 @@ Ordre : lots 1 à 4, puis lignes décroissantes. « Tests » compte les tests
 collectés (un cas de `parametrize` ou de `it.each` compte pour un), y compris
 les tests `integration` et `migrations`.
 
-État au 20/10/2026, après le lot 1 : 614 fichiers, 136 152 lignes, 10 452 tests,
+État au 20/10/2026, après le lot 2 : 614 fichiers, 136 020 lignes, 10 445 tests,
 153 lots.
 
 ## Lots
@@ -44,7 +44,7 @@ les tests `integration` et `migrations`.
 | Lot | Zone | Fichiers de test | Code couvert | Lignes | Tests | Statut |
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | test_raceresult.py | `test_raceresult.py` (sous `backend/tests/`) | `backend/app/scrapers/raceresult.py` | 4132 | 377 | gardé (tâche 12) : tests 381 → 377, mutation 1613/2074 → 1613/2074, couverture 95,6 % → 95,6 % |
-| 2 | test_import_service.py | `test_import_service.py` (sous `backend/tests/test_services/`) | `backend/app/services/import_service.py` | 3094 | 169 | à faire (tâche 13) |
+| 2 | test_import_service.py | `test_import_service.py` (sous `backend/tests/test_services/`) | `backend/app/services/import_service.py` | 2962 | 162 | gardé (tâche 13) : tests 169 → 162, mutation 225/389 → 225/389, couverture 96,2 % → 96,2 % |
 | 3 | RaceFinishers.test.tsx | `RaceFinishers.test.tsx` (sous `frontend/components/results/`) | `frontend/components/results/RaceFinishers.tsx` | 1758 | 134 | à faire (tâche 14) |
 | 4 | AppNav.test.tsx | `AppNav.test.tsx` (sous `frontend/components/layout/`) | `frontend/components/layout/AppNav.tsx` | 1925 | 137 | à faire (tâche 15) |
 | 5 | backend test_api/ | 48 fichiers (sous `backend/tests/test_api/`) | `backend/app/api/` | 11936 | 888 | à faire (tâche 16) |
@@ -259,6 +259,71 @@ Envisagé, écarté :
   périmètre « modeste et sûr » du premier lot.
 - Les tests de façade et de `_fetch_meta` : chacun tient une forme réelle
   distincte, déjà minimal.
+
+## Lot 2 : `test_import_service.py`
+
+Gardé. Code couvert : `app/services/import_service.py` (105 instructions, 389
+mutants `app.services.import_service*`, module entier : pas de restriction).
+
+| Mesure | Avant | Après |
+| --- | --- | --- |
+| Tests collectés | 169 | 162 |
+| Fonctions de test | 145 | 126 |
+| Lignes | 3094 | 2962 |
+| Mutation (tués / tués + survivants) | 225/389 (57,8 %) | 225/389 (57,8 %) |
+| Timeouts | 0 | 0 |
+| Couverture de lignes (fichier seul) | 101/105 (96,2 %) | 101/105 (96,2 %) |
+
+Même ensemble de 389 mutants, verdict identique mutant par mutant ; mêmes 4
+lignes manquées (55, 67-68, 95). Le fichier exerce aussi `import_persistence` et
+`import_dispatch`, hors du code couvert du lot : la couverture de tout `app/`
+par ce seul fichier a été comparée en plus, lignes manquées identiques module
+par module. Durée murale de mutmut : 505 s avant (load 3,31 → 21,67), 281 s
+après (load 11,22 → 10,11).
+
+Fait :
+
+- Montages qui se prolongent, fusionnés : `test_import_creates_entities` et
+  `test_cached_return_porte_updated_zero` dans
+  `test_import_creates_entities_then_a_reimport_is_cached` ;
+  `test_reimport_after_cache_dedups_by_bib` dans
+  `test_reimport_apres_cache_ne_compte_pas_les_dossards_deja_en_base` (mêmes
+  compteurs, plus la fiabilité) ; `test_cached_return_porte_les_courses` dans
+  `test_import_event_expose_les_courses_touchees` ;
+  `test_reconciliation_ne_vide_jamais_le_prenom` et
+  `test_reconciliation_refusee_ne_cree_pas_d_orphelin` en un test ;
+  `test_import_sans_dossard_cree_les_participations` dans le test d'idempotence
+  du réimport ; `test_import_sans_dossard_conserve_les_homonymes` dans le
+  réimport des homonymes.
+- `parametrize` : les deux tests de réimport d'homonymes sans dossard (même
+  nombre, une occurrence de plus) ; les deux tests jeunes de #1221 ; les deux
+  trames d'erreur du fan-out streamé ; les quatre tests de `cache_probe` sous
+  `force` (`import_event` et `iter_import_event`, avec et sans `force`) ; les
+  paires `import_event` / `iter_import_event` de `persist=False`, du rejeu de
+  deadlock et de la transaction de lecture relâchée avant le scrape ; les
+  tests de `validate_url` qui rendent une URL (acceptée, non réécrite, double
+  encodage). Sur ces paires, chaque cas porte désormais l'union des assertions
+  (course absente après une erreur de fan-out, épreuve en base après le rejeu,
+  aucune course après un dry-run streamé).
+- `test_scrape_all_streaming_use_cache_probe_false_desarme_la_sonde_par_heat`
+  supprimé : `iter_import_event(force=True)` passe par le même
+  `scrape_all_streaming(use_cache_probe=False)` et le cas `force` du test
+  paramétré en porte les deux assertions (dispatcher invoqué, sonde `None`).
+
+Envisagé, écarté :
+
+- `test_is_empty_…` et `test_merge_fields_…` (fonctions privées
+  d'`import_persistence`) : hors du code couvert du lot, aucune mesure de
+  mutation pour prouver qu'un autre test les porte.
+- Les deux tests de fusion et de renommage à la réconciliation (#66) : montages
+  différents (cible préexistante ou non), un `parametrize` y mêlerait des
+  assertions conditionnelles.
+- `test_force_bypasse_le_cache_ttl` et sa version générateur : assertions de
+  phase propres au flux, la fusion demanderait des branches dans le test.
+- Les tests de relais (#894, #895, #1001) et de redatation (#972, #1263) :
+  chacun tient un montage et un invariant distincts.
+- Les tests de requêtes par lot (#706, #1503) : déjà paramétrés ou de
+  montages distincts.
 
 ## Régénérer le tableau
 

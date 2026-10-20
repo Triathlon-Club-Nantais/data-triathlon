@@ -71,13 +71,6 @@ def _counters(out: dict) -> dict:
     return {k: out[k] for k in ("imported", "updated", "skipped", "reconciled")}
 
 
-def test_import_creates_entities(db_session, patch_scraper):
-    patch_scraper([_result("1", "DUPONT"), _result("2", "MARTIN")])
-    out = import_service.import_event(db_session, URL, _settings())
-    assert _counters(out) == {"imported": 2, "updated": 0, "skipped": 0, "reconciled": 0}
-    assert len(participation_repository.list_participations(db_session, page_size=100)) == 2
-
-
 def test_import_ne_resout_la_course_qu_une_fois_par_lot(db_session, patch_scraper, monkeypatch):
     """`_Persister.add()` doit consulter son cache avant `mapping.get_or_create_course` (#759).
 
@@ -100,14 +93,17 @@ def test_import_ne_resout_la_course_qu_une_fois_par_lot(db_session, patch_scrape
     assert len(appels) == 1
 
 
-def test_reimport_is_cached_and_skips(db_session, patch_scraper):
+def test_import_creates_entities_then_a_reimport_is_cached(db_session, patch_scraper):
     patch_scraper([_result("1", "DUPONT"), _result("2", "MARTIN")])
-    import_service.import_event(db_session, URL, _settings())
+    out = import_service.import_event(db_session, URL, _settings())
+    assert _counters(out) == {"imported": 2, "updated": 0, "skipped": 0, "reconciled": 0}
+    assert len(participation_repository.list_participations(db_session, page_size=100)) == 2
 
-    # 2e import immédiat → court-circuité par le cache TTL
+    # 2e import immédiat → court-circuité par le cache TTL, `updated: 0` compris
     out = import_service.import_event(db_session, URL, _settings())
     assert out["cached"] is True
     assert out["imported"] == 0
+    assert out["updated"] == 0
     assert out["skipped"] == 2
 
 
@@ -128,20 +124,6 @@ def test_import_stamps_the_active_source_and_leaves_passive_ones_alone(db_sessio
     assert active.last_scraped_at is not None
     assert active.last_scraped_at >= utcnow() - timedelta(minutes=1)
     assert passive.last_scraped_at is None
-
-
-def test_reimport_after_cache_dedups_by_bib(db_session, patch_scraper):
-    patch_scraper([_result("1", "DUPONT")])
-    import_service.import_event(db_session, URL, _settings())
-
-    # Force l'expiration du cache → re-scrape, mais le dossard 1 existe déjà
-    course = course_repository.get_latest_by_source_url(db_session, URL)
-    course.scraped_at = utcnow() - timedelta(days=40)
-    db_session.commit()  # expiration visible sous le verrou d'URL (#1024)
-
-    patch_scraper([_result("1", "DUPONT"), _result("2", "MARTIN")])
-    out = import_service.import_event(db_session, URL, _settings())
-    assert _counters(out) == {"imported": 1, "updated": 0, "skipped": 1, "reconciled": 0}
 
 
 def test_reimport_respecte_un_club_corrige_a_la_main(db_session, patch_scraper):
@@ -328,33 +310,38 @@ def test_import_skips_youth_heats_and_rows(db_session, patch_scraper):
     assert athlete_repository.get_by_identity_keys(db_session, "CADET", "Cal") is not None
 
 
-def test_import_keeps_a_mixed_heat_youth_rows_when_one_is_tcn(db_session, patch_scraper):
-    """#1221: a heat carrying at least one TCN youth keeps all its youth rows."""
-    patch_scraper(
-        [
-            _result("1", "ADULTE", prenom="Ada"),
-            _result("2", "MINIME", prenom="Max", category="MIH", club="TRIATHLON CLUB NANTAIS"),
-            _result("3", "BENJAMIN", prenom="Ben", category="BEH", club="ASPTT NANTES"),
-        ]
-    )
+@pytest.mark.parametrize(
+    ("rows", "imported"),
+    [
+        pytest.param(
+            [
+                _result("1", "ADULTE", prenom="Ada"),
+                _result("2", "MINIME", prenom="Max", category="MIH", club="TRIATHLON CLUB NANTAIS"),
+                _result("3", "BENJAMIN", prenom="Ben", category="BEH", club="ASPTT NANTES"),
+            ],
+            3,
+            id="tcn-youth-keeps-all-youth-rows",
+        ),
+        pytest.param(
+            [
+                _result("1", "ADULTE", prenom="Ada", club="TRIATHLON CLUB NANTAIS"),
+                _result("2", "BENJAMIN", prenom="Ben", category="BEH", club="ASPTT NANTES"),
+            ],
+            1,
+            id="tcn-adult-only-drops-youth-rows",
+        ),
+    ],
+)
+def test_import_keeps_a_mixed_heat_youth_rows_only_with_a_tcn_youth(
+    db_session, patch_scraper, rows, imported
+):
+    """#1221: a heat carrying at least one TCN youth keeps all its youth rows;
+    without a TCN youth, #881 still applies, even when an adult is TCN."""
+    patch_scraper(rows)
 
     out = import_service.import_event(db_session, URL, _settings())
 
-    assert out["imported"] == 3
-
-
-def test_import_drops_a_mixed_heat_youth_rows_without_a_tcn_youth(db_session, patch_scraper):
-    """#1221: without a TCN youth, #881 still applies, even when an adult is TCN."""
-    patch_scraper(
-        [
-            _result("1", "ADULTE", prenom="Ada", club="TRIATHLON CLUB NANTAIS"),
-            _result("2", "BENJAMIN", prenom="Ben", category="BEH", club="ASPTT NANTES"),
-        ]
-    )
-
-    out = import_service.import_event(db_session, URL, _settings())
-
-    assert out["imported"] == 1
+    assert out["imported"] == imported
 
 
 def test_import_keeps_a_youth_named_heat_with_a_tcn_youth_only(db_session, patch_scraper):
@@ -592,7 +579,8 @@ def test_import_signale_une_course_suspecte(db_session, patch_scraper):
 def test_reimport_apres_cache_ne_compte_pas_les_dossards_deja_en_base(
     db_session, patch_scraper
 ):
-    """Un dossard déjà persisté est un skip bénin, pas un doublon de la source."""
+    """Un dossard déjà persisté est un skip bénin (dédoublonné par dossard), pas
+    un doublon de la source."""
     patch_scraper([_result("1", "DUPONT", rank_overall=1)])
     import_service.import_event(db_session, URL, _settings())
 
@@ -628,16 +616,13 @@ def _expire_cache(db_session, url=URL):
 # en multiset : la même personne peut légitimement figurer plusieurs fois dans
 # la source (257 cas réels), et ces occurrences doivent survivre au réimport.
 
-def test_import_sans_dossard_cree_les_participations(db_session, patch_scraper):
-    patch_scraper([_result("", "CASROUGE", "Patrice"), _result("", "HOCHET", "Joséphine")])
-    out = import_service.import_event(db_session, URL, _settings())
-    assert _counters(out) == {"imported": 2, "updated": 0, "skipped": 0, "reconciled": 0}
-
-
-def test_reimport_sans_dossard_est_idempotent(db_session, patch_scraper):
+def test_import_sans_dossard_cree_les_participations_et_le_reimport_est_idempotent(
+    db_session, patch_scraper
+):
     """Le bug : sans dossard, chaque réimport recréait les participations."""
     patch_scraper([_result("", "CASROUGE", "Patrice"), _result("", "HOCHET", "Joséphine")])
-    import_service.import_event(db_session, URL, _settings())
+    out = import_service.import_event(db_session, URL, _settings())
+    assert _counters(out) == {"imported": 2, "updated": 0, "skipped": 0, "reconciled": 0}
     _expire_cache(db_session)
 
     patch_scraper([_result("", "CASROUGE", "Patrice"), _result("", "HOCHET", "Joséphine")])
@@ -646,35 +631,29 @@ def test_reimport_sans_dossard_est_idempotent(db_session, patch_scraper):
     assert len(participation_repository.list_participations(db_session, page_size=100)) == 2
 
 
-def test_import_sans_dossard_conserve_les_homonymes(db_session, patch_scraper):
-    """Deux lignes pour le même athlète sans dossard → deux participations."""
+@pytest.mark.parametrize(
+    ("occurrences", "imported", "total"),
+    [
+        pytest.param(2, 0, 2, id="meme-nombre-d-homonymes"),
+        pytest.param(3, 1, 3, id="une-occurrence-supplementaire"),
+    ],
+)
+def test_import_sans_dossard_conserve_les_homonymes_au_reimport(
+    db_session, patch_scraper, occurrences, imported, total
+):
+    """Deux lignes pour le même athlète sans dossard → deux participations.
+
+    Au réimport, ni doublon ni perte : les 2 homonymes restent 2, et une 3e
+    ligne gagnée par la source donne une seule création."""
     patch_scraper([_result("", "LACOTTE", "Anais"), _result("", "LACOTTE", "Anais")])
     out = import_service.import_event(db_session, URL, _settings())
     assert _counters(out) == {"imported": 2, "updated": 0, "skipped": 0, "reconciled": 0}
-
-
-def test_reimport_sans_dossard_conserve_le_nombre_d_homonymes(db_session, patch_scraper):
-    """Réimport de 2 homonymes : ni doublon, ni perte — on reste à 2."""
-    patch_scraper([_result("", "LACOTTE", "Anais"), _result("", "LACOTTE", "Anais")])
-    import_service.import_event(db_session, URL, _settings())
     _expire_cache(db_session)
 
-    patch_scraper([_result("", "LACOTTE", "Anais"), _result("", "LACOTTE", "Anais")])
+    patch_scraper([_result("", "LACOTTE", "Anais") for _ in range(occurrences)])
     out = import_service.import_event(db_session, URL, _settings())
-    assert _counters(out) == {"imported": 0, "updated": 0, "skipped": 2, "reconciled": 0}
-    assert len(participation_repository.list_participations(db_session, page_size=100)) == 2
-
-
-def test_reimport_sans_dossard_ajoute_une_occurrence_supplementaire(db_session, patch_scraper):
-    """La source gagne une 3e ligne pour le même athlète → une seule création."""
-    patch_scraper([_result("", "LACOTTE", "Anais"), _result("", "LACOTTE", "Anais")])
-    import_service.import_event(db_session, URL, _settings())
-    _expire_cache(db_session)
-
-    patch_scraper([_result("", "LACOTTE", "Anais")] * 3)
-    out = import_service.import_event(db_session, URL, _settings())
-    assert _counters(out) == {"imported": 1, "updated": 0, "skipped": 2, "reconciled": 0}
-    assert len(participation_repository.list_participations(db_session, page_size=100)) == 3
+    assert _counters(out) == {"imported": imported, "updated": 0, "skipped": 2, "reconciled": 0}
+    assert len(participation_repository.list_participations(db_session, page_size=100)) == total
 
 
 def test_reimport_melange_avec_et_sans_dossard(db_session, patch_scraper):
@@ -778,28 +757,26 @@ def _lever(exc):
     return _scrape
 
 
-def test_streaming_fanout_scrape_failure_ends_on_an_error_frame(db_session, monkeypatch):
-    monkeypatch.setattr(import_dispatch, "registry_scrape_event_all", _lever(RuntimeError("boom")))
+@pytest.mark.parametrize(
+    ("exc", "message", "error_kind"),
+    [
+        pytest.param(RuntimeError("boom"), "Erreur lors de l'import : boom", "scraper", id="scrape-failure"),
+        pytest.param(
+            ValueError("Import non supporté"), "Import non supporté", "unsupported_provider",
+            id="value-error-is-unsupported-provider",
+        ),
+    ],
+)
+def test_streaming_fanout_failure_ends_on_an_error_frame(
+    db_session, monkeypatch, exc, message, error_kind
+):
+    monkeypatch.setattr(import_dispatch, "registry_scrape_event_all", _lever(exc))
 
     phases = list(import_service.iter_import_event(db_session, URL, _settings()))
 
-    assert phases[-1] == {
-        "phase": "error", "message": "Erreur lors de l'import : boom", "error_kind": "scraper",
-    }
+    assert phases[-1] == {"phase": "error", "message": message, "error_kind": error_kind}
     assert db_session.query(Course).count() == 0
     assert db_session.query(Participation).count() == 0
-
-
-def test_streaming_fanout_value_error_maps_to_unsupported_provider(db_session, monkeypatch):
-    monkeypatch.setattr(
-        import_dispatch, "registry_scrape_event_all", _lever(ValueError("Import non supporté"))
-    )
-
-    phases = list(import_service.iter_import_event(db_session, URL, _settings()))
-
-    assert phases[-1] == {
-        "phase": "error", "message": "Import non supporté", "error_kind": "unsupported_provider",
-    }
 
 
 def test_streaming_invalid_url_is_tagged_invalid_url(db_session):
@@ -914,48 +891,32 @@ def _patch_fanout_cache_probe_capture(monkeypatch):
     return captured
 
 
-def test_import_event_force_desarme_le_cache_probe_fan_out(db_session, monkeypatch):
+@pytest.mark.parametrize("streaming", [False, True], ids=["import_event", "iter_import_event"])
+@pytest.mark.parametrize("force", [True, False], ids=["force", "sans-force"])
+def test_le_cache_probe_fan_out_n_est_desarme_que_par_force(db_session, monkeypatch, streaming, force):
     """#810 — `force=True` doit aussi désarmer `cache_probe` (cache **par heat**),
-    pas seulement le cache TTL global (`cached_result`).
+    pas seulement le cache TTL global (`cached_result`) ; sans `force`, il reste
+    actif (contrôle négatif).
 
     Sans ça, `rescrape-db --url` sur une épreuve fan-out (Klikego, Wiclax,
     RaceResult…) scrapée il y a moins de 30 j saute silencieusement tous ses
     heats jugés frais : `updated: 0` alors qu'un rescrape a été explicitement
-    demandé.
+    demandé. Le générateur est le chemin réellement consommé par `rescrape-db`
+    (`batch.run_batch` → `iter_import_event`) ; il passe par
+    `import_dispatch.scrape_all_streaming(use_cache_probe=False)` (#118, R2).
     """
     captured = _patch_fanout_cache_probe_capture(monkeypatch)
 
-    import_service.import_event(db_session, URL, _settings(), force=True)
+    if streaming:
+        list(import_service.iter_import_event(db_session, URL, _settings(), force=force))
+    else:
+        import_service.import_event(db_session, URL, _settings(), force=force)
 
-    assert captured["cache_probe"] is None
-
-
-def test_import_event_sans_force_garde_le_cache_probe_fan_out(db_session, monkeypatch):
-    """Contrôle négatif : sans `force`, `cache_probe` doit rester actif."""
-    captured = _patch_fanout_cache_probe_capture(monkeypatch)
-
-    import_service.import_event(db_session, URL, _settings())
-
-    assert captured["cache_probe"] is not None
-
-
-def test_iter_import_event_force_desarme_le_cache_probe_fan_out(db_session, monkeypatch):
-    """Même garde que ci-dessus, sur le générateur — le chemin réellement
-    consommé par `rescrape-db` (`batch.run_batch` → `iter_import_event`)."""
-    captured = _patch_fanout_cache_probe_capture(monkeypatch)
-
-    list(import_service.iter_import_event(db_session, URL, _settings(), force=True))
-
-    assert captured["cache_probe"] is None
-
-
-def test_iter_import_event_sans_force_garde_le_cache_probe_fan_out(db_session, monkeypatch):
-    """Contrôle négatif : sans `force`, `cache_probe` doit rester actif."""
-    captured = _patch_fanout_cache_probe_capture(monkeypatch)
-
-    list(import_service.iter_import_event(db_session, URL, _settings()))
-
-    assert captured["cache_probe"] is not None
+    assert "cache_probe" in captured, "le dispatcher fan-out doit être invoqué"
+    if force:
+        assert captured["cache_probe"] is None
+    else:
+        assert captured["cache_probe"] is not None
 
 
 # ── Garde-fou : une épreuve sans nom n'est jamais persistée ──────────────────
@@ -1047,11 +1008,20 @@ def test_reconciliation_fusionne_vers_un_athlete_existant(db_session, patch_scra
     assert len(athlete_repository.search(db_session, page_size=500, hide_pending_only=False)) == nb_athletes
 
 
-def test_reconciliation_ne_vide_jamais_le_prenom(db_session, patch_scraper):
-    """Garde des ambigus : une correction qui viderait le prénom est refusée."""
+def test_reconciliation_ne_vide_jamais_le_prenom_ni_ne_cree_d_orphelin(db_session, patch_scraper):
+    """Garde des ambigus : une correction qui viderait le prénom est refusée, et
+    cette réconciliation refusée ne crée aucune fiche d'athlète orpheline.
+
+    Sur le chemin web/SSE (`persist=True`), rien ne balaie les orphelins avant
+    le prochain `rescrape-db` : résoudre l'athlète corrigé *avant* la garde
+    laissait donc une fiche « LOLA BERGE |  » commitée et vide en base.
+    """
+    from app.repositories import athlete_repository
+
     # Prénom stocké en majuscules par un fournisseur à champs séparés.
     patch_scraper([_result("1", "BERGE", "LOLA")])
     import_service.import_event(db_session, URL, _settings())
+    nb_athletes = len(athlete_repository.search(db_session, page_size=500, hide_pending_only=False))
 
     # Le re-scrape produirait ("LOLA BERGE", "") — destruction du prénom.
     patch_scraper([_result("1", "LOLA BERGE", "")])
@@ -1061,27 +1031,6 @@ def test_reconciliation_ne_vide_jamais_le_prenom(db_session, patch_scraper):
     assert out["skipped"] == 1
     parts = participation_repository.list_participations(db_session, page_size=100)
     assert (parts[0].athlete.nom, parts[0].athlete.prenom) == ("BERGE", "LOLA")
-
-
-def test_reconciliation_refusee_ne_cree_pas_d_orphelin(db_session, patch_scraper):
-    """Garde des ambigus : une réconciliation refusée (prénom vidé) ne crée
-    aucune fiche d'athlète orpheline.
-
-    Sur le chemin web/SSE (`persist=True`), rien ne balaie les orphelins avant
-    le prochain `rescrape-db` : résoudre l'athlète corrigé *avant* la garde
-    laissait donc une fiche « LOLA BERGE |  » commitée et vide en base.
-    """
-    from app.repositories import athlete_repository
-
-    patch_scraper([_result("1", "BERGE", "LOLA")])
-    import_service.import_event(db_session, URL, _settings())
-    nb_athletes = len(athlete_repository.search(db_session, page_size=500, hide_pending_only=False))
-
-    # Le re-scrape produirait ("LOLA BERGE", "") — correction refusée.
-    patch_scraper([_result("1", "LOLA BERGE", "")])
-    out = import_service.import_event(db_session, URL, _settings(), force=True)
-
-    assert out["reconciled"] == 0
     assert len(athlete_repository.search(db_session, page_size=500, hide_pending_only=False)) == nb_athletes
     assert athlete_repository.get_by_identity_keys(db_session, "LOLA BERGE", "") is None
 
@@ -1125,29 +1074,22 @@ def test_reconciliation_renommage_a_le_flag_fusion_false(db_session, patch_scrap
     assert done["reassignments"][0].nouveau == "LE BERRE | Audrey"
 
 
-def test_persist_false_scrape_mais_n_ecrit_rien(db_session, patch_scraper):
-    """Dry-run : le scrape a lieu, les compteurs sont calculés, rien n'est persisté."""
+@pytest.mark.parametrize("streaming", [False, True], ids=["import_event", "iter_import_event"])
+def test_persist_false_scrape_mais_n_ecrit_rien(db_session, patch_scraper, streaming):
+    """Dry-run : le scrape a lieu, les compteurs sont calculés, la transaction est
+    annulée et rien n'est persisté."""
     patch_scraper([_result("1", "DUPONT"), _result("2", "MARTIN")])
 
-    out = import_service.import_event(db_session, URL, _settings(), persist=False)
+    if streaming:
+        out = list(import_service.iter_import_event(db_session, URL, _settings(), persist=False))[-1]
+        assert out["phase"] == "done"
+    else:
+        out = import_service.import_event(db_session, URL, _settings(), persist=False)
 
     assert out["imported"] == 2  # calculé
     db_session.expire_all()
     assert participation_repository.list_participations(db_session, page_size=100) == []
     assert course_repository.list_all(db_session, hide_pending_only=False) == []
-
-
-def test_iter_persist_false_annule_la_transaction(db_session, patch_scraper):
-    patch_scraper([_result("1", "DUPONT")])
-
-    phases = list(
-        import_service.iter_import_event(db_session, URL, _settings(), persist=False)
-    )
-
-    assert phases[-1]["phase"] == "done"
-    assert phases[-1]["imported"] == 1
-    db_session.expire_all()
-    assert participation_repository.list_participations(db_session, page_size=100) == []
 
 
 # ── Upsert prudent par dossard — un réimport corrige les lignes existantes au
@@ -1338,10 +1280,12 @@ def test_iter_import_event_accuse_de_commit_perdu_confirme_en_base(db_session, p
     assert course_repository.get_latest_by_source_url(db_session, URL) is not None
 
 
-def test_iter_import_event_deadlock_est_rejoue(db_session, patch_scraper, monkeypatch):
+@pytest.mark.parametrize("streaming", [True, False], ids=["iter_import_event", "import_event"])
+def test_deadlock_est_rejoue(db_session, patch_scraper, monkeypatch, streaming):
     """#771 : un deadlock Postgres (concurrence `rescrape-db` entre chronométreurs,
     #690) ne doit pas perdre l'épreuve entière — rien n'a été commité, un
-    nouvel essai suffit."""
+    nouvel essai suffit. #980 : le chemin bloquant (`import_event`, CLI et
+    fallback) partage le rejeu du flux SSE au lieu d'échouer au premier deadlock."""
     monkeypatch.setattr(deadlock.time, "sleep", lambda *_: None)
     patch_scraper([_result("1", "DUPONT")])
     original_commit = db_session.commit
@@ -1357,37 +1301,15 @@ def test_iter_import_event_deadlock_est_rejoue(db_session, patch_scraper, monkey
 
     monkeypatch.setattr(db_session, "commit", _commit_deadlock_puis_ok)
 
-    phases = list(import_service.iter_import_event(db_session, URL, _settings()))
-
-    done = phases[-1]
-    assert done["phase"] == "done"
-    assert done["imported"] == 1
-    assert len(appels) == 2
-    assert course_repository.get_latest_by_source_url(db_session, URL) is not None
-
-
-def test_import_event_deadlock_est_rejoue_comme_le_flux(db_session, patch_scraper, monkeypatch):
-    """#980 : le chemin bloquant (`import_event`, CLI et fallback) partage le
-    rejeu du flux SSE au lieu d'échouer au premier deadlock."""
-    monkeypatch.setattr(deadlock.time, "sleep", lambda *_: None)
-    patch_scraper([_result("1", "DUPONT")])
-    original_commit = db_session.commit
-    appels: list[int] = []
-
-    def _commit_deadlock_puis_ok():
-        appels.append(1)
-        if len(appels) == 1:
-            raise OperationalError(
-                "UPDATE athletes ...", {}, psycopg.errors.DeadlockDetected("deadlock detected")
-            )
-        original_commit()
-
-    monkeypatch.setattr(db_session, "commit", _commit_deadlock_puis_ok)
-
-    out = import_service.import_event(db_session, URL, _settings())
+    if streaming:
+        out = list(import_service.iter_import_event(db_session, URL, _settings()))[-1]
+        assert out["phase"] == "done"
+    else:
+        out = import_service.import_event(db_session, URL, _settings())
 
     assert out["imported"] == 1
     assert len(appels) == 2
+    assert course_repository.get_latest_by_source_url(db_session, URL) is not None
 
 
 def test_athlete_club_and_gender_updates_are_applied_once_in_id_order(
@@ -1511,20 +1433,13 @@ def test_iter_import_event_re_verification_qui_echoue_reste_une_erreur(
     assert phases[-1]["phase"] == "error"
 
 
-def test_cached_return_porte_updated_zero(db_session, patch_scraper):
-    """Le retour court-circuité par le cache TTL porte `updated: 0`."""
-    patch_scraper([_result("1", "DUPONT")])
-    import_service.import_event(db_session, URL, _settings())
-
-    out = import_service.import_event(db_session, URL, _settings())
-    assert out["cached"] is True
-    assert out["updated"] == 0
-
-
 def test_import_event_expose_les_courses_touchees(db_session, patch_scraper):
     """`import_event` renvoie `courses: [{id, name, event_type, is_relay}]` pour
     câbler les boutons « Voir les résultats » du front (#135), avec `is_relay`
     ajouté (#195) pour distinguer indiv et relais dans le sélecteur.
+
+    Sur le court-circuit cache, `courses` porte la course représentative :
+    le front peut proposer le même bouton même quand rien n'a été ré-importé.
     """
     patch_scraper([_result("1", "DUPONT")])
     out = import_service.import_event(db_session, URL, _settings())
@@ -1536,19 +1451,10 @@ def test_import_event_expose_les_courses_touchees(db_session, patch_scraper):
     assert course["is_relay"] is False
     assert isinstance(course["id"], int) and course["id"] > 0
 
-
-def test_cached_return_porte_les_courses(db_session, patch_scraper):
-    """Sur le court-circuit cache, `courses` porte la course représentative :
-    le front peut proposer le même bouton même quand rien n'a été ré-importé.
-    """
-    patch_scraper([_result("1", "DUPONT")])
-    first = import_service.import_event(db_session, URL, _settings())
-    course_id = first["courses"][0]["id"]
-
     out = import_service.import_event(db_session, URL, _settings())
     assert out["cached"] is True
     assert len(out["courses"]) == 1
-    assert out["courses"][0]["id"] == course_id
+    assert out["courses"][0]["id"] == course["id"]
 
 
 def test_cached_return_porte_toutes_les_heats(db_session, patch_scraper):
@@ -1590,15 +1496,31 @@ def test_cached_skipped_compte_les_participations_sans_dossard(db_session, patch
 # ── Validation d'URL — seule garde du batch CLI, qui n'a pas de schéma Pydantic (#49)
 
 
-@pytest.mark.parametrize("url", [
-    "https://www.klikego.com/resultats/x/1",
-    "http://www.timepulse.fr/resultats/3090",
-    "  https://www.klikego.com/resultats/x/1  ",   # espaces tolérés
+_DOUBLY_ENCODED = "https://www.chronosmetron.wiclax-results.com/Triathlon%2520de%2520Veign%C3%A9%25202024/"
+_ENCODED_ONCE = "https://www.chronosmetron.wiclax-results.com/Triathlon%20de%20Veign%C3%A9%202024/"
+
+
+@pytest.mark.parametrize(("url", "expected"), [
+    pytest.param("https://www.klikego.com/resultats/x/1", "https://www.klikego.com/resultats/x/1", id="https"),
+    pytest.param("http://www.timepulse.fr/resultats/3090", "http://www.timepulse.fr/resultats/3090", id="http"),
+    pytest.param(
+        "  https://www.klikego.com/resultats/x/1  ", "https://www.klikego.com/resultats/x/1",
+        id="espaces-toleres",
+    ),
+    # `source_url` est la clé du cache TTL : une réécriture ici la ferait dériver.
+    pytest.param(
+        "https://www.prolivesport.fr/index.php?chap=event&race=Triathlon%20M",
+        "https://www.prolivesport.fr/index.php?chap=event&race=Triathlon%20M",
+        id="ne-reecrit-pas-l-url",
+    ),
+    # #1225 : un copier-coller d'URL déjà encodée donne `%2520` et un 404.
+    pytest.param(_DOUBLY_ENCODED, _ENCODED_ONCE, id="decode-un-chemin-doublement-encode"),
+    pytest.param(_ENCODED_ONCE, _ENCODED_ONCE, id="chemin-encode-une-fois-inchange"),
 ])
-def test_validate_url_accepte_http_et_https(url):
+def test_validate_url_accepte_et_rend_l_url_attendue(url, expected):
     from app.services.import_dispatch import validate_url
 
-    assert validate_url(url) == url.strip()
+    assert validate_url(url) == expected
 
 
 @pytest.mark.parametrize("url", [
@@ -1622,47 +1544,7 @@ def test_validate_url_refuse_tout_le_reste(url):
         validate_url(url)
 
 
-def test_validate_url_ne_reecrit_pas_l_url():
-    """`source_url` est la clé du cache TTL : une réécriture ici la ferait dériver."""
-    from app.services.import_dispatch import validate_url
-
-    url = "https://www.prolivesport.fr/index.php?chap=event&race=Triathlon%20M"
-    assert validate_url(url) == url
-
-
 # ── Fan-out counters — SSE `done` étendu (issue #156, FR-008) ────────────────
-
-
-def test_scrape_all_streaming_use_cache_probe_false_desarme_la_sonde_par_heat(
-    db_session, monkeypatch,
-):
-    """#118 (R2) — `use_cache_probe=False` doit atteindre le chemin **streamé**.
-
-    `scrape_all` a déjà ce paramètre (#285) ; `scrape_all_streaming` ne
-    l'exposait pas encore. Sans lui, un re-scrape demandé sur une épreuve
-    fan-out fraîchement importée sauterait tous ses heats jugés frais — le
-    classement resterait inchangé malgré la demande explicite.
-    """
-    from app.scrapers import registry
-
-    provider = registry.KlikegoProvider()
-    monkeypatch.setattr(import_dispatch.registry, "get_provider", lambda url: provider)
-
-    captured = {}
-
-    def fake_scrape(url, *, cache_probe=None, on_heat_start=None, **kwargs):
-        captured["cache_probe"] = cache_probe
-        return [_result("1", "DUPONT")], FanoutTrace(heats_enumerated=1)
-
-    monkeypatch.setattr(import_dispatch, "registry_scrape_event_all", fake_scrape)
-
-    gen = import_dispatch.scrape_all_streaming(
-        URL, db_session, _settings(), use_cache_probe=False
-    )
-    list(gen)  # draine les yields intermédiaires, ignore (results, trace)
-
-    assert "cache_probe" in captured, "le dispatcher fan-out doit être invoqué"
-    assert captured["cache_probe"] is None
 
 
 def test_scrape_all_streaming_cache_probe_utilise_une_session_dediee_au_thread(
@@ -2236,7 +2118,7 @@ def test_deux_lignes_du_meme_scrape_pour_le_meme_athlete_neuf_ne_creent_qu_une_f
     """Edge case de `spec.md` — collision intra-lot : deux lignes du même
     scrape désignent le même athlète neuf (même nom/prénom), sans dossard.
     Le comportement ligne à ligne crée deux participations pour un seul
-    athlète (cf. `test_import_sans_dossard_conserve_les_homonymes`) — FR-004
+    athlète (cf. `test_import_sans_dossard_conserve_les_homonymes_au_reimport`) — FR-004
     exige que la résolution par lot produise exactement le même résultat, et
     surtout **pas** deux fiches `Athlete` distinctes pour la même identité."""
     patch_scraper(
@@ -3060,18 +2942,14 @@ def _patch_fanout_transaction_capture(monkeypatch, db):
     return captured
 
 
-def test_iter_import_event_releases_the_cache_read_transaction_before_scraping(db_session, monkeypatch):
+@pytest.mark.parametrize("streaming", [True, False], ids=["iter_import_event", "import_event"])
+def test_import_releases_the_cache_read_transaction_before_scraping(db_session, monkeypatch, streaming):
     captured = _patch_fanout_transaction_capture(monkeypatch, db_session)
 
-    list(import_service.iter_import_event(db_session, URL, _settings()))
-
-    assert captured["in_transaction"] is False
-
-
-def test_import_event_releases_the_cache_read_transaction_before_scraping(db_session, monkeypatch):
-    captured = _patch_fanout_transaction_capture(monkeypatch, db_session)
-
-    import_service.import_event(db_session, URL, _settings())
+    if streaming:
+        list(import_service.iter_import_event(db_session, URL, _settings()))
+    else:
+        import_service.import_event(db_session, URL, _settings())
 
     assert captured["in_transaction"] is False
 
@@ -3082,13 +2960,3 @@ def test_cache_probe_ends_its_read_transaction_after_each_heat(db_session):
     probe("https://www.klikego.com/resultats/inconnu/1")
 
     assert db_session.in_transaction() is False
-
-
-def test_validate_url_decodes_a_doubly_encoded_path():
-    """#1225 : un copier-coller d'URL déjà encodée donne `%2520` et un 404."""
-    from app.services.import_dispatch import validate_url
-
-    double = "https://www.chronosmetron.wiclax-results.com/Triathlon%2520de%2520Veign%C3%A9%25202024/"
-    normale = "https://www.chronosmetron.wiclax-results.com/Triathlon%20de%20Veign%C3%A9%202024/"
-    assert validate_url(double) == normale
-    assert validate_url(normale) == normale
