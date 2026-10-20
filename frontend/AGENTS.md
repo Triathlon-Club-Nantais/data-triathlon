@@ -26,7 +26,7 @@ de la ligne concernée **avant** de toucher à ce qu'elle nomme.
 | `not-found.tsx`, `error.tsx`, `global-error.tsx`, `ErrorScreen`, un `loading.tsx` de fiche | `docs/frontend/ecrans-erreur.md` |
 | `admin/droits`, `FeedbackTable`, `AdminIndex`, sous-sections et pastilles du sommaire, `MutationCache` d'`app/providers.tsx`, palette ⌘K (`AthletePicker`) | `docs/frontend/back-office.md` |
 | `nav.config.ts`, `AppNav`, rail, barre basse mobile, tiroir, cookie `tcn-nav-expanded` (`app/layout.tsx`) | `docs/frontend/navigation.md` |
-| Stock `tcn-athlete`, `useSelectedAthlete`, « Vous », « Ma saison » (`MaSaison`, `RappelPosition`), `AthleteHeaderActions`, `CourseAdminActions`/`CourseAdminPanel` | `docs/frontend/athlete-retenu.md` |
+| Stock `tcn-athlete`, `useSelectedAthlete`, « Vous », « Ma saison » (`RappelPosition`), `AthleteHeaderActions`, `CourseAdminActions`/`CourseAdminPanel` | `docs/frontend/athlete-retenu.md` |
 | Un paramètre d'URL (`?rank=`, `?scope`…), `/club`, `lib/api/server.ts` et ses cookies | `docs/frontend/donnees-serveur.md` |
 | `TcnScrapeForm`, `useImportStream`, `ImportStreamProvider`, `ManualResultForm`, `ProviderDetector` | `docs/frontend/import.md` |
 | Une des six listes publiques (`.tcn-table`, `.tcn-rowlink`), une bascule grille/cartes (`LigneCarte`), `test/setup.ts` (`defaultIgnore`), `test/cartes.ts` | `docs/frontend/tableaux.md` |
@@ -177,7 +177,8 @@ de la ligne concernée **avant** de toucher à ce qu'elle nomme.
   raisons sont dans `docs/frontend/acces-et-routes.md`.
 - `components/` — `scrape/` (TcnScrapeForm, ProviderDetector),
   `results/` (ResultCard, ResultsList), `club/` (ClubDashboard, PodiumsList),
-  `map/` (MapView), `dashboard/` (MaSaison, RecentCourses),
+  `map/` (MapView), `dashboard/` (RecentCourses, SeasonGoals),
+  `mon-espace/` (MonEspace, onglets, colonne droite),
   `athletes/` (AthleteAdminPanel, ParticipationAdminActions — les gestes
   d'administration posés sur la page publique d'un athlète, #439 : ils prennent
   `tcn/` parce que c'est un écran public, et décident leur visibilité **dans le

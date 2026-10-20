@@ -11,7 +11,7 @@ import type { Participation } from "@/lib/types";
  * la fiche (#1325), sur un résultat validé et individuel : un relais nomme des
  * équipiers, que la carte ne doit pas citer.
  */
-export function ResultCardDownload({ participation }: { participation: Participation }) {
+export function ResultCardDownload({ participation, libelle = "Télécharger l'image" }: { participation: Participation; libelle?: string }) {
   const session = useHydratedSession();
   const [enCours, setEnCours] = useState(false);
   const [echec, setEchec] = useState<string | null>(null);
@@ -35,7 +35,7 @@ export function ResultCardDownload({ participation }: { participation: Participa
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
       <Button variant="secondary" aria-disabled={enCours || undefined} onClick={telecharger}>
-        Télécharger l&apos;image
+        {libelle}
       </Button>
       {echec && (
         <p role="alert" style={{ margin: 0, fontSize: 13, color: "var(--tcn-danger)" }}>

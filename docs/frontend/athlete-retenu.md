@@ -74,7 +74,9 @@ compte sur `for_stats(club_only=True)` (`tcn_clause`), quand
 `list_for_athlete` n'a délibérément aucune clause de club (FR-019,
 `backend/app/api/AGENTS.md`) — une participation dont le club diffère ou
 est vide compte donc pour l'athlète sans compter pour le club. Assumé, pas
-réglé : #503 et #504 en hériteront.
+réglé : #503 et #504 en hériteront. Depuis #1695, la bande a été remplacée par
+Mon espace lié à la session : il lit l'athlète rattaché au compte, non plus
+celui choisi dans le navigateur.
 
 Deux règles s'attrapent en passant, valables pour #503 et #504 : le podium
 d'un athlète doit se calculer sur le **même `?rank=`** que les compteurs
@@ -91,7 +93,7 @@ live n'annonce que les changements observés **après** son enregistrement, et
 une région déjà pleine à l'injection est le cas que NVDA, JAWS et VoiceOver
 laissent tomber. Les tests jsdom passent quand même : ils ne vérifient que
 le texte du DOM. Tous les autres consommateurs du dépôt le faisaient déjà
-(`MaSaison.tsx`, `PodiumsList.tsx`, `EventList.tsx`,
+(`PodiumsList.tsx`, `EventList.tsx`,
 `RaceFinishers.tsx`).
 
 ## Hiérarchie des commandes de la fiche athlète (#753)

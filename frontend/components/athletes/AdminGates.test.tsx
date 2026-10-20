@@ -71,8 +71,9 @@ describe("athlete admin gates (#1582)", () => {
     const route = join(__dirname, "../../app/(public_restricted)/athletes/[id]");
     const panels =
       /from\s+["']@\/components\/athletes\/(AthleteAdminPanel|AthleteOppositionAction|ParticipationAdminActions|AthleteDetachAction|SeasonValidationPanel|VolunteerActionsList|AthleteVariantsPanel)["']/;
-    for (const file of ["page.tsx", "AthleteHeaderActions.tsx", "EventsTable.tsx"]) {
-      const source = readFileSync(join(route, file), "utf8").replace(/import\s+type[^;]+;/g, "");
+    const files = ["page.tsx", "AthleteHeaderActions.tsx"].map((file) => join(route, file));
+    for (const file of [...files, join(__dirname, "EventsTable.tsx")]) {
+      const source = readFileSync(file, "utf8").replace(/import\s+type[^;]+;/g, "");
       expect(source, file).not.toMatch(panels);
     }
   });

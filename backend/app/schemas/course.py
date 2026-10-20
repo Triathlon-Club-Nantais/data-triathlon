@@ -61,6 +61,8 @@ class CourseBrief(BaseModel):
     # Indice de fiabilité calculé à l'import. `None` = course jamais évaluée.
     is_reliable: bool | None = None
     quality_issues: dict[str, int] | None = None
+    #: Additif (#1699) : fournisseur aux splits complets et épreuve non classée aux tours.
+    has_reliable_splits: bool = False
     #: Météo du jour (#1370), Open-Meteo, écrite hors ligne par
     #: `weather-courses`. `None` = pas encore servie.
     weather_temperature_c: float | None = None

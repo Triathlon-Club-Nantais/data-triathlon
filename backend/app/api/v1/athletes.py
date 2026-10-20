@@ -126,7 +126,7 @@ def get_athlete(
 
     Les deux filtres sont **optionnels et neutres par défaut** (#502) : sans
     eux, la route rend la carrière entière, comme depuis toujours. Ils servent
-    la bande « Ma saison » du tableau de bord, qui doit compter sur la même
+    Mon espace, qui doit compter sur la même
     base que les compteurs club affichés juste dessous — mêmes noms et mêmes
     sémantiques que sur `/stats` et `/athletes/season-activity`.
     """

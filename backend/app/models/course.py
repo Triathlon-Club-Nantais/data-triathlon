@@ -18,6 +18,7 @@ from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
+from app.core.splits_reliability import is_stats_eligible
 from app.core.time import utcnow
 from app.models.course_source import CourseSource
 
@@ -169,6 +170,11 @@ class Course(Base):
         **Aucun `@expression`**, même décision que `source_url` ci-dessus (#306).
         """
         return _from_active_source(self, "provider")
+
+    @property
+    def has_reliable_splits(self) -> bool:
+        """Les splits de l'épreuve servent à comparer (#1699) : `is_stats_eligible`, lue par `CourseBrief`."""
+        return is_stats_eligible(self)
 
     @hybrid_property
     def is_reliable(self) -> bool | None:

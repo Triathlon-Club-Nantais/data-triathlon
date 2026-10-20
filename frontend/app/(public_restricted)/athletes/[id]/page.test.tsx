@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Participation } from "@/lib/types";
-import { ApiError } from "@/lib/api/client";
+import { ApiError, apiClient } from "@/lib/api/client";
 
 const getAthlete = vi.fn();
 const notFound = vi.fn();
@@ -145,6 +145,18 @@ describe("AthletePage — état vide (ETAT-3)", () => {
 function ligneDe(container: HTMLElement, href: string): HTMLElement | null {
   return container.querySelector<HTMLElement>(`tr a[href='${href}']`)?.closest("tr") ?? null;
 }
+
+describe("AthletePage ?comparer= (#1701)", () => {
+  it("preselects the teammate but ignores the page's own athlete", async () => {
+    const charger = vi.spyOn(apiClient, "getAthlete").mockResolvedValue({ athlete: { ...ATHLETE, id: 9 }, participations: [], challenges: [] } as never);
+    getAthlete.mockResolvedValue({ athlete: ATHLETE, participations: [part({ id: 1 })], challenges: [] });
+    renderPage(await AthletePage({ params: Promise.resolve({ id: "7" }), searchParams: Promise.resolve({ comparer: "7" }) }));
+    expect(charger).not.toHaveBeenCalled();
+    renderPage(await AthletePage({ params: Promise.resolve({ id: "7" }), searchParams: Promise.resolve({ comparer: "9" }) }));
+    await vi.waitFor(() => expect(charger).toHaveBeenCalledWith(9));
+    charger.mockRestore();
+  });
+});
 
 describe("AthletePage", () => {
   it("rend le nom de l'athlète comme un <h1> (A11Y-2)", async () => {
@@ -465,7 +477,7 @@ describe("AthletePage", () => {
 
     expect(
       await screen.findByText(
-        "Choisir cet athlète pour retrouver ses résultats en un geste et voir sa saison en tête de Mon espace",
+        "Choisir cet athlète pour retrouver ses résultats en un geste.",
       ),
     ).toBeInTheDocument();
     expect(screen.getByTestId("athlete-avatar")).toHaveAttribute("data-selected", "false");
@@ -477,7 +489,7 @@ describe("AthletePage", () => {
 
     expect(await screen.findByText("C'est vous")).toBeInTheDocument();
     expect(screen.getByTestId("athlete-avatar")).toHaveAttribute("data-selected", "true");
-    expect(screen.queryByText(/voir sa saison en tête de Mon espace/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/retrouver ses résultats en un geste/)).not.toBeInTheDocument();
   });
 
   // --- KPI et participations en attente de validation (#438) ---

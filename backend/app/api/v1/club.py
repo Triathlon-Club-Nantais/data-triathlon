@@ -8,7 +8,14 @@ from app.core.database import get_db
 from app.core.exceptions import NotFoundError
 from app.core.season import SEASON_MAX, SEASON_MIN, parse_seasons
 from app.repositories import athlete_repository
-from app.schemas.club import ClubBestTime, ClubLastOuting, ClubPodiums, ClubRosterRank, ClubSummary
+from app.schemas.club import (
+    ClubBestTime,
+    ClubLastOuting,
+    ClubPodiums,
+    ClubRosterRank,
+    ClubSplitMedians,
+    ClubSummary,
+)
 from app.schemas.ids import DbId
 from app.services import club_service, stats_service
 
@@ -109,3 +116,19 @@ def get_club_roster_rank(
         raise NotFoundError("Athlète hors du roster club")
     rank, total = result
     return ClubRosterRank(rank=rank, total=total)
+
+
+@router.get("/club/split-medians", response_model=ClubSplitMedians)
+def get_club_split_medians(
+    event_type: str = Query(..., description="Format (`triathlon-m`, `duathlon-s`…) dont on veut la médiane des splits."),
+    federal_only: bool = Query(
+        False,
+        description="Exclut les disciplines hors fédération triathlon (trail, course à pied, cyclisme).",
+    ),
+    seasons: str | None = Query(None, description="Saisons (années de début, CSV) ; absentes, toutes saisons."),
+    db: Session = Depends(get_db),
+):
+    """Médiane club de la natation, du vélo et de la course d'un format, splits fiables seuls (#1699)."""
+    return club_service.get_club_split_medians(
+        db, event_type=event_type, federal_only=federal_only, seasons=parse_seasons(seasons)
+    )

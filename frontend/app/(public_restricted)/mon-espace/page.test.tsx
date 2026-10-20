@@ -2,14 +2,10 @@ import type { ReactNode } from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 
-const getStats = vi.fn();
-const listEvents = vi.fn();
 const listSeasons = vi.fn();
 
 vi.mock("@/lib/api/server", () => ({
   apiServer: {
-    getStats: (opts: unknown, fetchOpts?: unknown) => getStats(opts, fetchOpts),
-    listEvents: (filters: unknown, fetchOpts?: unknown) => listEvents(filters, fetchOpts),
     listSeasons: (opts: unknown, fetchOpts?: unknown) => listSeasons(opts, fetchOpts),
   },
   SHORT_REVALIDATE_SECONDS: 30,
@@ -47,56 +43,16 @@ vi.mock("next/link", () => ({
   ),
 }));
 
-// `MaSaison` (#502) est un composant client testé pour lui-même
-// (`components/dashboard/MaSaison.test.tsx`) : ici on ne vérifie que le
-// câblage — quelles props la page lui transmet, et à quelle place dans le
-// document. Le stub expose ses props reçues en attributs `data-*`.
-vi.mock("@/components/dashboard/MaSaison", () => ({
-  MaSaison: ({
-    clubEvents,
-    seasons,
-    federalOnly,
-  }: {
-    clubEvents: number;
-    seasons: string;
-    federalOnly: boolean | undefined;
-  }) => (
-    <div
-      data-testid="ma-saison-stub"
-      data-club-events={clubEvents}
-      data-seasons={seasons}
-      data-federal-only={String(federalOnly)}
-    />
+// Le shell est un composant client testé pour lui-même (`components/mon-espace/MonEspace.test.tsx`) :
+// ici on ne vérifie que ce que la page lui transmet.
+vi.mock("@/components/mon-espace/MonEspace", () => ({
+  MonEspace: ({ seasons, federalOnly }: { seasons: number[]; federalOnly: boolean }) => (
+    <div data-testid="mon-espace-stub" data-seasons={seasons.join(",")} data-federal-only={String(federalOnly)} />
   ),
-}));
-
-// `InvitationAthlete` (#588) est un composant client sans props, testé pour
-// lui-même (`components/dashboard/InvitationAthlete.test.tsx`) : ici on ne
-// vérifie que sa présence et sa place dans le document.
-// Carte client à session (#1373), éprouvée dans son propre test.
-vi.mock("@/components/dashboard/SeasonGoals", () => ({ SeasonGoals: () => null }));
-vi.mock("@/components/dashboard/InvitationAthlete", () => ({
-  InvitationAthlete: () => <div data-testid="invitation-athlete-stub" />,
 }));
 
 import MonEspacePage from "./page";
 
-const ZERO_BUCKET = { victories: 0, podiums: 0, top10: 0 };
-const STATS = {
-  total: 42,
-  athletes: 10,
-  events: 5,
-  by_type: { "Triathlon S": 30, "Duathlon M": 12 },
-  by_month: {},
-  recent: [],
-  rank_counters: {
-    scratch: ZERO_BUCKET,
-    category: ZERO_BUCKET,
-    all: ZERO_BUCKET,
-    gender: { women: ZERO_BUCKET, men: ZERO_BUCKET },
-  },
-};
-const EVENTS_PAGE = { items: [], total_events: 5, total_participations: 42 };
 const SEASONS = [
   { start_year: 2026, label: "Saison 2026", event_count: 5, participation_count: 42, is_current: true },
   { start_year: 2025, label: "Saison 2025", event_count: 3, participation_count: 20, is_current: false },
@@ -105,8 +61,6 @@ const SEASONS = [
 beforeEach(() => {
   vi.clearAllMocks();
   url.qs = "";
-  getStats.mockResolvedValue(STATS);
-  listEvents.mockResolvedValue(EVENTS_PAGE);
   listSeasons.mockResolvedValue(SEASONS);
 });
 
@@ -122,25 +76,10 @@ describe("MonEspacePage", () => {
     expect(screen.getByText("Mon espace")).toBeInTheDocument();
   });
 
-  it("force la portée club sur tous les appels API, même sans ?scope=club", async () => {
-    await renderDashboard({});
-
-    expect(getStats).toHaveBeenCalledWith(expect.objectContaining({ scope: "club" }), expect.anything());
-    expect(listEvents).not.toHaveBeenCalled();
-    expect(screen.queryByRole("heading", { name: "Dernières épreuves" })).toBeNull();
-  });
-
   it("demande une fenêtre de revalidation courte sur les appels (#352)", async () => {
     await renderDashboard({});
 
-    expect(getStats).toHaveBeenCalledWith(expect.anything(), { revalidateSeconds: 30 });
     expect(listSeasons).toHaveBeenCalledWith(expect.anything(), { revalidateSeconds: 30 });
-  });
-
-  it("ignore ?scope et reste sur le club même si l'URL demande « tous »", async () => {
-    await renderDashboard({ scope: undefined }); // pas de scope = ancien mode « Tous »
-
-    expect(getStats).toHaveBeenCalledWith(expect.objectContaining({ scope: "club" }), expect.anything());
   });
 
   it("ne rend plus le sélecteur de portée (Tous / Membres TCN)", async () => {
@@ -203,109 +142,21 @@ describe("MonEspacePage", () => {
     expect(screen.getByTestId("season-tags")).toHaveClass("justify-start", "lg:justify-end");
   });
 
-  it("exclut les autres disciplines par défaut et les inclut sur demande", async () => {
-    await renderDashboard({});
-    expect(getStats).toHaveBeenCalledWith(
-      expect.objectContaining({ federal_only: true }),
-      expect.anything(),
-    );
-
-    vi.clearAllMocks();
-    getStats.mockResolvedValue(STATS);
-    listEvents.mockResolvedValue(EVENTS_PAGE);
-    listSeasons.mockResolvedValue(SEASONS);
-
-    await renderDashboard({ sports: "all" });
-    expect(getStats).toHaveBeenCalledWith(
-      expect.objectContaining({ federal_only: undefined }),
-      expect.anything(),
-    );
-  });
 });
 
-describe("MonEspacePage — état vide unifié (NAV-6)", () => {
-  const STATS_VIDE = { ...STATS, total: 0, athletes: 0, events: 0, by_type: {} };
-  const EVENTS_PAGE_VIDE = { items: [], total_events: 0, total_participations: 0 };
+describe("MonEspacePage: shell", () => {
+  it("mounts the client shell with the selected seasons and the discipline filter", async () => {
+    await renderDashboard({ seasons: "2025", sports: "all" });
 
-  it("remplace toute la grille par un état vide unique quand stats.total === 0", async () => {
-    getStats.mockResolvedValue(STATS_VIDE);
-    listEvents.mockResolvedValue(EVENTS_PAGE_VIDE);
-
-    await renderDashboard({ seasons: "2015" });
-
-    expect(screen.getByText("Aucun résultat enregistré pour la saison 2015 — 2016")).toBeInTheDocument();
+    const shell = screen.getByTestId("mon-espace-stub");
+    expect(shell).toHaveAttribute("data-seasons", "2025");
+    expect(shell).toHaveAttribute("data-federal-only", "false");
   });
 
-  it("propose « Voir la saison en cours » quand la sélection n'est pas la saison en cours", async () => {
-    getStats.mockResolvedValue(STATS_VIDE);
-    listEvents.mockResolvedValue(EVENTS_PAGE_VIDE);
-
-    await renderDashboard({ seasons: "2015" });
-
-    const voir = screen.getByRole("link", { name: "Voir la saison en cours" });
-    expect(voir).toHaveAttribute("href", "/mon-espace");
-    expect(voir).toHaveClass("tcn-cible-tactile");
-  });
-
-  it("n'affiche pas « Voir la saison en cours » quand la saison en cours est déjà sélectionnée", async () => {
-    getStats.mockResolvedValue(STATS_VIDE);
-    listEvents.mockResolvedValue(EVENTS_PAGE_VIDE);
-
+  it("defaults to the federal filter", async () => {
     await renderDashboard({});
 
-    expect(screen.queryByRole("link", { name: "Voir la saison en cours" })).not.toBeInTheDocument();
-  });
-
-  it("garde le CTA « Ajouter une épreuve » dans l'état vide", async () => {
-    getStats.mockResolvedValue(STATS_VIDE);
-    listEvents.mockResolvedValue(EVENTS_PAGE_VIDE);
-
-    await renderDashboard({});
-
-    const ajouter = screen.getByRole("link", { name: "Ajouter une épreuve" });
-    expect(ajouter).toHaveAttribute("href", "/ajouter");
-    expect(ajouter).toHaveClass("tcn-cible-tactile");
-  });
-});
-
-describe("MonEspacePage — bande « Ma saison » (#502, NAV-9)", () => {
-  it("monte la bande avec les compteurs club et les filtres de la page, sur une sélection non vide", async () => {
-    getStats.mockResolvedValue({ ...STATS, events: 32 });
-
-    await renderDashboard({ seasons: "2025" });
-
-    const bande = screen.getByTestId("ma-saison-stub");
-    expect(bande).toHaveAttribute("data-club-events", "32");
-    expect(bande).toHaveAttribute("data-seasons", "2025");
-    // Aucun `?sports=all` dans l'URL : le défaut fédéral s'applique (#76).
-    expect(bande).toHaveAttribute("data-federal-only", "true");
-  });
-
-  it("ne monte pas la bande quand la sélection du club est vide — l'EmptyState porte déjà la sortie", async () => {
-    getStats.mockResolvedValue({ ...STATS, total: 0, athletes: 0, events: 0, by_type: {} });
-    listEvents.mockResolvedValue({ items: [], total_events: 0, total_participations: 0 });
-
-    await renderDashboard({ seasons: "2019" });
-
-    expect(screen.getByText(/Aucun résultat enregistré/)).toBeInTheDocument();
-    expect(screen.queryByTestId("ma-saison-stub")).not.toBeInTheDocument();
-  });
-});
-
-describe("MonEspacePage — invitation à choisir un athlète (#588)", () => {
-  it("monte l'invitation sur une sélection non vide", async () => {
-    await renderDashboard({});
-
-    expect(screen.getByTestId("invitation-athlete-stub")).toBeInTheDocument();
-  });
-
-  it("ne monte pas l'invitation quand la sélection du club est vide — l'EmptyState porte déjà la sortie", async () => {
-    getStats.mockResolvedValue({ ...STATS, total: 0, athletes: 0, events: 0, by_type: {} });
-    listEvents.mockResolvedValue({ items: [], total_events: 0, total_participations: 0 });
-
-    await renderDashboard({ seasons: "2019" });
-
-    expect(screen.queryByTestId("invitation-athlete-stub")).not.toBeInTheDocument();
+    expect(screen.getByTestId("mon-espace-stub")).toHaveAttribute("data-federal-only", "true");
   });
 });
 

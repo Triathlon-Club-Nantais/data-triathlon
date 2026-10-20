@@ -14,7 +14,7 @@ import { seasonLabel, seasonOf } from "@/lib/utils/season";
 /**
  * Récap d'une saison close de l'athlète rattaché (#1372) : ses seules lignes,
  * aucun classement d'autrui. Les chiffres suivent les règles déjà en place :
- * podium de « Ma saison » (`isPodium`), meilleurs temps de la fiche (#1361).
+ * podium de Mon espace (`isPodium`), meilleurs temps de la fiche (#1361).
  */
 export function SeasonRecap({ season, lastClosed }: { season: number; lastClosed: number }) {
   const session = useHydratedSession();

@@ -56,3 +56,16 @@ class AdminVolunteerActionOut(BaseModel):
     status: str
     declared_by_user_id: int | None
     created_at: datetime
+
+
+class MyVolunteerActionOut(BaseModel):
+    """Mes actions validées (#1696) : ni l'auteur de la déclaration ni l'identité de la fiche."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    season: int
+    title: str | None
+    description: str | None
+    status: str
+    created_at: datetime

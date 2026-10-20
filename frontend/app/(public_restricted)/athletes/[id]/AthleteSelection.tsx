@@ -81,7 +81,7 @@ export function AthleteSelection({
         Choisir cet athlète
       </Button>
       <p id={BENEFICE_ID} style={{ margin: 0, fontSize: 13, lineHeight: 1.45, color: "var(--tcn-text-muted)" }}>
-        Choisir cet athlète pour retrouver ses résultats en un geste et voir sa saison en tête de Mon espace
+        Choisir cet athlète pour retrouver ses résultats en un geste.
       </p>
     </div>
   );

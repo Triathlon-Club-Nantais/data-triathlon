@@ -209,7 +209,7 @@ type Etat = "idle" | "chargement" | "ok" | "echec";
  * `GET /athletes/{id}` rend déjà toutes les participations de l'athlète
  * choisi en un seul appel — pas de nouveau contrat API pour cette US.
  */
-export function AthleteComparisonChart({ mine }: { mine: Participation[] }) {
+export function AthleteComparisonChart({ mine, preselect }: { mine: Participation[]; preselect?: number }) {
   const [query, setQuery] = useState("");
   const debouncedQuery = useDebounce(query, 300);
   const [results, setResults] = useState<AthleteSearchResult[]>([]);
@@ -231,6 +231,16 @@ export function AthleteComparisonChart({ mine }: { mine: Participation[] }) {
       champRecherche.current?.focus();
     }
   }, [selected]);
+
+  // `?comparer=<id>` (#1701) : le coéquipier arrive déjà choisi ; sans le paramètre, rien ne change.
+  // Le nom provisoire est remplacé par celui de la réponse, y compris après « Réessayer ».
+  useEffect(() => {
+    if (preselect === undefined) return;
+    const provisoire = { id: preselect, prenom: "cet", nom: "athlète", gender: "", club: null, participation_count: 0 };
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSelected(provisoire);
+    charger(provisoire);
+  }, [preselect]);
 
   const search = debouncedQuery.trim();
 
@@ -261,6 +271,8 @@ export function AthleteComparisonChart({ mine }: { mine: Participation[] }) {
       .getAthlete(athlete.id)
       .then((detail) => {
         if (numero !== requete.current) return;
+        const { athlete: nom } = detail;
+        if (nom) setSelected({ id: nom.id, nom: nom.nom, prenom: nom.prenom, gender: nom.gender, club: nom.club, participation_count: detail.participations.length });
         setTheirs(detail.participations);
         setEtat("ok");
       })

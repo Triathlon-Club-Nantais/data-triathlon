@@ -615,7 +615,7 @@ def list_for_athlete(
 
     Les deux filtres sont **neutres par défaut** : la fiche athlète
     (`GET /athletes/{id}` sans paramètre) continue de rendre une carrière
-    entière. Ils n'existent que pour la bande « Ma saison » du tableau de bord,
+    entière. Ils n'existent que pour Mon espace,
     qui doit compter sur exactement la même base que les compteurs club — d'où
     les mêmes clauses que `for_stats`, et non une recopie.
     """
@@ -1304,6 +1304,31 @@ def stats_rank_rows(
     return q.all()
 
 
+def club_outing_rank_rows(
+    db: Session,
+    *,
+    seasons: list[int],
+    federal_only: bool,
+    dates: tuple[date, date],
+) -> list[tuple]:
+    """`(course_id, nom, type, rank_overall, rank_category, rank_gender, gender)`
+    des résultats TCN validés de la fenêtre, une ligne par participation (#1660)."""
+    q = (
+        db.query(
+            Course.id, Course.name, Course.event_type,
+            Participation.rank_overall, Participation.rank_category,
+            Participation.rank_gender, Athlete.gender,
+        )
+        .select_from(Participation)
+        .join(Athlete, Participation.athlete_id == Athlete.id)
+        .join(Course, Participation.course_id == Course.id)
+        .filter(validated_clause(Participation.is_pending_validation))
+    )
+    return _stats_filters(
+        q, club_only=True, seasons=seasons, federal_only=federal_only, dates=dates
+    ).all()
+
+
 def latest_club_event_date(db: Session, *, seasons: list[int], federal_only: bool = False) -> date | None:
     """Date de la dernière épreuve des `seasons` portant un résultat TCN validé (#1619)."""
     q = (
@@ -1412,6 +1437,76 @@ def club_best_time_rows(db: Session, *, season: int | None = None, federal_only:
     if federal_only:
         q = q.filter(federal_clause(Course.event_type))
     return q.all()
+
+
+def club_split_rows(db: Session, *, event_type: str, federal_only: bool = False, seasons: list[int] | None = None):
+    """Participations du club avec splits, d'un format donné (#1699), pour la médiane des inters.
+
+    Mêmes exclusions de ligne que `club_best_time_rows`. La fiabilité du fournisseur
+    (`Course.provider` n'a pas d'expression SQL) se juge côté service, sur l'entité.
+    """
+    q = (
+        db.query(Participation)
+        .join(Course, Participation.course_id == Course.id)
+        .options(contains_eager(Participation.course).selectinload(Course.sources))
+        .filter(validated_clause(Participation.is_pending_validation))
+        .filter(Participation.counts_for_tcn.is_(True))
+        .filter(Participation.is_relay.is_(False), func.coalesce(Course.is_relay, False).is_(False))
+        .filter(Participation.status == STATUS_FINISHER)
+        .filter(Participation.splits.isnot(None))
+        .filter(Course.event_type == event_type)
+    )
+    if federal_only:
+        q = q.filter(federal_clause(Course.event_type))
+    if seasons:
+        q = q.filter(season_clause(seasons))
+    return q.all()
+
+
+def teammate_rows(db: Session, *, athlete_id: int, federal_only: bool = False, seasons: list[int] | None = None):
+    """`(id, prenom, nom, épreuves en commun)` des membres du club passés sur mes épreuves (#1701).
+
+    Mêmes exclusions de ligne que `club_split_rows`, appliquées aux deux côtés de l'appariement.
+    """
+    mine = aliased(Participation)
+    q = (
+        db.query(Athlete.id, Athlete.prenom, Athlete.nom, func.count(func.distinct(Participation.course_id)))
+        .select_from(Participation)
+        .join(Athlete, Participation.athlete_id == Athlete.id)
+        .join(mine, and_(mine.course_id == Participation.course_id, mine.athlete_id == athlete_id))
+        .join(Course, Participation.course_id == Course.id)
+        .filter(Participation.athlete_id != athlete_id)
+    )
+    for row in (Participation, mine):
+        q = q.filter(
+            validated_clause(row.is_pending_validation),
+            row.counts_for_tcn.is_(True),
+            row.is_relay.is_(False),
+            row.status == STATUS_FINISHER,
+        )
+    q = q.filter(func.coalesce(Course.is_relay, False).is_(False))
+    if federal_only:
+        q = q.filter(federal_clause(Course.event_type))
+    if seasons:
+        q = q.filter(season_clause(seasons))
+    return q.group_by(Athlete.id, Athlete.prenom, Athlete.nom).all()
+
+
+def course_split_gap_rows(db: Session, course_ids: list[int]):
+    """Colonnes (course, total, splits) de toutes les lignes validées avec splits de ces épreuves.
+
+    Sert de population à la médiane d'écart d'une épreuve (#1699), club ou non.
+    """
+    if not course_ids:
+        return []
+    return (
+        db.query(Participation.course_id, Participation.total_time, Participation.splits)
+        .filter(Participation.course_id.in_(course_ids))
+        .filter(validated_clause(Participation.is_pending_validation))
+        .filter(Participation.is_relay.is_(False))
+        .filter(Participation.splits.isnot(None))
+        .all()
+    )
 
 
 def _grouped_events_query(
