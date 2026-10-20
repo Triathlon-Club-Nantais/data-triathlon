@@ -152,6 +152,12 @@ describe("BandeauDirect", () => {
       expect(outing().querySelector(".tcn-carte-sortie-contenu")).toContainElement(lien);
     });
 
+    it("declares a shrinkable grid column so long names truncate instead of widening the rows", () => {
+      render(<BandeauDirect resultatsHref="/resultats" sortie={sortie(trois)} stats={STATS} seasons={[2026]} today={TODAY} />);
+      const liste = within(outing()).getAllByRole("listitem")[0].parentElement;
+      expect(liste?.style.gridTemplateColumns).toBe("minmax(0, 1fr)");
+    });
+
     it("gives the TCN count an accessible name and hides the bare number", () => {
       render(<BandeauDirect resultatsHref="/resultats" sortie={sortie(trois)} stats={STATS} seasons={[2026]} today={TODAY} />);
       const lien = within(outing()).getByRole("link", { name: /Triathlon de Nantes/ });
