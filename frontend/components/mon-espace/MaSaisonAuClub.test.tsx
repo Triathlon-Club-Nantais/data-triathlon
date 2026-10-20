@@ -58,6 +58,20 @@ describe("MaSaisonAuClub", () => {
     expect(await screen.findByText(/2 épreuves comptées/)).toBeInTheDocument();
   });
 
+  it("does not show more events than required", async () => {
+    getMySeasonQuota.mockResolvedValue(quota({ validated_count: 5 }));
+    afficher();
+    expect(await screen.findByText(/objectif de 3 atteint/)).toBeInTheDocument();
+    expect(screen.queryByText(/5 épreuves comptées sur 3/)).toBeNull();
+    expect(screen.getByText(/aucune action déclarée/)).toBeInTheDocument();
+  });
+
+  it("shows a short message on network error", async () => {
+    getMySeasonQuota.mockRejectedValue(new Error("boom"));
+    afficher();
+    expect(await screen.findByText(/Impossible d.afficher votre saison/)).toBeInTheDocument();
+  });
+
   it("renders nothing when the API returns null", async () => {
     getMySeasonQuota.mockResolvedValue(null);
     const { container } = afficher();
