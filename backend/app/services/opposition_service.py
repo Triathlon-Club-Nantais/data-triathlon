@@ -297,7 +297,15 @@ def apply(
 
 def apply_for_member(db: Session, user: User) -> AthleteOpposition:
     """Un adhérent rattaché s'oppose pour lui-même (#1673) ; ses homonymes passent par le club."""
-    if preview(db, athlete_id=user.athlete_id).athletes != 1:
+    nom, prenom = _identity(db, user.athlete_id, None, None)
+    key = opposition_key(nom, prenom)
+    # Limite acceptée : un homonyme licencié sans fiche n'est pas détecté ; la vérification et l'écriture
+    # ne sont pas atomiques, un homonyme créé entre les deux par un import concurrent serait inclus.
+    licensed_elsewhere = any(
+        member_athlete_id not in (None, user.athlete_id) and opposition_key(last_name, first_name) == key
+        for _, last_name, first_name, member_athlete_id in club_member_repository.list_identities(db)
+    )
+    if licensed_elsewhere or preview(db, athlete_id=user.athlete_id).athletes != 1:
         raise DuplicateError(
             "Votre nom correspond à plusieurs fiches. Écrivez au club pour exercer votre droit d'opposition."
         )

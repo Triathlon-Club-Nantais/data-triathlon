@@ -4,6 +4,7 @@ import pytest
 from app.models.admin_action_log import AdminActionLog
 from app.models.athlete import Athlete
 from app.models.athlete_opposition import AthleteOpposition
+from app.models.club_member import LINK_AUTO, SOURCE_FFTRI, ClubMember
 from app.models.participation import Participation
 from app.models.user import User
 from app.repositories import athlete_repository, course_repository, participation_repository
@@ -117,3 +118,35 @@ def test_homonyms_are_refused_with_write_to_the_club(client, db_session, course,
     assert db_session.get(Athlete, athlete_id) is not None
     assert db_session.get(User, member.id).athlete_id == athlete_id
     assert db_session.query(AthleteOpposition).count() == 0
+
+
+def _licence(db_session, athlete_id, season, licence_id):
+    db_session.add(ClubMember(
+        season=season, licence_id=licence_id, nom="Martin", prenom="Léa",
+        athlete_id=athlete_id, link_status=LINK_AUTO, source=SOURCE_FFTRI,
+    ))
+
+
+def test_a_homonym_licence_linked_elsewhere_refuses_and_changes_nothing(client, db_session, course, member, lea):
+    other = _athlete(db_session, course, "DURAND", "Paul", "2")
+    _licence(db_session, other.id, 2025, "L-other")
+    db_session.commit()
+    athlete_id = lea.id
+
+    response = client.post(APPLY)
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == HOMONYMS_MESSAGE
+    db_session.expire_all()
+    assert db_session.get(Athlete, athlete_id) is not None
+    assert db_session.query(ClubMember).count() == 1
+    assert db_session.query(AthleteOpposition).count() == 0
+
+
+def test_the_member_own_licences_do_not_block_and_are_removed(client, db_session, member, lea):
+    _licence(db_session, lea.id, 2025, "L-own-1")
+    _licence(db_session, None, 2026, "L-own-2")
+    db_session.commit()
+
+    assert client.post(APPLY).status_code == 204
+    assert db_session.query(ClubMember).count() == 0
