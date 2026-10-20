@@ -38,8 +38,10 @@ def _payload(bib="42", nom="DUPONT", club="TCN"):
 
 def _created(client, db_session, payload=None):
     """Saisie publique, puis sa ligne relue en base : la réponse ne porte plus d'identifiant (#1724)."""
+    before = db_session.query(Participation).count()
     resp = client.post("/api/v1/participations", json=payload or _payload())
     assert resp.status_code == 201, resp.text
+    assert db_session.query(Participation).count() == before + 1
     return db_session.query(Participation).order_by(Participation.id.desc()).first()
 
 
@@ -143,13 +145,11 @@ def test_get_missing_404(client):
     assert client.get("/api/v1/participations/9999").status_code == 404
 
 
-def test_is_pending_validation_est_force_a_la_creation(client):
+def test_is_pending_validation_est_force_a_la_creation(client, db_session):
     """FR-016 — et un client qui tente de poser `false` lui-même ne le peut pas."""
     payload = _payload()
     payload["is_pending_validation"] = False
-    resp = client.post("/api/v1/participations", json=payload)
-    assert resp.status_code == 201
-    assert resp.json()["is_pending_validation"] is True
+    assert _created(client, db_session, payload).is_pending_validation is True
 
 
 def test_distance_km_saisie_est_transmise_a_l_epreuve(client, db_session):
@@ -160,14 +160,13 @@ def test_distance_km_saisie_est_transmise_a_l_epreuve(client, db_session):
     assert _created(client, db_session, payload).course.distance_km == 42.5
 
 
-def test_sortie_porte_les_nouveaux_champs(client):
+def test_sortie_porte_les_nouveaux_champs(client, db_session):
     payload = _payload(bib="99")
     payload["team_name"] = "Les Foulées"
     payload["evidence_url"] = "https://club.example/resultats"
-    resp = client.post("/api/v1/participations", json=payload)
-    body = resp.json()
-    assert body["team_name"] == "Les Foulées"
-    assert body["evidence_url"] == "https://club.example/resultats"
+    row = _created(client, db_session, payload)
+    assert row.team_name == "Les Foulées"
+    assert row.evidence_url == "https://club.example/resultats"
 
 
 def test_evidence_url_ne_cree_aucune_source_de_scraping(client, db_session):

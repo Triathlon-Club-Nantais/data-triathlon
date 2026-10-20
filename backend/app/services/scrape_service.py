@@ -83,6 +83,7 @@ def save_public_entry(db: Session, scraped: ScrapedResult) -> ParticipationOut:
         )
     athlete = mapping.get_or_create_athlete(db, scraped, event_date=course.event_date)
     fields = mapping.participation_fields(scraped, athlete_id=athlete.id, course_id=course.id)
+    # shortcut: the answer only feeds tests/conftest.py::save_entry; once epic #1704 frees conftest, return None and drop the bib-less insert and the bib_number patch.
     participation = None if holder else participation_repository.create_unless_bib_taken(db, **fields)
     taken = participation is None
     if taken:

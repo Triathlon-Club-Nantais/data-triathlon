@@ -139,7 +139,7 @@ CORPS_RESULTAT = {
 }
 
 
-def test_creer_un_resultat_reste_public(client):
+def test_creer_un_resultat_reste_public(client, db_session):
     """#270 — la route redevient publique : un membre sans compte peut saisir.
 
     Ce que #115 protégeait (l'injection anonyme d'un résultat) est désormais
@@ -149,7 +149,7 @@ def test_creer_un_resultat_reste_public(client):
     reponse = client.post("/api/v1/participations", json=CORPS_RESULTAT)
 
     assert reponse.status_code == 201
-    assert reponse.json()["is_pending_validation"] is True
+    assert db_session.query(Participation).one().is_pending_validation is True
     assert not client.cookies, "le test doit passer sans le moindre cookie"
 
 

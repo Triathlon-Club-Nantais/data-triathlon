@@ -224,4 +224,4 @@ class ParticipationSubmitted(ParticipationCreate):
     """
 
     source_url: str = Field("", exclude=True)
-    is_pending_validation: bool = True
+    is_pending_validation: Literal[True] = True
