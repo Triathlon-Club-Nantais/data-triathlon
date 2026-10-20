@@ -198,12 +198,12 @@ appliquée lot par lot. Les lots et leur statut :
 
      ```bash
      uv run --with pytest-cov pytest <tests> --cov=<module> --cov-report=term-missing -n 0
-     npx vitest run <tests> --coverage --coverage.include=<source>
+     npx vitest run <tests> --coverage --coverage.include=<source> --coverage.reporter=text
      ```
 
-     Côté frontend, `--coverage` exige `@vitest/coverage-v8`, absent des
-     dépendances au 20/10 : le premier lot frontend l'ajoute en dépendance de
-     dev, à la version de `vitest`.
+     Côté frontend, `--coverage` passe par `@vitest/coverage-v8` (dépendance
+     de dev épinglée à la version de `vitest`) ; la couverture reste désactivée
+     par défaut dans `vitest.config.ts`, et `frontend/coverage/` est gitignoré.
 
    - score de mutation (section « Mutation » ci-dessus), avec la liste des
      survivants pour vérifier ensuite que l'ensemble des mutants est le même.
