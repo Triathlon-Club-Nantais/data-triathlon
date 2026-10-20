@@ -1046,6 +1046,14 @@ export interface SessionUser {
   athlete_claim: AthleteClaim | null;
 }
 
+/** Moyen de connexion lié au compte de la session (#1663). */
+export interface AccountIdentity {
+  provider: string;
+  label: string;
+  email: string;
+  created_at: string;
+}
+
 export interface ClaimedAthlete {
   id: number;
   prenom: string;

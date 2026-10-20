@@ -49,6 +49,11 @@ globale en carte de bas de page. Pas d'écran ni d'entrée de navigation
 dédiés — un unique bouton ne les justifiait pas. Jumelle de la CLI, la
 redondance étant le but : le back-office suppose une session, la CLI non.
 
+**`mon-compte`** (#1663) est aussi une route sœur : supprimer son compte ne
+doit pas dépendre du code d'accès au site. Sa garde est celle d'`encadrement`
+(`spaceRefusal`, `app/mon-compte/layout.tsx`) avec un pouvoir toujours accordé :
+elle ne fait que renvoyer un anonyme vers `/login`.
+
 ## Textes légaux (#333)
 
 **Textes légaux** (#333) : `/mentions-legales`, `/confidentialite`, `/cgu`
