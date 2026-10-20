@@ -20,10 +20,14 @@ const MESSAGE_DUREE = "Format attendu H:MM:SS (par exemple 2:30:00).";
  * cours. Une saison passée est en lecture seule (création bornée à la saison en cours).
  */
 export function SeasonGoals({ seasons }: { seasons: number[] }) {
+  const saison = seasons.length === 1 ? seasons[0] : currentSeason();
+  // `key` : changer de saison referme tout formulaire ou confirmation ouverts.
+  return <CarteObjectifs key={saison} saison={saison} plusieurs={seasons.length > 1} />;
+}
+
+function CarteObjectifs({ saison, plusieurs }: { saison: number; plusieurs: boolean }) {
   const session = useHydratedSession();
   const rattache = Boolean(session.data?.athlete);
-  const plusieurs = seasons.length !== 1;
-  const saison = plusieurs ? currentSeason() : seasons[0];
   const modifiable = saison === currentSeason();
   const goals = useSeasonGoals(rattache, saison);
   const [edition, setEdition] = useState<SeasonGoal | "nouveau" | null>(null);
@@ -50,7 +54,7 @@ export function SeasonGoals({ seasons }: { seasons: number[] }) {
             <p style={{ marginTop: 12, color: "var(--tcn-text-muted)" }}>
               {modifiable
                 ? "Aucun objectif pour cette saison. Fixez un temps à battre ou un nombre d'épreuves."
-                : "Aucun objectif pour cette saison."}
+                : "Aucun objectif sur cette saison. Les objectifs se fixent sur la saison en cours."}
             </p>
           )}
           <ul style={{ listStyle: "none", padding: 0, margin: "12px 0 0", display: "grid", gap: 12 }}>
@@ -175,11 +179,11 @@ function libelle(goal: SeasonGoal): string {
   const format = goal.event_type ? eventTypeLabel(goal.event_type) : null;
   if (goal.kind === "time") return `${format} en moins de ${hms(goal.target)}`;
   const epreuves = `${goal.target} ${goal.target > 1 ? "épreuves" : "épreuve"}`;
-  return format ? `${epreuves} de ${format}` : `${epreuves} cette saison`;
+  return format ? `${epreuves} de ${format}` : epreuves;
 }
 
 function progression(goal: SeasonGoal): string {
-  if (goal.kind === "time") return goal.best_time ? `Meilleur temps : ${goal.best_time}` : "Pas encore de temps cette saison";
+  if (goal.kind === "time") return goal.best_time ? `Meilleur temps : ${goal.best_time}` : "Aucun temps sur la saison";
   return `${goal.count ?? 0} sur ${goal.target}`;
 }
 

@@ -942,8 +942,7 @@ export const apiClient = {
   getMyVolunteerActions: () => request<MyVolunteerActionOut[]>("/auth/me/volunteer-actions"),
   getMyTeammates: (opts: { federal_only?: boolean; seasons?: number[] } = {}) =>
     request<Teammate[]>(`/auth/me/teammates${toQuery(opts as Record<string, unknown>)}`),
-  getSeasonGoals: (season?: number) =>
-    request<SeasonGoal[]>(season === undefined ? "/auth/me/goals" : `/auth/me/goals?season=${season}`),
+  getSeasonGoals: (season: number) => request<SeasonGoal[]>(`/auth/me/goals?season=${season}`),
   createSeasonGoal: (body: SeasonGoalWrite) =>
     request<SeasonGoal>("/auth/me/goals", { method: "POST", body: JSON.stringify(body) }),
   updateSeasonGoal: (id: number, body: SeasonGoalWrite) =>

@@ -112,7 +112,7 @@ describe("MonEspace access", () => {
     expect(screen.queryByTestId("ecart")).toBeNull();
   });
 
-  it("still renders the tabs (goals included) when the selected season has no club race (#1668)", async () => {
+  it("still renders the tabs when the selected season has no club race (#1668)", async () => {
     getSession.mockResolvedValue(session({ athlete: LEA }));
     getAthlete.mockResolvedValue(detail([]));
     afficher();
