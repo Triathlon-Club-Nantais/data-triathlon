@@ -7,6 +7,7 @@ import type { Participation } from "@/lib/types";
 import { compteMaSaison } from "@/lib/utils/ma-saison";
 import { currentSeason, seasonOf } from "@/lib/utils/season";
 import { DernierResultat } from "./DernierResultat";
+import { MaSaisonAuClub } from "./MaSaisonAuClub";
 import { MesDemandes } from "./MesDemandes";
 import { MaPlaceAuClub } from "./MaPlaceAuClub";
 import { MesCoequipiers } from "./MesCoequipiers";
@@ -60,6 +61,7 @@ export function ColonneDroite({
 
   return (
     <>
+      <MaSaisonAuClub />
       <MesDemandes />
       <DernierResultat participation={dernier} record={record} />
       <MaPlaceAuClub athleteId={athleteId} seasons={seasons} federalOnly={federalOnly} />
