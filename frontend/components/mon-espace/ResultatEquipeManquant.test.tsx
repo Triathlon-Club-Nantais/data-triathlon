@@ -61,6 +61,7 @@ describe("ResultatEquipeManquant (#1739)", () => {
     expect(screen.getByRole("status")).toHaveTextContent("1 résultat d'équipe");
     expect(screen.getByLabelText("Nom de l'équipe")).toHaveAttribute("maxlength", "80");
     expect(screen.getByLabelText("Nom de l'équipe")).toHaveAccessibleDescription("Au moins 3 caractères.");
+    expect(screen.getByRole("button", { name: "Chercher" })).toHaveAccessibleDescription("Au moins 3 caractères.");
   });
 
   it("bouton_chercher_inerte_sous_trois_caracteres", async () => {

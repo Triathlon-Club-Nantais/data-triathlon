@@ -38,11 +38,11 @@ export function ResultatEquipeManquant() {
   async function envoyer(equipe: TeamResult) {
     if (demander.isPending) return;
     try {
-      await demander.mutateAsync({ participationId: equipe.participation_id, kind: "team" });
       aFocaliser.current = equipe.participation_id;
+      await demander.mutateAsync({ participationId: equipe.participation_id, kind: "team" });
       setAnnonce(`Demande envoyée pour ${equipe.team_name}, le club va vérifier.`);
     } catch {
-      // l'erreur s'affiche via demander.error
+      aFocaliser.current = null; // l'erreur s'affiche via demander.error
     }
   }
 
@@ -111,7 +111,7 @@ export function ResultatEquipeManquant() {
         <p id="resultat-equipe-aide" style={{ ...texteDiscret, margin: 0 }}>
           Au moins {MIN_CARACTERES} caractères.
         </p>
-        <Button type="submit" variant="secondary" aria-disabled={!assez || undefined}>
+        <Button type="submit" variant="secondary" aria-disabled={!assez || undefined} aria-describedby="resultat-equipe-aide">
           Chercher
         </Button>
       </form>
