@@ -337,7 +337,7 @@ Règles d'import, saison qui compte, statut et purge : `docs/auth/membres.md`.
 # Suppression des comptes (#1326)
 
 `services/auth/accounts.py`, spec `specs/20261012-134400-suppression-comptes/`.
-Deux appelants : `DELETE /auth/me` (le titulaire, menu « Supprimer mon compte »)
+Deux appelants : `DELETE /auth/me` (le titulaire, page « Mon compte », `/mon-compte`)
 et `purge-retention` (comptes **sans rôle** inactifs depuis 5 ans, même date
 du calendrier, `accounts.inactivity_cutoff`, un 29 février devenant le 28).
 Un compte **désactivé** sans rôle expire lui aussi : la désactivation (retrait

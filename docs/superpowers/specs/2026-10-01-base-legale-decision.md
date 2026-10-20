@@ -117,7 +117,7 @@ appliquent dès #334.
 | Résultats et athlètes | tant que le service existe (archive sportive du club), sauf opposition | tenu de fait |
 | Signalements, dont l'adresse IP | 12 mois après leur dépôt | tenu (`purge-retention`, #1158) |
 | Journal des actions d'administration | 12 mois | tenu (`purge-retention`, #1158) |
-| Compte | jusqu'à sa suppression depuis le menu du compte, ou 5 ans sans connexion pour un compte sans rôle | tenu (#1326 : suppression en libre service, `purge-retention`) |
+| Compte | jusqu'à sa suppression depuis la page Mon compte, ou 5 ans sans connexion pour un compte sans rôle | tenu (#1326 : suppression en libre service, `purge-retention`) |
 | Session de connexion | 7 jours | tenu (`auth_session_ttl_days`) |
 | Cookie du code d'accès | 90 jours | tenu (`site_access_session_ttl_days`) |
 | Profils jeunes | durée de l'adhésion, plus une saison | tenu dès qu'un encadrant saisit la fin d'adhésion (`purge-retention`, #1158) |
@@ -294,7 +294,7 @@ est le fournisseur de son propre compte et ne reçoit rien du site.
 **Traitement.** Depuis l'ouverture de la connexion aux adhérents (#1322), toute
 personne qui se connecte laisse un compte. Sa durée de conservation devient :
 
-- **jusqu'à sa suppression par son titulaire**, depuis le menu du compte
+- **jusqu'à sa suppression par son titulaire**, depuis la page Mon compte
   (« Supprimer mon compte ») ; la suppression est physique et emporte le
   compte, ses identités de connexion, ses sessions, ses rôles et ses groupes.
   Les résultats et la fiche athlète restent : ce sont des données de l'archive
