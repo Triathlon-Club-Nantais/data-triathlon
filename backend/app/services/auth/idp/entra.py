@@ -42,6 +42,7 @@ class EntraIdentityProvider:
 
     slug = "entra"
     label = "Google ou code par e-mail"
+    audience = "member"
 
     def __init__(
         self, transport_factory: Callable[[], httpx.BaseTransport] | None = None

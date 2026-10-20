@@ -8,7 +8,21 @@ def test_les_methodes_configurees_sont_rendues(client):
     reponse = client.get(URL)
 
     assert reponse.status_code == 200
-    assert reponse.json() == [{"slug": "github", "label": "GitHub"}]
+    assert reponse.json() == [{"slug": "github", "label": "GitHub", "audience": "admin"}]
+
+
+def test_github_is_an_admin_method(client):
+    assert client.get(URL).json() == [
+        {"slug": "github", "label": "GitHub", "audience": "admin"}
+    ]
+
+
+def test_a_provider_without_audience_is_listed_as_member(client, doublure):
+    response = client.get(URL)
+
+    assert response.status_code == 200
+    by_slug = {method["slug"]: method for method in response.json()}
+    assert by_slug["doublure"]["audience"] == "member"
 
 
 def test_la_liste_d_autorisation_n_est_pas_interrogee(
@@ -32,7 +46,7 @@ def test_la_liste_d_autorisation_n_est_pas_interrogee(
     reponse = client.get(URL)
 
     assert reponse.status_code == 200
-    assert reponse.json() == [{"slug": "github", "label": "GitHub"}]
+    assert reponse.json() == [{"slug": "github", "label": "GitHub", "audience": "admin"}]
 
 
 def test_une_authentification_non_configuree_ne_propose_aucune_methode(client, monkeypatch):
