@@ -36,7 +36,7 @@ Ordre : lots 1 à 4, puis lignes décroissantes. « Tests » compte les tests
 collectés (un cas de `parametrize` ou de `it.each` compte pour un), y compris
 les tests `integration` et `migrations`.
 
-État au 20/10/2026, après le lot 2 : 614 fichiers, 136 020 lignes, 10 445 tests,
+État au 21/10/2026, après le lot 3 : 614 fichiers, 135 851 lignes, 10 424 tests,
 153 lots.
 
 ## Lots
@@ -45,7 +45,7 @@ les tests `integration` et `migrations`.
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | test_raceresult.py | `test_raceresult.py` (sous `backend/tests/`) | `backend/app/scrapers/raceresult.py` | 4132 | 377 | gardé (tâche 12) : tests 381 → 377, mutation 1613/2074 → 1613/2074, couverture 95,6 % → 95,6 % |
 | 2 | test_import_service.py | `test_import_service.py` (sous `backend/tests/test_services/`) | `backend/app/services/import_service.py` | 2962 | 162 | gardé (tâche 13) : tests 169 → 162, mutation 225/389 → 225/389, couverture 96,2 % → 96,2 % |
-| 3 | RaceFinishers.test.tsx | `RaceFinishers.test.tsx` (sous `frontend/components/results/`) | `frontend/components/results/RaceFinishers.tsx` | 1758 | 134 | à faire (tâche 14) |
+| 3 | RaceFinishers.test.tsx | `RaceFinishers.test.tsx` (sous `frontend/components/results/`) | `frontend/components/results/RaceFinishers.tsx` | 1589 | 113 | gardé (tâche 14) : tests 134 → 113, mutation 451/749 → 447/730, couverture 98,5 % → 98,5 % |
 | 4 | AppNav.test.tsx | `AppNav.test.tsx` (sous `frontend/components/layout/`) | `frontend/components/layout/AppNav.tsx` | 1925 | 137 | à faire (tâche 15) |
 | 5 | backend test_api/ | 48 fichiers (sous `backend/tests/test_api/`) | `backend/app/api/` | 11936 | 888 | à faire (tâche 16) |
 | 6 | backend test_auth/ | 56 fichiers (sous `backend/tests/test_auth/`) | `backend/app/services/auth/` | 11209 | 1075 | à faire (tâche 16) |
@@ -324,6 +324,61 @@ Envisagé, écarté :
   chacun tient un montage et un invariant distincts.
 - Les tests de requêtes par lot (#706, #1503) : déjà paramétrés ou de
   montages distincts.
+
+## Lot 3 : `RaceFinishers.test.tsx`
+
+Gardé. Code couvert : `components/results/RaceFinishers.tsx` (162
+instructions, 754 mutants, fichier entier : pas de restriction).
+
+| Mesure | Avant | Après |
+| --- | --- | --- |
+| Tests collectés | 134 | 113 |
+| Appels `it` et `it.each` | 134 | 103 |
+| Lignes | 1758 | 1589 |
+| Mutation, concurrence 3 (tués / tués + survivants) | 451/749 (60,2 %) | 447/730 (61,2 %) |
+| Timeouts | 0 | 19 |
+| Couverture de lignes (fichier seul) | 135/137 (98,5 %) | 135/137 (98,5 %) |
+
+Verdict identique sur les 730 mutants tranchés par les deux exécutions. Des 19
+timeouts de l'après, 15 survivaient avant et 4 étaient tués : ces 4 sont tués
+par le fichier consolidé dans l'exécution à concurrence 7. Aucun mutant tué
+avant n'est perdu. Couverture identique sur les quatre mesures (instructions
+160/162, branches 253/262, fonctions 51/53), mêmes lignes manquées (550-557).
+La mesure a d'abord exigé de corriger le runner Stryker (tout test sous un
+`describe` était sauté, cf. `docs/tests-boucle.md`, « Mutation »).
+
+Fait :
+
+- `it.each` : la ventilation du pied de tableau (4 cas, texte exact y compris
+  pour 1811 participants, au lieu d'une expression rationnelle partielle) ; le
+  saut de page hors bornes et vers la première page ; le choix de taille de
+  page (2) ; « Aller à ma ligne » sur page indifférente et sans le périmètre
+  club (les deux vérifient l'URL exacte `/courses/1?q=Thomas+DNFGUY`) ; « ne
+  figure pas » avec et sans périmètre club ; les quatre cas négatifs du
+  marqueur d'écart. Aucun `if` dans un corps paramétré.
+- Montages qui se prolongent, fusionnés (toutes les assertions gardées) :
+  liens de pagination et `aria-describedby` ; recherche sans résultat dans le
+  test #M3 ; filtre club seul (message, puis sortie) ; tri par segment (ordre
+  du backend, `BUTTON`, croissant, décroissant) ; tri par temps total
+  croissant puis décroissant ; lien de ligne et liens de chaque ligne ; arrêt
+  de tabulation, préchargement, repère d'attente et sa position en une boucle
+  par ligne (la position est désormais vérifiée sur chaque ligne, plus
+  seulement la première) ; périmètre du tri dans le statut et dans
+  l'`aria-label` ; cadre de sélection et pied de carte ; pas d'athlète
+  mémorisé (ni « Vous », ni saut) ; « Vous » en grille et en cartes ; fond et
+  classe de ma ligne, sur ma seule ligne ; filtre carte avec recherche
+  (message, puis effacement) ; bascule grille/cartes et contenu des cartes ;
+  ligne en attente en grille et en cartes.
+- « annonce une épreuve sans aucun participant (ETAT-3) » supprimé : son
+  assertion vit dans « garde son en-tête sur une épreuve vide… », renommé
+  pour porter ETAT-3.
+
+Envisagé, écarté :
+
+- « donne au repère de catégorie son libellé complet » : un premier brouillon
+  le fusionnait, et perdait la branche `if (club)` fausse de
+  `titreAbsenceFiltre` (filtre catégorie seul, sélection vide), que ce test
+  est seul à atteindre. Gardé tel quel.
 
 ## Régénérer le tableau
 

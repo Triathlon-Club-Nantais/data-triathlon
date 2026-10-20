@@ -136,3 +136,28 @@ exécution par bras.
 Verdict identique mutant par mutant (`import_service.py.meta` comparé). Couverture
 de lignes du fichier seul : 101/105 avant et après, mêmes lignes manquées ;
 couverture de tout `app/` par ce fichier : lignes manquées identiques.
+
+## Consolidation, lot 3 (`RaceFinishers.test.tsx`)
+
+Stryker sur `components/results/RaceFinishers.tsx` (754 mutants, fichier entier,
+sous le budget de 30 min), runner `vitest-gt`. Une première mesure avec le
+runner publié rendait 0 tué sur 754 (tout test sous un `describe` sauté,
+`testsCompleted: 0`) : non exploitable, d'où le correctif du runner. Avec lui,
+`lib/rank.ts` passe de 7/10 à 9/10 et `components/tcn/ErrorScreen.tsx` de 0/11
+à 10/11 (load 20). Durées indicatives seulement : charge hors seuil, une
+exécution par bras et par concurrence.
+
+| Mesure | load au départ → à la fin | Durée murale | Tués / survivants / timeouts | Statut |
+| --- | --- | --- | --- | --- |
+| Avant, concurrence 7 | 1,30 → 15,80 | 1186 s | 310 / 114 / 325 | non retenue (charge) |
+| Après, concurrence 7 | 9,04 → 16,29 | 909 s | 407 / 187 / 155 | non retenue (charge) |
+| Avant, concurrence 3 | 9,04 → 4,14 | 826 s | 451 / 298 / 0 | non retenue (charge) |
+| Après, concurrence 3 | 3,59 → 7,26 | 913 s | 447 / 283 / 19 | non retenue (charge) |
+
+À concurrence 7 (défaut), la charge que Stryker s'impose fait exploser les
+timeouts, et deux bras n'ont plus le même ensemble de mutants tranchés : la
+comparaison se fait à concurrence 3. Verdict identique sur les 730 mutants
+tranchés par les deux bras à concurrence 3 ; les 4 mutants tués avant et en
+timeout après sont tués par le fichier consolidé à concurrence 7. Couverture du
+fichier seul : 135/137 lignes avant et après, mêmes lignes manquées. Détail du
+lot : `2026-10-20-test-consolidation-inventaire.md`.
