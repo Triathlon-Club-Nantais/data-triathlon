@@ -106,6 +106,11 @@ def _rank_anomalies(finishers: list, excluded_ranks: Set[int]) -> dict[str, int]
     return anomalies
 
 
+def has_complete_ranking(quality_issues: dict[str, int] | None) -> bool:
+    """Classement évalué sans trou : l'épreuve porte tous ses finishers, pas le club seul."""
+    return quality_issues is not None and ANOMALY_RANK_GAP not in quality_issues
+
+
 def analyze(
     participations: Iterable, *, duplicate_bibs: int = 0, excluded_ranks: Set[int] = frozenset(),
 ) -> QualityReport:

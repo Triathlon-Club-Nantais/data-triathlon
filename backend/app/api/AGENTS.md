@@ -294,8 +294,12 @@ un 422 (`Literal`). Une ligne sans sexe connu n'apparaît sous aucun des deux.
 La **population classée** est celle des finishers validés, non relais, à
 `rank_overall` non nul, du sexe demandé (`_GENDER_RANKED`). Elle passe en tête,
 chaque ligne portant `gender_place` : le `rank_gender` officiel si **toutes**
-ses lignes en ont un, sinon la position recalculée dans `_display_order`
-(`gender_place_official` dit lequel). Les autres lignes du sexe (relais, non
+ses lignes en ont un, sans doublon et, sur un classement complet
+(`quality.has_complete_ranking` : évalué, sans `rank_gap`), sans place au delà
+de l'effectif du sexe (#1730, un sexe enregistré qui contredit le fournisseur) ;
+sinon la position recalculée dans `_display_order` (`gender_place_official` dit
+lequel). La règle vit dans `core.gender.gender_places`, partagée avec la fiche
+challenge, dont la complétude se lit sur ses rangs scratch. Les autres lignes du sexe (relais, non
 finishers, non classés) suivent dans l'ordre actuel, `gender_place` nul.
 `participation_repository.gender_places` calcule les places sur l'épreuve
 entière : ni `q`, ni `club`, ni la page ne les décalent. Les deux champs sont

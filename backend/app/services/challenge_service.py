@@ -18,6 +18,7 @@ from typing import Literal
 from sqlalchemy.orm import Session
 
 from app.core.athlete_identity import athlete_identity_keys
+from app.core.gender import gender_places
 from app.core.identity import identity_hash
 from app.models.challenge import Challenge
 from app.models.participation import Participation
@@ -191,13 +192,16 @@ def detail(db: Session, challenge_id: int, gender: Literal["M", "F"] | None = No
     official = None
     unknown = None
     if gender:
+        # Classement complet : rangs scratch des finishers de 1 à N sans trou, la
+        # définition de `quality.ANOMALY_RANK_GAP`. Une ligne non appariée en ouvre un.
+        overall = {r.rank_overall for r in results if r.status == "finisher" and r.rank_overall}
+        complete = bool(overall) and max(overall) == len(overall)
         unknown = sum(r.athlete.gender not in ("M", "F") for r in results)
         results = [r for r in results if r.athlete.gender == gender]
         ranked = [r for r in results if r.status == "finisher" and r.rank_overall is not None]
-        official = all(r.rank_gender is not None for r in ranked)
+        places, official = gender_places([(r.id, r.rank_gender) for r in ranked], complete=complete)
         if official:
-            ranked.sort(key=lambda r: r.rank_gender)
-        places = {r.id: r.rank_gender if official else position for position, r in enumerate(ranked, 1)}
+            ranked.sort(key=lambda r: places[r.id])
         results = ranked + [r for r in results if r.id not in places]
     return {
         "id": challenge.id, "name": challenge.name, "event_date": challenge.event_date,

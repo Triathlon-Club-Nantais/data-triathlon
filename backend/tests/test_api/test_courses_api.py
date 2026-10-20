@@ -615,6 +615,41 @@ def test_get_course_gender_recalculates_when_one_rank_gender_missing(client, db_
     assert all(p["gender_place_official"] is False for p in rows[:4])
 
 
+def test_get_course_gender_recalculates_when_rank_gender_collides(client, db_session, mixed_course):
+    course, women, _ = mixed_course
+    women[2].rank_gender = 2
+    db_session.commit()
+
+    rows = _women(client, course)["participations"]
+
+    assert [p["gender_place"] for p in rows[:4]] == [1, 2, 3, 4]
+    assert all(p["gender_place_official"] is False for p in rows[:4])
+
+
+def test_get_course_gender_recalculates_place_beyond_field_on_complete_course(
+    client, db_session, mixed_course
+):
+    course, _, _ = mixed_course
+    course.quality_issues = {}
+    db_session.commit()
+
+    rows = _women(client, course)["participations"]
+
+    assert [p["gender_place"] for p in rows[:4]] == [1, 2, 3, 4]
+    assert all(p["gender_place_official"] is False for p in rows[:4])
+
+
+def test_get_course_gender_keeps_official_gaps_on_partial_course(client, db_session, mixed_course):
+    course, _, _ = mixed_course
+    course.quality_issues = {"rank_gap": 12}
+    db_session.commit()
+
+    rows = _women(client, course)["participations"]
+
+    assert [p["gender_place"] for p in rows[:4]] == [1, 2, 4, 5]
+    assert all(p["gender_place_official"] is True for p in rows[:4])
+
+
 def test_get_course_gender_relay_does_not_switch_to_recalculated(client, mixed_course):
     course, _, others = mixed_course
 
