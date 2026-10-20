@@ -9,7 +9,7 @@ vi.mock("@/lib/api/server", () => ({ apiServer: { listAuthMethods, getSession } 
 
 import { connexionAdherent } from "./site-access-login";
 
-const GITHUB = [{ slug: "github", label: "GitHub" }];
+const GITHUB = [{ slug: "github", label: "GitHub", audience: "admin" }];
 
 describe("connexionAdherent (#1322)", () => {
   beforeEach(() => {

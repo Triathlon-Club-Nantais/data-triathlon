@@ -83,6 +83,13 @@ function Connexion() {
           </Alert>
         )}
 
+        {adherents.length === 0 && admins.length > 0 && (
+          <Alert status="warning">
+            La connexion adhérent n&apos;est pas encore disponible sur ce site. Les résultats du
+            club se consultent avec le code d&apos;accès.
+          </Alert>
+        )}
+
         {adherents.length > 0 && (
           <section aria-labelledby={idAdherent} className="flex flex-col gap-2.5">
             {adherents.map((methode) => (
