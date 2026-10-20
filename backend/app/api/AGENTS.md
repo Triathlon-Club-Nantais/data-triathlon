@@ -595,6 +595,8 @@ créditée ; elle ne dépend pas d'un rattachement.
 
 `POST /auth/me/opposition` et sa prévisualisation (#1673) ne visent que la fiche rattachée à la session ; sans fiche, `403` ; `409` quand le nom est partagé avec une autre personne connue du club, qui doit alors écrire au club.
 
+`GET /auth/me/export` (#1674) rend en pièce jointe JSON les données du seul compte de la session, sans code du site : jamais `subject`, `secret_hash` ni la donnée d'une autre personne (auteur ou athlète d'une déclaration de bénévolat, équipiers d'un relais, `raw_data`). Une donnée ajoutée au compte s'ajoute à `services/account_export.py`.
+
 **Les sept ressources de `/admin/groups` (#197) n'ajoutent aucun mécanisme.**
 Elles reprennent `require_permission` à l'identique, route par route, et se
 classent d'elles-mêmes dans le filet d'inventaire par la règle du préfixe — ni

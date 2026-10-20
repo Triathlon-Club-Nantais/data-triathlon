@@ -7,7 +7,7 @@ héritées de ce chemin. `set_status` (#779) est la seule mise à jour — le
 statut, posé sans être jamais relu jusqu'ici, devient significatif pour le
 workflow de validation admin. Pas de suppression.
 """
-from sqlalchemy import func, select, update
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.orm import Session, selectinload
 
 from app.models.volunteer_action import VolunteerAction
@@ -133,6 +133,17 @@ def list_declared_by(db: Session, *, user_id: int) -> list[VolunteerAction]:
         .filter(VolunteerAction.declared_by_user_id == user_id)
         .order_by(VolunteerAction.created_at.desc())
         .all()
+    )
+
+
+def list_for_account(db: Session, *, user_id: int, athlete_id: int | None) -> list[VolunteerAction]:
+    """Export du compte (#1674) : ses déclarations, et celles qui créditent sa fiche, tous statuts."""
+    return list(
+        db.scalars(
+            select(VolunteerAction)
+            .where(or_(VolunteerAction.declared_by_user_id == user_id, VolunteerAction.athlete_id == athlete_id))
+            .order_by(VolunteerAction.created_at.desc())
+        )
     )
 
 

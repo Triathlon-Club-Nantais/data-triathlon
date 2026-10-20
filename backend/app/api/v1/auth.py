@@ -31,6 +31,7 @@ from app.core.time import utcnow
 from app.models.result_claim import ResultClaim
 from app.models.user import User
 from app.repositories import user_repository
+from app.schemas.account_export import AccountExport
 from app.schemas.athlete_claim import (
     AthleteClaimCreate,
     AthleteClaimRead,
@@ -51,6 +52,7 @@ from app.schemas.season_goal import SeasonGoalRead, SeasonGoalWrite
 from app.schemas.teammate import Teammate
 from app.schemas.volunteer_action import MyVolunteerActionOut, MyVolunteerDeclarationOut
 from app.services import (
+    account_export,
     athlete_claims,
     membership,
     opposition_service,
@@ -534,15 +536,15 @@ def list_my_teammates(
 @router.get("/auth/me/identities", response_model=list[AccountIdentityRead])
 def list_my_identities(user: User = Depends(current_user)):
     """Les moyens de connexion du compte de la session (#1663), du plus ancien au plus récent."""
-    return [
-        AccountIdentityRead(
-            provider=identity.provider,
-            label=provider.label if (provider := registry.get(identity.provider)) else identity.provider,
-            email=identity.email,
-            created_at=identity.created_at,
-        )
-        for identity in sorted(user.identities, key=lambda identity: identity.created_at)
-    ]
+    return account_export.identities_of(user)
+
+
+# Sans `require_site_access` : un droit RGPD ne dépend pas du code du site (#1673).
+@router.get("/auth/me/export", response_model=AccountExport)
+def export_my_data(response: Response, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Les données du compte en JSON, téléchargées en pièce jointe (#1674) : droit d'accès et de portabilité."""
+    response.headers["Content-Disposition"] = 'attachment; filename="mes-donnees-tcn.json"'
+    return account_export.build(db, user)
 
 
 @router.get("/auth/me", response_model=SessionUserRead)
