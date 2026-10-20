@@ -71,6 +71,18 @@ describe("RecapObjectifs (#1669)", () => {
     expect(course).not.toHaveTextContent("Non atteint");
   });
 
+  it("shows no pill for an upcoming target race", async () => {
+    getSeasonGoals.mockResolvedValue([{
+      ...TEMPS, id: 4, kind: "race", target: null, event_type: null, best_time: null,
+      race_name: "Run du coin", race_date: "2024-07-01", outcome: "upcoming",
+    }]);
+    afficher();
+    const course = (await screen.findByText(/Run du coin/)).closest("li") as HTMLElement;
+    expect(course).not.toHaveTextContent("Non atteint");
+    expect(course).not.toHaveTextContent("Sans résultat");
+    expect(course).not.toHaveTextContent("Atteint");
+  });
+
   it("renders nothing without goals", async () => {
     getSeasonGoals.mockResolvedValue([]);
     const { container, client } = afficher();

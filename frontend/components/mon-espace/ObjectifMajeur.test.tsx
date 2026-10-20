@@ -99,7 +99,8 @@ describe("RappelObjectifMajeur", () => {
   it("gives the label and the countdown on one line", async () => {
     getSeasonGoals.mockResolvedValue([goal({})]);
     afficher(<RappelObjectifMajeur />);
-    expect(await screen.findByText(/Triathlon de Nantes.*dans 11 jours/)).toBeInTheDocument();
+    expect(await screen.findByText(/Triathlon de Nantes/)).toBeInTheDocument();
+    expect(screen.getByText(/^Dans 11 jours$/)).toBeInTheDocument();
   });
 
   it("gives the outcome of a finished race", async () => {

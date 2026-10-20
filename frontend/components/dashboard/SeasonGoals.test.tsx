@@ -177,7 +177,7 @@ describe("SeasonGoals, épreuve cible (#1694)", () => {
 
     await userEvent.click(await screen.findByRole("button", { name: "Ajouter un objectif" }));
     await userEvent.click(screen.getByRole("radio", { name: "Une épreuve cible" }));
-    await userEvent.type(screen.getByLabelText("Rechercher votre épreuve"), "Nantes");
+    await userEvent.type(screen.getByLabelText("Rechercher une épreuve"), "Nantes");
     await userEvent.click(await screen.findByRole("button", { name: /Triathlon de Nantes/ }));
     await userEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
 
@@ -198,7 +198,7 @@ describe("SeasonGoals, épreuve cible (#1694)", () => {
 
     await userEvent.click(await screen.findByRole("button", { name: "Ajouter un objectif" }));
     await userEvent.click(screen.getByRole("radio", { name: "Une épreuve cible" }));
-    await userEvent.click(screen.getByRole("button", { name: "Mon épreuve n'est pas dans la liste" }));
+    await userEvent.click(screen.getByRole("button", { name: "Saisir l'épreuve à la main" }));
     await userEvent.type(screen.getByLabelText("Nom de l'épreuve"), "Run du coin");
     await userEvent.type(screen.getByLabelText("Date de l'épreuve"), `${currentSeason() + 1}-05-02`);
     await userEvent.click(screen.getByRole("checkbox", { name: "Objectif majeur de la saison" }));
@@ -212,12 +212,39 @@ describe("SeasonGoals, épreuve cible (#1694)", () => {
     );
   });
 
+  it("flags the missing name, links the error and focuses the field", async () => {
+    afficher();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Ajouter un objectif" }));
+    await userEvent.click(screen.getByRole("radio", { name: "Une épreuve cible" }));
+    await userEvent.click(screen.getByRole("button", { name: "Saisir l'épreuve à la main" }));
+    await userEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
+
+    const nom = screen.getByLabelText("Nom de l'épreuve");
+    const alerte = await screen.findByRole("alert");
+    expect(nom).toHaveFocus();
+    expect(nom).toHaveAttribute("aria-invalid", "true");
+    expect(nom).toHaveAttribute("aria-describedby", alerte.id);
+    expect(screen.getByLabelText("Temps visé (facultatif)")).not.toHaveAttribute("aria-invalid");
+  });
+
+  it("announces the search state and the number of results", async () => {
+    listCourses.mockResolvedValue([COURSE]);
+    afficher();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Ajouter un objectif" }));
+    await userEvent.click(screen.getByRole("radio", { name: "Une épreuve cible" }));
+    expect(screen.getByText("Saisissez une partie du nom")).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText("Rechercher une épreuve"), "Nantes");
+    expect(await screen.findByText("1 épreuve trouvée")).toBeInTheDocument();
+  });
+
   it("refuses a target time without a discipline", async () => {
     afficher();
 
     await userEvent.click(await screen.findByRole("button", { name: "Ajouter un objectif" }));
     await userEvent.click(screen.getByRole("radio", { name: "Une épreuve cible" }));
-    await userEvent.click(screen.getByRole("button", { name: "Mon épreuve n'est pas dans la liste" }));
+    await userEvent.click(screen.getByRole("button", { name: "Saisir l'épreuve à la main" }));
     await userEvent.type(screen.getByLabelText("Nom de l'épreuve"), "Run du coin");
     await userEvent.type(screen.getByLabelText("Date de l'épreuve"), `${currentSeason() + 1}-05-02`);
     await userEvent.type(screen.getByLabelText("Temps visé (facultatif)"), "2:30:00");
@@ -265,7 +292,7 @@ describe("SeasonGoals, épreuve cible (#1694)", () => {
 
     await userEvent.click(await screen.findByRole("button", { name: "Ajouter un objectif" }));
     await userEvent.click(screen.getByRole("radio", { name: "Une épreuve cible" }));
-    await userEvent.type(screen.getByLabelText("Rechercher votre épreuve"), "Nantes");
+    await userEvent.type(screen.getByLabelText("Rechercher une épreuve"), "Nantes");
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Recherche indisponible");
   });
@@ -276,11 +303,11 @@ describe("SeasonGoals, épreuve cible (#1694)", () => {
 
     await userEvent.click(await screen.findByRole("button", { name: "Ajouter un objectif" }));
     await userEvent.click(screen.getByRole("radio", { name: "Une épreuve cible" }));
-    await userEvent.type(screen.getByLabelText("Rechercher votre épreuve"), "   ");
+    await userEvent.type(screen.getByLabelText("Rechercher une épreuve"), "   ");
     await new Promise((r) => setTimeout(r, 400));
     expect(listCourses).not.toHaveBeenCalled();
 
-    await userEvent.type(screen.getByLabelText("Rechercher votre épreuve"), "zzz");
+    await userEvent.type(screen.getByLabelText("Rechercher une épreuve"), "zzz");
     expect(await screen.findByText("Aucune épreuve de la saison ne correspond.")).toBeInTheDocument();
   });
 
@@ -291,13 +318,13 @@ describe("SeasonGoals, épreuve cible (#1694)", () => {
 
     await userEvent.click(await screen.findByRole("button", { name: "Ajouter un objectif" }));
     await userEvent.click(screen.getByRole("radio", { name: "Une épreuve cible" }));
-    await userEvent.type(screen.getByLabelText("Rechercher votre épreuve"), "Nantes");
+    await userEvent.type(screen.getByLabelText("Rechercher une épreuve"), "Nantes");
     await userEvent.click(await screen.findByRole("button", { name: /Triathlon de Nantes/ }));
     expect(screen.getByRole("button", { name: "Changer d'épreuve" })).toHaveFocus();
 
     await userEvent.click(screen.getByRole("button", { name: "Changer d'épreuve" }));
-    expect(screen.getByLabelText("Rechercher votre épreuve")).toHaveFocus();
-    await userEvent.click(screen.getByRole("button", { name: "Mon épreuve n'est pas dans la liste" }));
+    expect(screen.getByLabelText("Rechercher une épreuve")).toHaveFocus();
+    await userEvent.click(screen.getByRole("button", { name: "Saisir l'épreuve à la main" }));
     expect(screen.getByLabelText("Nom de l'épreuve")).toHaveFocus();
     await userEvent.type(screen.getByLabelText("Nom de l'épreuve"), "Run du coin");
     await userEvent.type(screen.getByLabelText("Date de l'épreuve"), `${currentSeason() + 1}-05-02`);
@@ -314,11 +341,11 @@ describe("SeasonGoals, épreuve cible (#1694)", () => {
 
     await userEvent.click(await screen.findByRole("button", { name: "Ajouter un objectif" }));
     await userEvent.click(screen.getByRole("radio", { name: "Une épreuve cible" }));
-    await userEvent.click(screen.getByRole("button", { name: "Mon épreuve n'est pas dans la liste" }));
+    await userEvent.click(screen.getByRole("button", { name: "Saisir l'épreuve à la main" }));
     await userEvent.type(screen.getByLabelText("Nom de l'épreuve"), "Run du coin");
-    await userEvent.click(screen.getByRole("button", { name: "Chercher parmi les épreuves du club" }));
-    expect(screen.getByLabelText("Rechercher votre épreuve")).toHaveFocus();
-    await userEvent.type(screen.getByLabelText("Rechercher votre épreuve"), "Nantes");
+    await userEvent.click(screen.getByRole("button", { name: "Revenir à la recherche" }));
+    expect(screen.getByLabelText("Rechercher une épreuve")).toHaveFocus();
+    await userEvent.type(screen.getByLabelText("Rechercher une épreuve"), "Nantes");
     await userEvent.click(await screen.findByRole("button", { name: /Triathlon de Nantes/ }));
     await userEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
 
@@ -340,7 +367,7 @@ describe("SeasonGoals, épreuve cible (#1694)", () => {
 
     await userEvent.click(await screen.findByRole("button", { name: "Ajouter un objectif" }));
     await userEvent.click(screen.getByRole("radio", { name: "Une épreuve cible" }));
-    await userEvent.type(screen.getByLabelText("Rechercher votre épreuve"), "Nantes");
+    await userEvent.type(screen.getByLabelText("Rechercher une épreuve"), "Nantes");
 
     await screen.findByRole("button", { name: new RegExp(`Triathlon de Nantes.*${eventTypeLabel("triathlon-m")}`) });
     expect(screen.getByRole("button", { name: new RegExp(`Triathlon de Nantes S.*${eventTypeLabel("triathlon-s")}`) })).toBeInTheDocument();
@@ -355,7 +382,7 @@ describe("SeasonGoals, épreuve cible (#1694)", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Ajouter un objectif" }));
     await userEvent.click(screen.getByRole("radio", { name: "Une épreuve cible" }));
     expect(screen.getByLabelText("Discipline")).toBeEnabled();
-    await userEvent.type(screen.getByLabelText("Rechercher votre épreuve"), "Nantes");
+    await userEvent.type(screen.getByLabelText("Rechercher une épreuve"), "Nantes");
     await userEvent.click(await screen.findByRole("button", { name: /Triathlon de Nantes/ }));
     expect(screen.getByLabelText("Discipline")).toBeDisabled();
   });

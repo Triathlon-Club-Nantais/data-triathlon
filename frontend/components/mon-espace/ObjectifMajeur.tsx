@@ -61,9 +61,10 @@ export function RappelObjectifMajeur() {
     <Card padding={20}>
       <Eyebrow>Objectif majeur</Eyebrow>
       <p style={{ margin: "12px 0 0", fontSize: 15, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
-        <span>{libelle(goal)}, {progression(goal).toLowerCase()}</span>
+        <span>{libelle(goal)}</span>
         <Verdict goal={goal} />
       </p>
+      <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--tcn-text-muted)" }}>{progression(goal)}</p>
     </Card>
   );
 }
