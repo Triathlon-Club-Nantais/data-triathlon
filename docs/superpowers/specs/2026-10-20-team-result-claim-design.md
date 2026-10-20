@@ -135,9 +135,10 @@ garde la fiche d'équipe comme « le reste de l'équipe » :
   lèverait alors `DuplicateError`, rendu tel quel).
 - **État côté adhérent** : la carte lit les demandes du compte (`list_mine`).
   Une demande en attente affiche « Demande envoyée, le club va vérifier » ; une
-  demande refusée affiche « Refusée » et ne se renvoie pas (contrainte d'unicité
-  existante, comme #1637). Une demande validée disparaît, le résultat est sur la
-  fiche.
+  demande refusée affiche « Demande refusée par le club » et peut être renvoyée,
+  comme pour #1637 (`replace_pending` la remet en attente,
+  `test_a_rejected_claim_can_be_asked_again`). Une demande validée disparaît, le
+  résultat est sur la fiche.
 
 ## Laissé au builder
 
