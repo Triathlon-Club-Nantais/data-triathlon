@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { StatCard } from "@/components/tcn";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { BreakdownTabs } from "./BreakdownTabs";
+import { TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SeasonEmptyState } from "@/components/dashboard/SeasonEmptyState";
 import { ResultCard } from "@/components/results/ResultCard";
 import { BarList } from "@/components/charts/BarList";
@@ -92,8 +93,7 @@ export function ClubDashboard({
             <CardTitle>Répartition & tendances</CardTitle>
           </CardHeader>
           <CardContent>
-            {/* `key` : sans Composition, l'onglet ouvert ne doit pas rester actif. */}
-            <Tabs key={gender ?? "tous"} defaultValue="type">
+            <BreakdownTabs hasComposition={!gender}>
               <div className="overflow-x-auto">
                 <TabsList className="w-full">
                   <TabsTrigger value="type">Par discipline</TabsTrigger>
@@ -133,7 +133,7 @@ export function ClubDashboard({
                   <ClubComposition composition={summary.composition} />
                 </TabsContent>
               )}
-            </Tabs>
+            </BreakdownTabs>
           </CardContent>
         </Card>
       </div>

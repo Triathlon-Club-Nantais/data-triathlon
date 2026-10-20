@@ -304,6 +304,23 @@ describe("ClubDashboard — smoke", () => {
     expect(screen.getByTestId("barlist")).toBeVisible();
   });
 
+  it("keeps the open tab when the sex filter changes", async () => {
+    const props = { stats: STATS, summary: EMPTY_SUMMARY, recent: [], seasons: [currentSeason()] };
+    const wrap = (gender?: "F" | "M") => (
+      <QueryClientProvider client={new QueryClient()}>
+        <ClubDashboard {...props} gender={gender} />
+      </QueryClientProvider>
+    );
+    const { rerender } = render(<ClubDashboard {...props} />);
+    await userEvent.click(screen.getByRole("tab", { name: "Performance" }));
+
+    rerender(wrap("M"));
+    expect(screen.getByRole("tab", { name: "Performance" })).toHaveAttribute("aria-selected", "true");
+
+    rerender(wrap("F"));
+    expect(screen.getByRole("tab", { name: "Performance" })).toHaveAttribute("aria-selected", "true");
+  });
+
   it("names the sex and offers to drop it when the filter leaves no result", () => {
     render(
       <ClubDashboard stats={{ ...STATS, total: 0 }} summary={EMPTY_SUMMARY} recent={[]} seasons={[2025]} gender="F" />,
