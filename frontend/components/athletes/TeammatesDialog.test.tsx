@@ -34,11 +34,15 @@ const PAUL = fiche(11, "MARTIN", "Paul");
 
 const RESULTAT = { id: 314, epreuve: "Relais de Nantes", date: "2026-06-01" };
 
-function afficher(equipiers: AthleteBrief[] = [], onClose = vi.fn(), onAttribue?: () => Promise<unknown>) {
+function afficher(
+  equipiers: AthleteBrief[] = [],
+  onClose = vi.fn(),
+  reclamation?: { de: string; athleteId: number; valider: () => Promise<unknown> },
+) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={client}>
-      <TeammatesDialog resultat={RESULTAT} equipiers={equipiers} onClose={onClose} onAttribue={onAttribue} />
+      <TeammatesDialog resultat={RESULTAT} equipiers={equipiers} onClose={onClose} reclamation={reclamation} />
     </QueryClientProvider>,
   );
   return onClose;
@@ -95,16 +99,17 @@ describe("TeammatesDialog", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
-  it("enchaîne le geste de l'appelant après l'attribution, avant de fermer (#1739)", async () => {
+  it("valide la réclamation après l'attribution, avant de fermer (#1739)", async () => {
     setParticipationTeammates.mockResolvedValue({});
-    const onAttribue = vi.fn().mockResolvedValue(null);
-    const onClose = afficher([JEAN, PAUL], vi.fn(), onAttribue);
+    const valider = vi.fn().mockResolvedValue(null);
+    const onClose = afficher([JEAN, PAUL], vi.fn(), { de: "Paul M.", athleteId: PAUL.id, valider });
 
     await userEvent.click(screen.getByRole("button", { name: "Attribuer" }));
 
-    await waitFor(() => expect(onClose).toHaveBeenCalled());
-    expect(onAttribue).toHaveBeenCalledTimes(1);
-    expect(setParticipationTeammates.mock.invocationCallOrder[0]).toBeLessThan(onAttribue.mock.invocationCallOrder[0]);
+    await waitFor(() => expect(onClose).toHaveBeenCalledWith(true));
+    expect(valider).toHaveBeenCalledTimes(1);
+    expect(setParticipationTeammates.mock.invocationCallOrder[0]).toBeLessThan(valider.mock.invocationCallOrder[0]);
+    expect(toastSuccess.mock.calls).toEqual([["Équipe complétée, réclamation de Paul M. validée."]]);
   });
 
   it("part de la composition actuelle et permet d'en retirer un coureur", async () => {

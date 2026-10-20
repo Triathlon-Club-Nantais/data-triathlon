@@ -32,7 +32,7 @@ export default function AdminRattachementsPage() {
           sorte={<ClaimKind kind="result" />}
           explication="Un compte déjà rattaché réclame un seul résultat rangé sur une autre fiche, souvent celle d'un homonyme. « Déplacer le résultat » le passe sur sa fiche, le fige contre les réimports et supprime la fiche d'origine si elle se vide."
         >
-          <ResultClaimsTable />
+          <ResultClaimsTable titreId="resultats-reclames" />
         </Section>
         <Section
           id="comptes-rattaches"
@@ -62,7 +62,7 @@ function Section({
   return (
     <section className="space-y-4" aria-labelledby={id}>
       <div className="space-y-1">
-        <h2 id={id} className="flex flex-wrap items-center gap-3 font-[var(--tcn-font-display)] text-xl">
+        <h2 id={id} tabIndex={-1} className="flex flex-wrap items-center gap-3 font-[var(--tcn-font-display)] text-xl">
           {titre}
           {sorte}
         </h2>
