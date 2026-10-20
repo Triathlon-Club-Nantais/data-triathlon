@@ -4,11 +4,12 @@ import { toast } from "sonner";
 import { Button, Card, Input } from "@/components/tcn";
 import { useDebounce } from "@/hooks/useDebounce";
 import { ApiError, apiClient } from "@/lib/api/client";
+import { useHydratedSession } from "@/lib/queries/auth";
 import { useCreateVolunteerAction } from "@/lib/queries/volunteer-actions";
-import type { AthleteBrief } from "@/lib/types";
+import type { AthleteBrief, ClaimedAthlete } from "@/lib/types";
 import { currentSeason, seasonLabel } from "@/lib/utils/season";
 
-const nomComplet = (a: AthleteBrief) => `${a.prenom} ${a.nom}`;
+const nomComplet = (a: ClaimedAthlete) => `${a.prenom} ${a.nom}`;
 
 /**
  * Formulaire public self-service — crédite l'athlète choisi pour le quota de
@@ -19,13 +20,18 @@ const nomComplet = (a: AthleteBrief) => `${a.prenom} ${a.nom}`;
  * caractères, anti-course par jeton) adapté à `searchAthletesConnected`
  * (`GET /athletes`, research.md D2 — pas le twin `/benevoles/athletes`, la
  * page vit déjà sous `(public_restricted)`).
+ *
+ * Un membre rattaché part de sa propre fiche (#1672), qu'il peut changer.
  */
 export function VolunteerActionForm() {
   const [recherche, setRecherche] = useState("");
   const [resultats, setResultats] = useState<AthleteBrief[] | null>(null);
   const [rechercheErreur, setRechercheErreur] = useState<string | null>(null);
   const [rechercheEnCours, setRechercheEnCours] = useState(false);
-  const [athlete, setAthlete] = useState<AthleteBrief | null>(null);
+  // `undefined` : pas encore de choix, la fiche rattachée sert de défaut.
+  const [choix, setChoix] = useState<ClaimedAthlete | null | undefined>(undefined);
+  const maFiche = useHydratedSession().data?.athlete ?? null;
+  const athlete = choix === undefined ? maFiche : choix;
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [erreur, setErreur] = useState<string | null>(null);
@@ -71,8 +77,8 @@ export function VolunteerActionForm() {
       });
   }, [debounced]);
 
-  function choisir(choix: AthleteBrief) {
-    setAthlete(choix);
+  function choisir(trouve: AthleteBrief) {
+    setChoix(trouve);
     setRecherche("");
     setResultats(null);
   }
@@ -94,7 +100,7 @@ export function VolunteerActionForm() {
         title: title.trim(),
         description: description.trim(),
       });
-      setAthlete(null);
+      setChoix(undefined);
       setTitle("");
       setDescription("");
       // La saison créditée est celle de la saisie (#778) : la dire, pour qu'une
@@ -119,7 +125,7 @@ export function VolunteerActionForm() {
             <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Athlète</div>
             <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
               <strong>{nomComplet(athlete)}</strong>
-              <Button variant="ghost" onClick={() => setAthlete(null)} disabled={create.isPending}>
+              <Button variant="ghost" onClick={() => setChoix(null)} disabled={create.isPending}>
                 Changer d&apos;athlète
               </Button>
             </div>

@@ -106,6 +106,7 @@ import type {
   SeasonValidation,
   ValidationQueueHistory,
   MyVolunteerActionOut,
+  MyVolunteerDeclarationOut,
   VolunteerActionSelfCreate,
   VolunteerActionSelfOut,
 } from "@/lib/types";
@@ -944,6 +945,7 @@ export const apiClient = {
   getAthleteClaims: () => request<AthleteClaimReview[]>("/admin/athlete-claims"),
   // ── Objectifs de saison (#1373), privés au compte ───────────────────────────
   getMyVolunteerActions: () => request<MyVolunteerActionOut[]>("/auth/me/volunteer-actions"),
+  getMyVolunteerDeclarations: () => request<MyVolunteerDeclarationOut[]>("/auth/me/volunteer-declarations"),
   getMyTeammates: (opts: { federal_only?: boolean; seasons?: number[] } = {}) =>
     request<Teammate[]>(`/auth/me/teammates${toQuery(opts as Record<string, unknown>)}`),
   getSeasonGoals: (season: number) => request<SeasonGoal[]>(`/auth/me/goals?season=${season}`),

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { PageShell } from "@/components/layout/PageShell";
+import { MesDeclarations } from "@/components/benevolat/MesDeclarations";
 import { VolunteerActionForm } from "@/components/benevolat/VolunteerActionForm";
 import { EN_TETE_BENEVOLAT } from "@/components/benevolat/en-tete";
 
@@ -18,6 +19,7 @@ export default function BenevolatPage() {
       <div className="space-y-6">
         <PageHeader {...EN_TETE_BENEVOLAT} />
         <VolunteerActionForm />
+        <MesDeclarations />
       </div>
     </PageShell>
   );
