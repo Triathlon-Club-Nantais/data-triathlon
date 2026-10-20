@@ -3,7 +3,7 @@ from datetime import date
 
 import pytest
 
-from app.core.exceptions import DomainError, NotFoundError
+from app.core.exceptions import DomainError, DuplicateError, NotFoundError
 from app.models.admin_action_log import AdminActionLog
 from app.models.athlete import Athlete
 from app.models.course import Course
@@ -293,3 +293,131 @@ def test_asking_again_after_a_rejection_overwrites_the_kind(db_session, lea):
 
     assert db_session.query(ResultClaim).count() == 1
     assert (again.kind, again.status) == (KIND_TEAM, STATUS_PENDING)
+
+
+def _team(db, nom="LES MOLLETS D'ACIER") -> Athlete:
+    return _athlete(db, nom=nom, prenom="")
+
+
+def _compose(db, row, *members: Athlete) -> None:
+    """Plant a relay composition directly: the first member carries the result."""
+    row.athlete_id = members[0].id
+    for position, member in enumerate(members):
+        db.add(ParticipationTeammate(participation_id=row.id, athlete_id=member.id, position=position))
+    db.flush()
+    db.refresh(row)
+
+
+def _composition(db, row) -> list[int]:
+    db.refresh(row)
+    return [link.athlete_id for link in row.teammate_links]
+
+
+_CLAIMANT = 99
+_A = Athlete(id=1, nom="DURAND", prenom="Paul")
+_B = Athlete(id=2, nom="PETIT", prenom="Zoé")
+_T = Athlete(id=10, nom="LES MOLLETS D'ACIER", prenom="")
+_T2 = Athlete(id=11, nom="LES AUTRES", prenom=" ")
+
+
+@pytest.mark.parametrize(("current", "carrier", "expected"), [
+    ([], _T, [_CLAIMANT, _T.id]),
+    ([], _A, None),
+    ([_A, _T], _A, [_A.id, _CLAIMANT]),
+    ([_T, _A], _T, [_CLAIMANT, _A.id]),
+    ([_A, _B], _A, None),
+    ([_T, _T2], _T, [_T.id, _T2.id, _CLAIMANT]),
+])
+def test_team_composition_with(current, carrier, expected):
+    assert result_claims.team_composition_with(current, carrier, _CLAIMANT) == expected
+
+
+def test_approving_a_first_team_claim_keeps_the_team_record(db_session, lea, reviewer):
+    team = _team(db_session)
+    relay = _result(db_session, team, is_relay=True)
+    claim = result_claims.request_claim(db_session, lea, relay.id, kind=KIND_TEAM)
+
+    result_claims.approve(db_session, claim.id, actor_id=reviewer.id)
+
+    assert _composition(db_session, relay) == [lea.athlete_id, team.id]
+    assert (relay.athlete_id, relay.team_name) == (lea.athlete_id, "LES MOLLETS D'ACIER")
+    assert db_session.get(Athlete, team.id) is not None
+    assert db_session.query(ResultClaim).count() == 0
+    log = db_session.query(AdminActionLog).filter_by(action="result_claim.approve_team").one()
+    assert (log.entity_type, log.entity_id) == ("participation", relay.id)
+
+
+def test_approving_the_partner_replaces_the_team_record(db_session, lea, reviewer):
+    partner, team = _athlete(db_session, nom="DURAND", prenom="Paul"), _team(db_session)
+    relay = _result(db_session, team, is_relay=True, team_name="LES MOLLETS D'ACIER")
+    _compose(db_session, relay, partner, team)
+    claim = result_claims.request_claim(db_session, lea, relay.id, kind=KIND_TEAM)
+
+    result_claims.approve(db_session, claim.id, actor_id=reviewer.id)
+
+    assert _composition(db_session, relay) == [partner.id, lea.athlete_id]
+    assert db_session.get(Athlete, team.id) is None
+
+
+def test_approving_a_hand_composed_team_asks_the_admin(db_session, lea, reviewer):
+    first, second = _athlete(db_session, nom="DURAND", prenom="Paul"), _athlete(db_session, nom="PETIT", prenom="Zoé")
+    relay = _result(db_session, first, is_relay=True)
+    _compose(db_session, relay, first, second)
+    claim = result_claims.request_claim(db_session, lea, relay.id, kind=KIND_TEAM)
+
+    with pytest.raises(result_claims.CompositionToDecideError) as refused:
+        result_claims.approve(db_session, claim.id, actor_id=reviewer.id)
+
+    assert refused.value.status_code == 409
+    assert claim.status == STATUS_PENDING
+    assert _composition(db_session, relay) == [first.id, second.id]
+
+
+def test_approving_after_the_admin_added_the_member_closes_the_claim(db_session, lea, reviewer):
+    partner = _athlete(db_session, nom="DURAND", prenom="Paul")
+    relay = _result(db_session, _team(db_session), is_relay=True)
+    claim = result_claims.request_claim(db_session, lea, relay.id, kind=KIND_TEAM)
+    _compose(db_session, relay, partner, db_session.get(Athlete, lea.athlete_id))
+
+    result_claims.approve(db_session, claim.id, actor_id=reviewer.id)
+
+    assert db_session.query(ResultClaim).count() == 0
+    assert _composition(db_session, relay) == [partner.id, lea.athlete_id]
+    actions = {log.action for log in db_session.query(AdminActionLog)}
+    assert "participation.set_teammates" not in actions
+
+
+def test_approving_refuses_a_member_who_already_ran_the_course(db_session, lea, reviewer):
+    team = _team(db_session)
+    relay = _result(db_session, team, is_relay=True)
+    db_session.add(Participation(course_id=relay.course_id, athlete_id=lea.athlete_id, bib_number="X1",
+                                 total_time="1:20:00", status="finisher"))
+    db_session.flush()
+    claim = result_claims.request_claim(db_session, lea, relay.id, kind=KIND_TEAM)
+
+    with pytest.raises(DuplicateError, match="a déjà un résultat sur cette épreuve"):
+        result_claims.approve(db_session, claim.id, actor_id=reviewer.id)
+
+    assert claim.status == STATUS_PENDING
+    assert (relay.athlete_id, _composition(db_session, relay)) == (team.id, [])
+    assert db_session.query(AdminActionLog).count() == 0
+
+
+def test_review_hints_for_a_team_claim(db_session, lea, homonym):
+    partner, team = _athlete(db_session, nom="DURAND", prenom="Paul"), _team(db_session)
+    relay = _result(db_session, team, is_relay=True)
+    _compose(db_session, relay, partner, team)
+    db_session.add(Participation(course_id=relay.course_id, athlete_id=lea.athlete_id, bib_number="X1",
+                                 total_time="1:20:00", status="finisher"))
+    db_session.flush()
+    result_claims.request_claim(db_session, lea, relay.id, kind=KIND_TEAM)
+    result_claims.request_claim(db_session, lea, _result(db_session, homonym).id)
+
+    reviews = {review.kind: review for review in result_claims.list_pending_with_hints(db_session, date(2026, 10, 19))}
+
+    team_review, result_review = reviews[KIND_TEAM], reviews[KIND_RESULT]
+    assert [mate.id for mate in team_review.teammates] == [partner.id, team.id]
+    assert [mate.id for mate in team_review.proposed_teammates] == [partner.id, lea.athlete_id]
+    assert team_review.claimant_has_result_on_course is True
+    assert (result_review.teammates, result_review.proposed_teammates) == ([], None)
+    assert result_review.claimant_has_result_on_course is False

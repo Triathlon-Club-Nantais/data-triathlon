@@ -15,6 +15,7 @@ from app.schemas.athlete_claim import (
     AthleteClaimReviewRead,
     AthleteLinkRead,
     ClaimantRead,
+    ClaimedAthleteRead,
     ClaimedResultRead,
     LicenseeRead,
     ResultClaimReviewRead,
@@ -73,6 +74,11 @@ def list_result_claims(
             claimant_athlete=ReviewedAthleteRead.model_validate(review.claimant_athlete)
             if review.claimant_athlete else None,
             licensee=LicenseeRead.model_validate(review.claimant_licensee) if review.claimant_licensee else None,
+            kind=review.kind,
+            teammates=[ClaimedAthleteRead.model_validate(mate) for mate in review.teammates],
+            proposed_teammates=[ClaimedAthleteRead.model_validate(mate) for mate in review.proposed_teammates]
+            if review.proposed_teammates is not None else None,
+            claimant_has_result_on_course=review.claimant_has_result_on_course,
         )
         for review in result_claims.list_pending_with_hints(db, utcnow().date())
     ]

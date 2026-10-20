@@ -116,6 +116,10 @@ class ResultClaimReviewRead(BaseModel):
     current_athlete_results: int
     claimant_athlete: ReviewedAthleteRead | None
     licensee: LicenseeRead | None
+    kind: Literal["result", "team"]
+    teammates: list[ClaimedAthleteRead]
+    proposed_teammates: list[ClaimedAthleteRead] | None
+    claimant_has_result_on_course: bool
 
 
 class AthleteClaimReviewRead(BaseModel):

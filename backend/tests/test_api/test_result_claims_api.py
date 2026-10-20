@@ -185,3 +185,25 @@ def test_post_team_claim(client, db_session, setup):
     assert created.status_code == 201
     assert created.json()["kind"] == "team"
     assert [c["kind"] for c in client.get(MINE).json()] == ["team"]
+
+
+def test_queue_shows_team_claims_with_their_composition(client, db_session, setup):
+    _, mine, _, result = setup
+    relay = _team_relay(db_session)
+    team_id = relay.athlete_id
+    client.post(MINE, json={"participation_id": relay.id, "kind": "team"})
+    client.post(MINE, json={"participation_id": result.id})
+    _session_etroite(client, db_session, "athlete_claims:review", email="rev@exemple.fr", slug="rev")
+
+    items = {item["kind"]: item for item in client.get(QUEUE).json()}
+
+    team_item = items["team"]
+    assert team_item["teammates"] == []
+    assert team_item["proposed_teammates"] == [
+        {"id": mine.id, "prenom": "Léa", "nom": "Martin"},
+        {"id": team_id, "prenom": "", "nom": "LES MOLLETS D'ACIER"},
+    ]
+    assert team_item["claimant_has_result_on_course"] is False
+    result_item = items["result"]
+    assert (result_item["teammates"], result_item["proposed_teammates"]) == ([], None)
+    assert result_item["claimant_has_result_on_course"] is False
