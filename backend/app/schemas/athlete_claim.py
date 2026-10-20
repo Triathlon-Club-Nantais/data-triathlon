@@ -73,6 +73,9 @@ class ResultClaimRead(BaseModel):
     participation_id: int
     status: Literal["pending", "rejected"]
     created_at: UtcDatetime
+    course_id: int
+    course_name: str
+    event_date: str | None
 
 
 class ClaimedResultRead(BaseModel):

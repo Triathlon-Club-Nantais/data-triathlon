@@ -44,6 +44,23 @@ def test_request_list_cancel(client, setup):
     assert client.get(MINE).json() == []
 
 
+def test_my_result_claims_include_course(client, setup):
+    _, _, _, result = setup
+    client.post(MINE, json={"participation_id": result.id})
+
+    (claim,) = client.get(MINE).json()
+    assert (claim["course_id"], claim["course_name"], claim["event_date"]) == (
+        result.course_id, "Tri de Nantes", "2026-06-07")
+
+
+def test_request_result_claim_returns_course(client, setup):
+    _, _, _, result = setup
+
+    claim = client.post(MINE, json={"participation_id": result.id}).json()
+    assert (claim["course_id"], claim["course_name"], claim["event_date"]) == (
+        result.course_id, "Tri de Nantes", "2026-06-07")
+
+
 def test_own_result_is_refused(client, db_session, setup):
     _, mine, _, result = setup
     db_session.get(Participation, result.id).athlete_id = mine.id
