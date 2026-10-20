@@ -4,30 +4,34 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SeasonGoal, SessionUser } from "@/lib/types";
 
-const { getSession, getSeasonGoals, createSeasonGoal, deleteSeasonGoal } = vi.hoisted(() => ({
+const { getSession, getSeasonGoals, createSeasonGoal, deleteSeasonGoal, listCourses } = vi.hoisted(() => ({
   getSession: vi.fn(),
   getSeasonGoals: vi.fn(),
   createSeasonGoal: vi.fn(),
   deleteSeasonGoal: vi.fn(),
+  listCourses: vi.fn(),
 }));
 vi.mock("@/lib/api/client", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api/client")>();
   return {
     ...original,
-    apiClient: { ...original.apiClient, getSession, getSeasonGoals, createSeasonGoal, deleteSeasonGoal },
+    apiClient: { ...original.apiClient, getSession, getSeasonGoals, createSeasonGoal, deleteSeasonGoal, listCourses },
   };
 });
 
+import { localToday } from "@/lib/utils/date";
 import { currentSeason, seasonLabel } from "@/lib/utils/season";
-import { SeasonGoals } from "./SeasonGoals";
+import { SeasonGoals, libelle, progression } from "./SeasonGoals";
 
 const LEA = { id: 42, prenom: "Léa", nom: "Martin" };
 const TEMPS: SeasonGoal = {
   id: 1, season: 2025, kind: "time", event_type: "triathlon-m", target: 9000,
   best_time: "2:35:10", count: null, reached: false,
+  course_id: null, race_name: null, race_date: null, major: false, outcome: "missed",
 };
 const NOMBRE: SeasonGoal = {
   id: 2, season: 2025, kind: "count", event_type: null, target: 6, best_time: null, count: 6, reached: true,
+  course_id: null, race_name: null, race_date: null, major: false, outcome: "reached",
 };
 
 function session(athlete: SessionUser["athlete"]): SessionUser {
@@ -72,7 +76,7 @@ describe("SeasonGoals (#1373)", () => {
     await userEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
 
     await waitFor(() =>
-      expect(createSeasonGoal).toHaveBeenCalledWith({ kind: "time", event_type: "triathlon-m", target: 9000 }),
+      expect(createSeasonGoal).toHaveBeenCalledWith({ kind: "time", event_type: "triathlon-m", target: 9000, major: false }),
     );
   });
 
@@ -85,7 +89,7 @@ describe("SeasonGoals (#1373)", () => {
     await userEvent.type(screen.getByLabelText("Nombre d'épreuves visé"), "6");
     await userEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
 
-    await waitFor(() => expect(createSeasonGoal).toHaveBeenCalledWith({ kind: "count", event_type: null, target: 6 }));
+    await waitFor(() => expect(createSeasonGoal).toHaveBeenCalledWith({ kind: "count", event_type: null, target: 6, major: false }));
   });
 
   it("refuses a malformed time without calling the server", async () => {
@@ -154,5 +158,95 @@ describe("SeasonGoals (#1373)", () => {
     await waitFor(() => expect(getSession).toHaveBeenCalled());
     expect(screen.queryByRole("heading", { level: 2 })).not.toBeInTheDocument();
     expect(getSeasonGoals).not.toHaveBeenCalled();
+  });
+});
+
+const COURSE = { id: 7, name: "Triathlon de Nantes", event_date: `${currentSeason() + 1}-06-14`, event_type: "triathlon-m" };
+
+function jourDecale(jours: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + jours);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+describe("SeasonGoals, épreuve cible (#1694)", () => {
+  it("creates a goal on an imported race found by search", async () => {
+    listCourses.mockResolvedValue([COURSE]);
+    createSeasonGoal.mockResolvedValue(TEMPS);
+    afficher();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Ajouter un objectif" }));
+    await userEvent.click(screen.getByRole("radio", { name: "Une épreuve cible" }));
+    await userEvent.type(screen.getByLabelText("Rechercher votre épreuve"), "Nantes");
+    await userEvent.click(await screen.findByRole("button", { name: /Triathlon de Nantes/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
+
+    expect(listCourses).toHaveBeenCalledWith({
+      name: "Nantes",
+      date_from: `${currentSeason()}-09-01`,
+      date_to: `${currentSeason() + 1}-08-31`,
+      page_size: 8,
+    });
+    await waitFor(() =>
+      expect(createSeasonGoal).toHaveBeenCalledWith({ kind: "race", event_type: "triathlon-m", target: null, major: false, course_id: 7 }),
+    );
+  });
+
+  it("creates a goal on a free entry race with the major flag", async () => {
+    createSeasonGoal.mockResolvedValue(TEMPS);
+    afficher();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Ajouter un objectif" }));
+    await userEvent.click(screen.getByRole("radio", { name: "Une épreuve cible" }));
+    await userEvent.click(screen.getByRole("button", { name: "Mon épreuve n'est pas dans la liste" }));
+    await userEvent.type(screen.getByLabelText("Nom de l'épreuve"), "Run du coin");
+    await userEvent.type(screen.getByLabelText("Date de l'épreuve"), `${currentSeason() + 1}-05-02`);
+    await userEvent.click(screen.getByRole("checkbox", { name: "Objectif majeur de la saison" }));
+    await userEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
+
+    await waitFor(() =>
+      expect(createSeasonGoal).toHaveBeenCalledWith({
+        kind: "race", event_type: null, target: null, major: true,
+        race_name: "Run du coin", race_date: `${currentSeason() + 1}-05-02`,
+      }),
+    );
+  });
+
+  it("refuses a target time without a discipline", async () => {
+    afficher();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Ajouter un objectif" }));
+    await userEvent.click(screen.getByRole("radio", { name: "Une épreuve cible" }));
+    await userEvent.click(screen.getByRole("button", { name: "Mon épreuve n'est pas dans la liste" }));
+    await userEvent.type(screen.getByLabelText("Nom de l'épreuve"), "Run du coin");
+    await userEvent.type(screen.getByLabelText("Date de l'épreuve"), `${currentSeason() + 1}-05-02`);
+    await userEvent.type(screen.getByLabelText("Temps visé (facultatif)"), "2:30:00");
+    await userEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
+
+    expect(await screen.findByText("Choisissez la discipline et le format du temps à battre.")).toBeInTheDocument();
+    expect(createSeasonGoal).not.toHaveBeenCalled();
+  });
+
+  it("labels a race goal and its four outcomes", () => {
+    const course: SeasonGoal = {
+      ...TEMPS, kind: "race", target: null, course_id: 7, race_name: "Triathlon de Nantes",
+      race_date: "2026-06-14", outcome: "awaiting_results",
+    };
+    expect(libelle(course)).toBe("Triathlon de Nantes, 14/06/2026");
+    expect(progression(course)).toBe("En attente des résultats");
+    expect(progression({ ...course, outcome: "reached", best_time: "2:25:00" })).toBe("Objectif atteint, temps 2:25:00");
+    expect(progression({ ...course, outcome: "missed", best_time: null })).toBe("Objectif manqué");
+    expect(progression({ ...course, outcome: "upcoming", race_date: jourDecale(12) })).toBe("Dans 12 jours");
+    expect(progression({ ...course, outcome: "upcoming", race_date: jourDecale(0) })).toBe("Aujourd'hui");
+    expect(localToday()).toBe(jourDecale(0));
+  });
+
+  it("flags the major goal", async () => {
+    getSeasonGoals.mockResolvedValue([{ ...NOMBRE, major: true }, TEMPS]);
+    afficher();
+
+    const ligne = (await screen.findByText("6 épreuves")).closest("li") as HTMLElement;
+    expect(within(ligne).getByText("Majeur")).toBeInTheDocument();
+    expect(within((await screen.findByText("Triathlon M en moins de 2:30:00")).closest("li") as HTMLElement).queryByText("Majeur")).toBeNull();
   });
 });
