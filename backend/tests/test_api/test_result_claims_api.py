@@ -175,3 +175,13 @@ def test_search_hides_opposed_identities(client, db_session, setup):
     db_session.commit()
 
     assert client.get(TEAM_SEARCH, params={"q": "mollets"}).json() == []
+
+
+def test_post_team_claim(client, db_session, setup):
+    relay = _team_relay(db_session)
+
+    created = client.post(MINE, json={"participation_id": relay.id, "kind": "team"})
+
+    assert created.status_code == 201
+    assert created.json()["kind"] == "team"
+    assert [c["kind"] for c in client.get(MINE).json()] == ["team"]

@@ -62,6 +62,7 @@ class AthleteLinkRead(BaseModel):
 
 class ResultClaimCreate(BaseModel):
     participation_id: DbId
+    kind: Literal["result", "team"] = "result"
 
 
 class ResultClaimRead(BaseModel):
@@ -72,6 +73,7 @@ class ResultClaimRead(BaseModel):
     id: int
     participation_id: int
     status: Literal["pending", "rejected"]
+    kind: Literal["result", "team"]
     created_at: UtcDatetime
     course_id: int
     course_name: str

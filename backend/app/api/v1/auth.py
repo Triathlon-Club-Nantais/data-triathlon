@@ -410,7 +410,7 @@ def list_my_result_claims(user: User = Depends(current_user), db: Session = Depe
 )
 def request_result_claim(body: ResultClaimCreate, user: User = Depends(current_user), db: Session = Depends(get_db)):
     """« Ce résultat est à moi » (#1637), toujours soumis à la file du club."""
-    claim = result_claims.request_claim(db, user, body.participation_id)
+    claim = result_claims.request_claim(db, user, body.participation_id, kind=body.kind)
     db.commit()
     return _result_claim_read(claim)
 

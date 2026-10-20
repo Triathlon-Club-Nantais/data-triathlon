@@ -7,8 +7,14 @@ from app.core.exceptions import DomainError, NotFoundError
 from app.models.admin_action_log import AdminActionLog
 from app.models.athlete import Athlete
 from app.models.course import Course
-from app.models.participation import Participation
-from app.models.result_claim import KIND_RESULT, STATUS_PENDING, STATUS_REJECTED, ResultClaim
+from app.models.participation import Participation, ParticipationTeammate
+from app.models.result_claim import (
+    KIND_RESULT,
+    KIND_TEAM,
+    STATUS_PENDING,
+    STATUS_REJECTED,
+    ResultClaim,
+)
 from app.models.user import SYSTEM_USER_EMAIL
 from app.repositories import user_repository
 from app.services import athlete_claims, result_claims
@@ -216,3 +222,74 @@ def test_a_claim_is_a_result_claim_by_default(db_session, lea, homonym):
     claim = result_claims.request_claim(db_session, lea, _result(db_session, homonym).id)
 
     assert claim.kind == KIND_RESULT
+
+
+def test_a_member_asks_to_join_a_team_result(db_session, lea):
+    team = _athlete(db_session, nom="LES MOLLETS D'ACIER", prenom="")
+    relay = _result(db_session, team, is_relay=True)
+
+    claim = result_claims.request_claim(db_session, lea, relay.id, kind=KIND_TEAM)
+
+    assert (claim.kind, claim.status) == (KIND_TEAM, STATUS_PENDING)
+    assert relay.athlete_id == team.id
+
+
+def test_a_team_claim_accepts_a_relay_flagged_on_the_course_only(db_session, lea):
+    team = _athlete(db_session, nom="LES MOLLETS D'ACIER", prenom="")
+    relay = _result(db_session, team, course_relay=True)
+
+    claim = result_claims.request_claim(db_session, lea, relay.id, kind=KIND_TEAM)
+
+    assert claim.kind == KIND_TEAM
+
+
+@pytest.mark.parametrize("case", ["not_relay", "pending", "already_carrier", "already_teammate"])
+def test_a_team_claim_is_refused(db_session, lea, case):
+    team = _athlete(db_session, nom="LES MOLLETS D'ACIER", prenom="")
+    if case == "not_relay":
+        target = _result(db_session, team)
+    elif case == "pending":
+        target = _result(db_session, team, is_relay=True, is_pending_validation=True)
+    elif case == "already_carrier":
+        target = _result(db_session, db_session.get(Athlete, lea.athlete_id), is_relay=True)
+    else:
+        target = _result(db_session, team, is_relay=True)
+        db_session.add(ParticipationTeammate(participation_id=target.id, athlete_id=lea.athlete_id, position=0))
+        db_session.flush()
+        db_session.refresh(target)
+
+    with pytest.raises(result_claims.UnclaimableResultError):
+        result_claims.request_claim(db_session, lea, target.id, kind=KIND_TEAM)
+
+
+def test_a_second_click_on_a_team_claim_keeps_its_place(db_session, lea):
+    relay = _result(db_session, _athlete(db_session, nom="LES MOLLETS D'ACIER", prenom=""), is_relay=True)
+    first = result_claims.request_claim(db_session, lea, relay.id, kind=KIND_TEAM)
+
+    again = result_claims.request_claim(db_session, lea, relay.id, kind=KIND_TEAM)
+
+    assert again.id == first.id
+    assert db_session.query(ResultClaim).count() == 1
+
+
+def test_team_and_result_claims_share_the_pending_ceiling(db_session, lea, homonym):
+    for _ in range(result_claims.MAX_PENDING - 1):
+        result_claims.request_claim(db_session, lea, _result(db_session, homonym).id)
+    relay = _result(db_session, _athlete(db_session, nom="LES MOLLETS D'ACIER", prenom=""), is_relay=True)
+    result_claims.request_claim(db_session, lea, relay.id, kind=KIND_TEAM)
+    other = _result(db_session, _athlete(db_session, nom="LES AUTRES", prenom=""), is_relay=True)
+
+    with pytest.raises(result_claims.TooManyClaimsError):
+        result_claims.request_claim(db_session, lea, other.id, kind=KIND_TEAM)
+
+
+def test_asking_again_after_a_rejection_overwrites_the_kind(db_session, lea):
+    """A relay cannot be a valid `result` claim, so a rejected row of that kind is planted directly."""
+    relay = _result(db_session, _athlete(db_session, nom="LES MOLLETS D'ACIER", prenom=""), is_relay=True)
+    db_session.add(ResultClaim(user_id=lea.id, participation_id=relay.id, kind=KIND_RESULT, status=STATUS_REJECTED))
+    db_session.flush()
+
+    again = result_claims.request_claim(db_session, lea, relay.id, kind=KIND_TEAM)
+
+    assert db_session.query(ResultClaim).count() == 1
+    assert (again.kind, again.status) == (KIND_TEAM, STATUS_PENDING)

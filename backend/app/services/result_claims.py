@@ -20,7 +20,7 @@ from app.core.time import utcnow
 from app.models.athlete import Athlete
 from app.models.club_member import ClubMember
 from app.models.participation import Participation
-from app.models.result_claim import STATUS_PENDING, ResultClaim
+from app.models.result_claim import KIND_RESULT, KIND_TEAM, STATUS_PENDING, ResultClaim
 from app.models.user import User
 from app.repositories import (
     athlete_repository,
@@ -56,20 +56,29 @@ def _claim_not_pending() -> NotFoundError:
     return NotFoundError("Cette réclamation n'est plus en attente.")
 
 
-def request_claim(db: Session, user: User, participation_id: int) -> ResultClaim:
+def _claimable(participation: Participation, athlete_id: int, kind: str) -> bool:
+    if participation.athlete_id == athlete_id or participation.is_pending_validation:
+        return False
+    if kind == KIND_TEAM:
+        is_relay = participation.is_relay or participation.course.is_relay
+        return is_relay and athlete_id not in {link.athlete_id for link in participation.teammate_links}
+    return not participation.is_relay
+
+
+def request_claim(db: Session, user: User, participation_id: int, *, kind: str = KIND_RESULT) -> ResultClaim:
     if user.athlete_id is None:
         raise NoClaimedAthleteError()
     participation = participation_repository.get(db, participation_id)
     if participation is None:
         raise NotFoundError("Résultat introuvable.")
-    if participation.athlete_id == user.athlete_id or participation.is_pending_validation or participation.is_relay:
+    if not _claimable(participation, user.athlete_id, kind):
         raise UnclaimableResultError()
     existing = result_claim_repository.get_for_participation(db, user.id, participation_id)
     if existing is not None and existing.status == STATUS_PENDING:
         return existing  # un second clic ne la renvoie pas en fin de file
     if result_claim_repository.count_pending_for_user(db, user.id) >= MAX_PENDING:
         raise TooManyClaimsError()
-    claim = result_claim_repository.replace_pending(db, user_id=user.id, participation_id=participation_id)
+    claim = result_claim_repository.replace_pending(db, user_id=user.id, participation_id=participation_id, kind=kind)
     logger.info("Result claim requested: user=%s participation=%s", user.id, participation_id)
     return claim
 
