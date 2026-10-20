@@ -31,6 +31,12 @@ describe("GuideSection", () => {
     render(<GuideSection section={deux} />);
     expect(screen.getAllByRole("img")).toHaveLength(2);
   });
+
+  it("ne rend aucun bloc de captures quand `captures` est vide", () => {
+    const { container } = render(<GuideSection section={{ ...section, captures: [] }} />);
+    expect(screen.queryAllByRole("img")).toHaveLength(0);
+    expect(container.querySelector(".space-y-3")).toBeNull();
+  });
 });
 
 describe("GuideSection — accès direct par ancre (#865, US3)", () => {
