@@ -33,6 +33,7 @@ export const queryKeys = {
   seasonGoals: (season?: number) => (season === undefined ? ["season-goals"] : ["season-goals", season]) as readonly unknown[],
   athleteLinks: () => ["athlete-links"] as const,
   resultClaims: () => ["result-claims"] as const,
+  mySeasonQuota: () => ["my-season-quota"] as const,
   myResultClaims: () => ["my-result-claims"] as const,
   providerQuality: () => ["provider-quality"] as const,
   // Clé distincte de `courseParticipations` : celle-ci stocke un `CourseDetail`,

@@ -1519,6 +1519,9 @@ export interface SeasonQuota {
   has_volunteer_action: boolean;
   has_pending_volunteer_action: boolean;
   season_validated: boolean;
+  quota_met: boolean;
+  season: number;
+  required_events: number;
 }
 
 /**

@@ -133,6 +133,16 @@ export function useApplyMyOpposition() {
   });
 }
 
+/** Ma saison au club (#1671) ; `enabled` faux sans fiche rattachée. */
+export function useMySeasonQuota(enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.mySeasonQuota(),
+    queryFn: () => apiClient.getMySeasonQuota(),
+    enabled,
+    retry: false,
+  });
+}
+
 /** Mes réclamations de résultat (#1637) ; `enabled` faux sans fiche rattachée. */
 export function useMyResultClaims(enabled: boolean) {
   return useQuery({

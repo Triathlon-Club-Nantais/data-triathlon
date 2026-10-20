@@ -956,6 +956,7 @@ export const apiClient = {
   deleteSeasonGoal: (id: number) => request<null>(`/auth/me/goals/${id}`, { method: "DELETE" }),
   getAthleteLinks: () => request<AthleteLink[]>("/admin/athlete-links"),
   // ── Réclamations de résultat (#1637) ────────────────────────────────────────
+  getMySeasonQuota: () => request<SeasonQuota | null>("/auth/me/season-quota"),
   getMyResultClaims: () => request<ResultClaim[]>("/auth/me/result-claims"),
   requestResultClaim: (participationId: number) =>
     request<ResultClaim>("/auth/me/result-claims", {
