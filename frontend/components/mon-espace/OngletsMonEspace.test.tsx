@@ -65,7 +65,7 @@ describe("OngletsMonEspace", () => {
   it("keeps 44 px tabs that scroll sideways instead of overflowing the page", () => {
     afficher();
 
-    expect(screen.getByRole("tablist")).toHaveClass("h-auto", "pb-2", "max-w-full", "justify-start", "overflow-x-auto");
+    expect(screen.getByRole("tablist")).toHaveClass("h-auto", "group-data-horizontal/tabs:h-auto", "overflow-y-hidden", "pb-2", "max-w-full", "justify-start", "overflow-x-auto");
     for (const tab of screen.getAllByRole("tab")) expect(tab).toHaveClass("min-h-11");
   });
 
