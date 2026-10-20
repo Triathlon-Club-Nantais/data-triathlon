@@ -2,15 +2,12 @@ import type { Metadata } from "next";
 import { apiServer, SHORT_REVALIDATE_SECONDS } from "@/lib/api/server";
 import { SCOPE_CLUB, federalOnlyFromParam } from "@/lib/scope";
 import { DisciplineToggle } from "@/components/layout/DisciplineToggle";
-import { InvitationAthlete } from "@/components/dashboard/InvitationAthlete";
-import { MaSaison } from "@/components/dashboard/MaSaison";
-import { SeasonGoals } from "@/components/dashboard/SeasonGoals";
 import { SeasonSelector, SeasonTags } from "@/components/dashboard/SeasonSelector";
-import { currentSeason, parseSeasonsParam, seasonSelectionLabel, serializeSeasons } from "@/lib/utils/season";
+import { currentSeason, parseSeasonsParam, seasonSelectionLabel } from "@/lib/utils/season";
 import { Eyebrow } from "@/components/tcn";
 import { FieldLabel } from "@/components/layout/FieldLabel";
 import { PageShell } from "@/components/layout/PageShell";
-import { SeasonEmptyState } from "@/components/dashboard/SeasonEmptyState";
+import { MonEspace } from "@/components/mon-espace/MonEspace";
 
 export const metadata: Metadata = { title: "Mon espace" };
 
@@ -19,7 +16,7 @@ export default async function DashboardPage({
 }: {
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
-  // Mon espace = vitrine du club : portée TCN forcée, pas de choix « Tous »
+  // Mon espace : portée TCN forcée, pas de choix « Tous »
   // (validé par Vincent, issue #6). Le paramètre `?scope` est volontairement
   // ignoré, mais on lit `?seasons` pour le sélecteur de saison (issue #7) et
   // `?sports` pour le filtre fédéral/hors-fédération (issue #76).
@@ -30,27 +27,9 @@ export default async function DashboardPage({
   const selected = fromUrl.length > 0 ? fromUrl : [currentSeason()];
   const federal_only = federalOnlyFromParam(sp.sports);
 
-  // Fenêtre de revalidation courte (#352) : les appels rejouaient
-  // l'intégralité du rendu serveur à chaque visite (`cache: "no-store"`),
-  // pour un coût que le sondage du 2026-08-14 chiffre à 1,5-1,8 s une fois
-  // les N+1 corrigés (#350/#351) — un `revalidate` masque ce coût pour
-  // l'écrasante majorité des visites, sans retarder la visibilité d'un
-  // import (batch) au-delà de ce qu'un visiteur tolère.
-  const revalidateOpts = { revalidateSeconds: SHORT_REVALIDATE_SECONDS };
-  const [stats, seasons] = await Promise.all([
-    apiServer.getStats({ scope: SCOPE_CLUB, seasons: selected, federal_only }, revalidateOpts),
-    apiServer.listSeasons({ scope: SCOPE_CLUB, federal_only }, revalidateOpts),
-  ]);
-
-  const isEmptySeason = stats.total === 0;
-  const voirSaisonEnCoursHref = (() => {
-    const params = new URLSearchParams();
-    for (const [key, value] of Object.entries(sp)) {
-      if (value !== undefined && key !== "seasons") params.set(key, value);
-    }
-    const qs = params.toString();
-    return qs ? `/mon-espace?${qs}` : "/mon-espace";
-  })();
+  // Les saisons proposées sont celles du club (revalidation courte, #352) ; les
+  // chiffres, eux, viennent de la fiche rattachée, côté client.
+  const seasons = await apiServer.listSeasons({ scope: SCOPE_CLUB, federal_only }, { revalidateSeconds: SHORT_REVALIDATE_SECONDS });
 
   return (
     <PageShell>
@@ -83,22 +62,7 @@ export default async function DashboardPage({
         <SeasonTags seasons={seasons} className="justify-start lg:justify-end" />
       </div>
 
-      {isEmptySeason ? (
-        <SeasonEmptyState seasons={selected} currentSeasonHref={voirSaisonEnCoursHref} />
-      ) : (
-        <>
-          {/* Le collectif vit sur `/club` (#1299). En tête de page, à dessein (#502, NAV-9) : l'écran
-              d'atterrissage ne parlait que du club en agrégat. La bande n'existe
-              que pour qui a désigné son nom — elle se monte donc côté client et
-              n'est pas dans le HTML initial (arbitrage #467, `docs/frontend/athlete-retenu.md`).
-              `InvitationAthlete` (#588) prend le relais, à la même place, pour
-              qui n'a encore rien choisi — les deux sont mutuellement exclusifs. */}
-          <MaSaison clubEvents={stats.events} seasons={serializeSeasons(selected)} federalOnly={federal_only} />
-          <InvitationAthlete />
-          <SeasonGoals />
-
-        </>
-      )}
+      <MonEspace seasons={selected} federalOnly={federal_only ?? false} />
     </PageShell>
   );
 }

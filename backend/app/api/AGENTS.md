@@ -15,8 +15,7 @@ Deux paramètres traversent l'API de lecture, sur le même patron que `seasons` 
   (`trail`, `course-a-pied*`, `cyclisme*`). **Défaut à `false` : l'API reste
   neutre.** Ce sont le dashboard et la page club qui l'activent, via le toggle
   « Inclure les autres disciplines » — et, depuis #502, `GET /athletes/{id}`,
-  qui reçoit `seasons`/`federal_only` de la bande « Ma saison » du tableau de
-  bord. Un défaut à `true` amputerait silencieusement tout futur appelant.
+  qui reçoit `seasons`/`federal_only` de Mon espace. Un défaut à `true` amputerait silencieusement tout futur appelant.
 
 ## Résultats en attente de validation : exclus par construction (#270)
 
@@ -33,8 +32,8 @@ feature).
 
 `app/core/validation.py` (`validated_clause`) est le point
 **unique** de la règle, sur le patron de `core/club.tcn_clause` et
-`core/discipline.federal_clause`. Appliqué à quatorze fonctions, réparties sur
-trois repositories :
+`core/discipline.federal_clause`. Appliqué à trente-cinq fonctions (dont `list_for_athlete`, décrite plus bas), réparties sur
+cinq repositories (le tableau ne liste que les principales) :
 
 | Fonction | Fichier | Alimente |
 | --- | --- | --- |
@@ -53,6 +52,10 @@ trois repositories :
 | `licensee_activity` | `club_member_repository.py` | `GET /club/summary` → `licensees` : licenciés de la saison en cours (`core/season`, bascule au 1er septembre) et ceux qui ont couru, relais compris (#1441, additif, `null` sans licencié) |
 | `club_podiums` | `participation_repository.py` | `GET /club/summary` → podiums et podiums par discipline (#581, #642) ; sous `?podiums=preview`, 6 par mode plus `podiums_totals` (ajout de #1354, défaut inchangé) ; `GET /club/podiums` → liste complète, chargée au dépliage |
 | `club_best_time_rows` | `participation_repository.py` | `GET /club/best-times?season=` (#1588, additif) : meilleur temps du club par format calibré (`-xs` à `-xl`) et par genre, mêmes exclusions que `best-times.ts` (relais, épreuve non fiable, non classé), le plus rapide choisi par `club_service.get_club_best_times` (`total_time` est une chaîne) ; `season` absent, toutes saisons |
+| `club_outing_rank_rows` | `participation_repository.py` | rang des membres du club sur une sortie (#1699) |
+| `club_split_rows` | `participation_repository.py` | médiane des splits du club par format (#1699) |
+| `teammate_rows` | `participation_repository.py` | `GET /auth/me/teammates` : coéquipiers de course les plus fréquents (#1701) |
+| `course_split_gap_rows` | `participation_repository.py` | population de la médiane d'écart de splits d'une épreuve (#1699) : validée **sans clause de club, à dessein** (club ou non) |
 
 **`search_by_relevance` compte par une sous-requête corrélée**, pas par une
 jointure : un athlète à zéro résultat validé reste trouvable (#562), et
@@ -524,6 +527,11 @@ repli, et l'ancien front ne connaît pas `/encadrement` : backend et front sorte
 **ensemble** (#1297). Backend seul, un compte jeunes seul est refusé à l'ancien
 `/admin/jeunes` et le callback SSO l'envoie vers un `/encadrement` en 404 ; front
 seul, `can_supervise` est indéfini et `/encadrement` refuse tout le monde.
+
+`GET /auth/me/teammates` (#1701) et `GET /auth/me/volunteer-actions` (#1696)
+ne portent, comme `GET /auth/me`, que sur soi : liste vide quand aucun athlète
+n'est rattaché à son compte ; la seconde rend `MyVolunteerActionOut`, sans
+identité de fiche ni auteur de la déclaration.
 
 **Les sept ressources de `/admin/groups` (#197) n'ajoutent aucun mécanisme.**
 Elles reprennent `require_permission` à l'identique, route par route, et se

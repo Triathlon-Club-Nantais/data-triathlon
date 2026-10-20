@@ -272,7 +272,10 @@ def test_last_outing_shape(client, db_session, monkeypatch):
     resp = client.get("/api/v1/club/last-outing?federal_only=true")
 
     assert resp.status_code == 200
-    assert resp.json() == {"end_date": "2026-10-11", "events": 1, "athletes": 1, "podiums": 1}
+    assert resp.json() == {
+        "end_date": "2026-10-11", "events": 1, "athletes": 1, "podiums": 1,
+        "courses": [{"id": course.id, "name": "C", "event_type": "triathlon-m", "tcn": 1, "podiums": 1}],
+    }
 
 
 def _two_season_results(db_session):
@@ -303,3 +306,107 @@ def test_last_outing_accepts_seasons(client, db_session, monkeypatch):
 
     assert client.get("/api/v1/club/last-outing").json()["end_date"] == "2026-10-11"
     assert client.get("/api/v1/club/last-outing?seasons=2025").json()["end_date"] == "2026-05-10"
+
+
+def _total(swim, bike="00:30:00", run="00:20:00"):
+    from app.services.mapping import parse_duration
+
+    seconds = sum(parse_duration(value) for value in (swim, bike, run))
+    return f"{seconds // 3600:02d}:{seconds % 3600 // 60:02d}:{seconds % 60:02d}"
+
+
+def _split_row(db_session, course, index, *, club="TCN", swim="00:10:00", bike="00:30:00", run="00:20:00",
+               total=None, splits=True):
+    athlete = athlete_repository.get_or_create(db_session, nom=f"N{course.id}{index}{club}", prenom="P", club=club)
+    return participation_repository.create(
+        db_session, athlete_id=athlete.id, course_id=course.id, bib_number=f"{course.id}-{index}-{club}",
+        club=club, status="finisher", total_time=total or _total(swim, bike, run),
+        splits={"swim": swim, "t1": "00:00:00", "bike": bike, "t2": "00:00:00", "run": run} if splits else None,
+    )
+
+
+def _split_course(db_session, *, provider="klikego", day=16, event_type="triathlon-s"):
+    return course_repository.get_or_create(
+        db_session, name=f"S{provider}{day}", event_date=date(2026, 5, day), event_type=event_type,
+        provider=provider, source_url=f"https://{provider}.example/{day}",
+    )
+
+
+def test_club_split_medians_median_and_sample(client, db_session):
+    course = _split_course(db_session)
+    for index, swim in enumerate(("00:10:00", "00:12:00", "00:20:00")):
+        _split_row(db_session, course, index, swim=swim)
+    db_session.commit()
+
+    body = client.get("/api/v1/club/split-medians?event_type=triathlon-s").json()
+
+    assert body == {"event_type": "triathlon-s", "sample": 3, "swim": "00:12:00", "bike": "00:30:00", "run": "00:20:00"}
+
+
+def test_club_split_medians_ignore_non_club_unreliable_and_incomplete_rows(client, db_session):
+    good = _split_course(db_session)
+    _split_row(db_session, good, 0)
+    _split_row(db_session, good, 1, club="AUTRE", swim="00:30:00")
+    _split_row(db_session, good, 2, splits=False)
+    unreliable = _split_course(db_session, provider="breizhchrono", day=17)
+    _split_row(db_session, unreliable, 0, swim="00:40:00")
+    db_session.commit()
+
+    body = client.get("/api/v1/club/split-medians?event_type=triathlon-s").json()
+
+    assert body["sample"] == 1
+    assert body["swim"] == "00:10:00"
+
+
+def test_club_split_medians_exclude_outliers(client, db_session):
+    course = _split_course(db_session)
+    for index in range(11):
+        _split_row(db_session, course, index)
+    # Les inters ne couvrent qu'une fraction du total : écart aberrant face à l'épreuve.
+    _split_row(db_session, course, 99, swim="00:50:00", bike="00:01:00", run="00:01:00", total="03:00:00")
+    db_session.commit()
+
+    body = client.get("/api/v1/club/split-medians?event_type=triathlon-s").json()
+
+    assert body["sample"] == 11
+    assert body["swim"] == "00:10:00"
+
+
+def test_club_split_medians_filter_by_seasons(client, db_session):
+    _split_row(db_session, _split_course(db_session), 0)
+    db_session.commit()
+
+    assert client.get("/api/v1/club/split-medians?event_type=triathlon-s&seasons=2025").json()["sample"] == 1
+    assert client.get("/api/v1/club/split-medians?event_type=triathlon-s&seasons=2026").json()["sample"] == 0
+
+
+def test_club_split_medians_empty_gives_nulls(client, db_session):
+    body = client.get("/api/v1/club/split-medians?event_type=triathlon-s").json()
+
+    assert body == {"event_type": "triathlon-s", "sample": 0, "swim": None, "bike": None, "run": None}
+
+
+def test_club_split_medians_reference_gap_median_covers_the_whole_course(client, db_session):
+    course = _split_course(db_session)
+    _split_row(db_session, course, 0)
+    _split_row(db_session, course, 1)
+    # Ligne cassée du club : les inters dépassent le total (écart négatif).
+    _split_row(db_session, course, 2, swim="00:50:00", total="01:00:00")
+    for index in range(10, 20):
+        _split_row(db_session, course, index, club="AUTRE")
+    db_session.commit()
+
+    body = client.get("/api/v1/club/split-medians?event_type=triathlon-s").json()
+
+    assert body["sample"] == 2
+    assert body["swim"] == "00:10:00"
+
+
+def test_course_brief_exposes_whether_splits_are_reliable(db_session):
+    from app.schemas.course import CourseBrief
+
+    good = _split_course(db_session)
+    unreliable = _split_course(db_session, provider="breizhchrono", day=17)
+
+    assert CourseBrief.model_validate(good).has_reliable_splits is True
+    assert CourseBrief.model_validate(unreliable).has_reliable_splits is False

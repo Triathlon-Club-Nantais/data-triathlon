@@ -51,6 +51,8 @@ export interface CourseBrief {
   // Indice de fiabilité calculé à l'import ; null = course jamais évaluée.
   is_reliable?: boolean | null;
   quality_issues?: Record<string, number> | null;
+  // Splits complets pour tous les finishers (#1699), règle unique du serveur.
+  has_reliable_splits?: boolean;
   // Météo du jour de course (#1370, Open-Meteo) ; null = pas encore servie.
   weather_temperature_c?: number | null;
   weather_wind_kmh?: number | null;
@@ -355,6 +357,17 @@ export interface ClubLastOuting {
   events: number;
   athletes: number;
   podiums: number;
+  /** Épreuves de la sortie portant un TCN, par `tcn` décroissant (#1660). */
+  courses: { id: number; name: string; event_type: string; tcn: number; podiums: number }[];
+}
+
+/** Médiane club des splits d'un format (#1699) : `sample` lignes fiables, `null` sans valeur. */
+export interface ClubSplitMedians {
+  event_type: string;
+  sample: number;
+  swim: string | null;
+  bike: string | null;
+  run: string | null;
 }
 
 export interface ClubRosterRank {
@@ -1030,6 +1043,13 @@ export interface AthleteClaim {
   created_at: string;
 }
 
+export interface Teammate {
+  athlete_id: number;
+  prenom: string;
+  nom: string;
+  courses_communes: number;
+}
+
 /** Objectif de saison privé de l'athlète rattaché, et sa progression (#1373). */
 export interface SeasonGoal {
   id: number;
@@ -1425,6 +1445,16 @@ export interface AdminVolunteerActionOut {
   description: string | null;
   status: string;
   declared_by_user_id: number | null;
+  created_at: string;
+}
+
+// Miroir de MyVolunteerActionOut backend (#1696) : mes actions validées, sans identité.
+export interface MyVolunteerActionOut {
+  id: number;
+  season: number;
+  title: string | null;
+  description: string | null;
+  status: string;
   created_at: string;
 }
 

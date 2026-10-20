@@ -38,6 +38,7 @@ import type {
   AthleteClaimReview,
   SeasonGoal,
   SeasonGoalWrite,
+  Teammate,
   AthleteLink,
   ResultClaim,
   ResultClaimReview,
@@ -55,6 +56,7 @@ import type {
   CourseSource,
   ClubPodiums,
   ClubRosterRank,
+  ClubSplitMedians,
   CourseSummary,
   CoursesWipeImpact,
   CoursesWipeResult,
@@ -100,6 +102,7 @@ import type {
   SeasonQuota,
   SeasonValidation,
   ValidationQueueHistory,
+  MyVolunteerActionOut,
   VolunteerActionSelfCreate,
   VolunteerActionSelfOut,
 } from "@/lib/types";
@@ -301,6 +304,8 @@ export const apiClient = {
   // n'en transporte que l'aperçu (#1354).
   getClubPodiums: (opts: { federal_only?: boolean; seasons?: number[] } = {}) =>
     request<ClubPodiums>(`/club/podiums${toQuery(opts as Record<string, unknown>)}`),
+  getClubSplitMedians: (opts: { event_type: string; federal_only?: boolean; seasons?: number[] }) =>
+    request<ClubSplitMedians>(`/club/split-medians${toQuery(opts as Record<string, unknown>)}`),
   // Rang exact d'un athlète dans le roster club, au-delà de l'aperçu de 12
   // (#504, #641) — appelé côté client, jamais transporté dans la page
   // (`RosterApercu`, seul appelant, ne le demande que si l'athlète retenu en
@@ -320,9 +325,8 @@ export const apiClient = {
   },
 
   // Premier appel navigateur de cette route : `/athletes/{id}` n'était jusqu'ici
-  // lu que par le rendu serveur de la fiche athlète. La bande « Ma saison »
-  // (#502) l'appelle côté client, parce que l'athlète retenu vit en
-  // `localStorage` et ne franchit pas la frontière serveur (#467).
+  // lu que par le rendu serveur de la fiche athlète. Mon espace (#1695)
+  // l'appelle côté client pour les records et les paliers de la carrière.
   getAthlete: (
     id: number,
     filters: { seasons?: string; federal_only?: boolean } = {},
@@ -932,6 +936,9 @@ export const apiClient = {
   detachAthlete: () => request<null>("/auth/me/athlete", { method: "DELETE" }),
   getAthleteClaims: () => request<AthleteClaimReview[]>("/admin/athlete-claims"),
   // ── Objectifs de saison (#1373), privés au compte ───────────────────────────
+  getMyVolunteerActions: () => request<MyVolunteerActionOut[]>("/auth/me/volunteer-actions"),
+  getMyTeammates: (opts: { federal_only?: boolean; seasons?: number[] } = {}) =>
+    request<Teammate[]>(`/auth/me/teammates${toQuery(opts as Record<string, unknown>)}`),
   getSeasonGoals: () => request<SeasonGoal[]>("/auth/me/goals"),
   createSeasonGoal: (body: SeasonGoalWrite) =>
     request<SeasonGoal>("/auth/me/goals", { method: "POST", body: JSON.stringify(body) }),

@@ -89,6 +89,14 @@ class ClubSummary(BaseModel):
     licensees: ClubLicensees | None = None
 
 
+class ClubOutingCourse(BaseModel):
+    id: int
+    name: str
+    event_type: str
+    tcn: int
+    podiums: int
+
+
 class ClubLastOuting(BaseModel):
     """Dernière sortie du club : la course la plus récente et sa veille (#1619)."""
 
@@ -96,6 +104,8 @@ class ClubLastOuting(BaseModel):
     events: int
     athletes: int
     podiums: int
+    # Additif (#1660) : épreuves de la fenêtre portant un TCN, par `tcn` décroissant.
+    courses: list[ClubOutingCourse]
 
 
 class ClubRosterRank(BaseModel):
@@ -119,3 +129,13 @@ class ClubBestTime(BaseModel):
     event_date: str | None = None
     gender: str
     total_time: str
+
+
+class ClubSplitMedians(BaseModel):
+    """Médiane du club par discipline sur un format, à partir des splits fiables (#1699)."""
+
+    event_type: str
+    sample: int
+    swim: str | None = None
+    bike: str | None = None
+    run: str | None = None

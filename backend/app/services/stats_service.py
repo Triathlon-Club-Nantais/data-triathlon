@@ -149,11 +149,30 @@ def get_last_outing(db: Session, *, federal_only: bool = False, seasons: list[in
     }
     _total, athletes, events = participation_repository.stats_totals(db, **filters)
     rows = participation_repository.stats_rank_rows(db, **filters)
+    by_course: dict[int, dict] = {}
+    for course_id, name, event_type, *ranks in participation_repository.club_outing_rank_rows(
+        db, seasons=seasons, federal_only=federal_only, dates=filters["dates"]
+    ):
+        course = by_course.setdefault(
+            course_id, {"id": course_id, "name": name or "", "event_type": event_type or "", "rows": []}
+        )
+        course["rows"].append(tuple(ranks))
+    courses = sorted(
+        (
+            {
+                "id": c["id"], "name": c["name"], "event_type": c["event_type"],
+                "tcn": len(c["rows"]), "podiums": _rank_counters(c["rows"])["all"]["podiums"],
+            }
+            for c in by_course.values()
+        ),
+        key=lambda c: (-c["tcn"], c["name"]),
+    )
     return {
         "end_date": end,
         "events": events,
         "athletes": athletes,
         "podiums": _rank_counters(rows)["all"]["podiums"],
+        "courses": courses,
     }
 
 

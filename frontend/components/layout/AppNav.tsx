@@ -94,7 +94,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
   }, []);
 
   // Ouverture de la palette demandée depuis un écran qui n'en porte pas
-  // l'état — la bande « Ma saison » sur un 404 (#502, revue UI/UX item 11).
+  // l'état — l'invitation de Mon espace (#502, revue UI/UX item 11).
   // `AppNav` reste l'unique porteur de `pickerMode` ; l'événement ne fait que
   // le lui demander, comme `onOpenPicker` le fait déjà pour le rail et la
   // barre mobile.

@@ -1,4 +1,5 @@
 import { PageShell } from "@/components/layout/PageShell";
+import { SqueletteMonEspace } from "@/components/mon-espace/SqueletteMonEspace";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Loading() {
@@ -13,7 +14,7 @@ export default function Loading() {
           <Skeleton className="h-9 w-72" />
         </div>
       </div>
-      <Skeleton className="h-40 w-full rounded-lg" />
+      <SqueletteMonEspace />
     </PageShell>
   );
 }

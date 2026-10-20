@@ -21,7 +21,7 @@ from app.core.analytics import capture_event, set_person_properties
 from app.core.config import Settings, get_settings
 from app.core.database import get_db
 from app.core.exceptions import AuthUnavailableError, NotFoundError
-from app.core.season import SEASON_MAX, SEASON_MIN, current_season
+from app.core.season import SEASON_MAX, SEASON_MIN, current_season, parse_seasons
 from app.core.time import utcnow
 from app.models.user import User
 from app.repositories import user_repository
@@ -40,7 +40,17 @@ from app.schemas.auth import (
 )
 from app.schemas.ids import DbId
 from app.schemas.season_goal import SeasonGoalRead, SeasonGoalWrite
-from app.services import athlete_claims, membership, result_claims, season_goals, volunteer_access
+from app.schemas.teammate import Teammate
+from app.schemas.volunteer_action import MyVolunteerActionOut
+from app.services import (
+    athlete_claims,
+    membership,
+    result_claims,
+    season_goals,
+    teammate_service,
+    volunteer_access,
+    volunteer_action_service,
+)
 from app.services.auth import accounts, authorization, flow
 from app.services.auth import session as session_service
 from app.services.auth.errors import ERROR_CODES, LoginError
@@ -449,6 +459,29 @@ def delete_goal(goal_id: DbId, user: User = Depends(current_user), db: Session =
     season_goals.delete(db, user, goal_id)
     db.commit()
     return Response(status_code=204, headers=NO_STORE_HEADERS)
+
+
+@router.get("/auth/me/volunteer-actions", response_model=list[MyVolunteerActionOut])
+def list_my_volunteer_actions(user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Mes actions de bénévolat validées (#1696) ; liste vide sans fiche rattachée."""
+    if user.athlete_id is None:
+        return []
+    return volunteer_action_service.list_validated_for_athlete(db, athlete_id=user.athlete_id)
+
+
+@router.get("/auth/me/teammates", response_model=list[Teammate])
+def list_my_teammates(
+    federal_only: bool = Query(False),
+    seasons: str | None = Query(None, description="Saisons (années de début, CSV) ; absentes, toutes saisons."),
+    user: User = Depends(current_user),
+    db: Session = Depends(get_db),
+):
+    """Mes trois coéquipiers de course les plus fréquents (#1701) ; liste vide sans fiche rattachée."""
+    if user.athlete_id is None:
+        return []
+    return teammate_service.list_for_athlete(
+        db, athlete_id=user.athlete_id, federal_only=federal_only, seasons=parse_seasons(seasons)
+    )
 
 
 @router.get("/auth/me", response_model=SessionUserRead)

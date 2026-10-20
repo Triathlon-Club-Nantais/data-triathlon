@@ -141,6 +141,16 @@ export function useCancelResultClaim() {
   return useResultClaimMutation((claimId: number) => apiClient.cancelResultClaim(claimId));
 }
 
+/** Mes actions de bénévolat validées (#1696) ; liste vide sans fiche rattachée. */
+export function useMyVolunteerActions(enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.myVolunteerActions(),
+    queryFn: () => apiClient.getMyVolunteerActions(),
+    enabled,
+    retry: false,
+  });
+}
+
 /** Objectifs de saison du compte rattaché (#1373) ; `enabled` faux sans fiche. */
 export function useSeasonGoals(enabled: boolean) {
   return useQuery({

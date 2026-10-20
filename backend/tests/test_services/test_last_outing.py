@@ -38,7 +38,7 @@ def test_saturday_and_sunday_form_one_outing(db_session):
 
     outing = stats_service.get_last_outing(db_session)
 
-    assert outing == {"end_date": date(2026, 10, 11), "events": 3, "athletes": 3, "podiums": 0}
+    assert outing == {"end_date": date(2026, 10, 11), "events": 3, "athletes": 3, "podiums": 0, "courses": outing["courses"]}
 
 
 def test_an_isolated_weekday_race_is_its_own_outing(db_session):
@@ -93,3 +93,35 @@ def test_last_outing_across_several_seasons_takes_the_latest(db_session):
     outing = stats_service.get_last_outing(db_session, seasons=[2025, 2026])
 
     assert outing["end_date"] == date(2026, 10, 11)
+
+
+def _team(db, day, name, size, podiums, event_type="triathlon-m"):
+    for i in range(size):
+        _race(db, day, nom=f"{name}{i}", name=name, event_type=event_type, rank_overall=1 if i < podiums else 30)
+
+
+def test_courses_are_sorted_by_tcn_count_then_name(db_session):
+    day = date(2026, 10, 11)
+    _team(db_session, day, "Petite", 5, 1)
+    _team(db_session, day, "Grande", 36, 5)
+    _team(db_session, day, "Moyenne", 7, 2, event_type="triathlon-s")
+    _team(db_session, day, "Aaa", 5, 0)
+    _race(db_session, day, nom="AUTRE", club="ASPTT", name="Sans TCN")
+    _team(db_session, date(2026, 9, 1), "Hors fenetre", 9, 0)
+
+    courses = stats_service.get_last_outing(db_session)["courses"]
+
+    assert [(c["name"], c["tcn"], c["podiums"]) for c in courses] == [
+        ("Grande", 36, 5), ("Moyenne", 7, 2), ("Aaa", 5, 0), ("Petite", 5, 1),
+    ]
+    assert courses[1]["event_type"] == "triathlon-s" and isinstance(courses[0]["id"], int)
+
+
+def test_courses_respect_federal_only_and_seasons(db_session):
+    _team(db_session, date(2026, 10, 11), "Tri", 2, 0)
+    _team(db_session, date(2026, 10, 12), "Trail", 4, 0, event_type="trail")
+    _team(db_session, date(2026, 5, 10), "Printemps", 3, 0)
+
+    assert [c["name"] for c in stats_service.get_last_outing(db_session)["courses"]] == ["Trail", "Tri"]
+    assert [c["name"] for c in stats_service.get_last_outing(db_session, federal_only=True)["courses"]] == ["Tri"]
+    assert [c["name"] for c in stats_service.get_last_outing(db_session, seasons=[2025])["courses"]] == ["Printemps"]
