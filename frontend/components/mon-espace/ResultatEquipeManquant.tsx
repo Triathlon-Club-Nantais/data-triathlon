@@ -85,6 +85,13 @@ export function ResultatEquipeManquant() {
           {resultats.data.map(ligne)}
         </ul>
       )}
+      {active && resultats.error && (
+        <div role="alert" style={{ marginTop: 12 }}>
+          <Alert status="error" title="Recherche impossible">
+            {resultats.error.message || "La recherche n'a pas abouti. Réessayez dans un instant."}
+          </Alert>
+        </div>
+      )}
       {demander.error && (
         <div role="alert" style={{ marginTop: 12 }}>
           <Alert status="error" title="Demande non envoyée">

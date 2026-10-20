@@ -93,6 +93,20 @@ describe("ResultatEquipeManquant (#1739)", () => {
     expect(requestResultClaim).toHaveBeenCalledWith(5, "team");
   });
 
+  it("une_recherche_en_echec_s_affiche", async () => {
+    searchMyTeamResults.mockRejectedValue(new Error("Trop de recherches, réessayez dans quelques minutes."));
+    afficher();
+    await chercher("mollets");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Trop de recherches, réessayez dans quelques minutes.");
+  });
+
+  it("une_recherche_en_echec_sans_message_s_explique", async () => {
+    searchMyTeamResults.mockRejectedValue(new Error(""));
+    afficher();
+    await chercher("mollets");
+    expect(await screen.findByRole("alert")).toHaveTextContent("La recherche n'a pas abouti. Réessayez dans un instant.");
+  });
+
   it("le_refus_du_serveur_s_affiche", async () => {
     requestResultClaim.mockRejectedValue(new Error("Vous avez déjà un résultat sur cette épreuve."));
     afficher();
