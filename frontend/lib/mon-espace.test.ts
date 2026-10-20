@@ -22,11 +22,21 @@ describe("chiffresSaison", () => {
       part({ is_relay: true, rank_overall: 1, course: { is_relay: true, distance_km: 100 }, total_time: "5:00:00" }),
       part({ course: { is_relay: true, distance_km: 30 }, total_time: "3:00:00" }),
     ]);
-    expect(result).toEqual({ epreuves: 4, podiums: 1, km: 70, tempsSecondes: 10800, meilleurRatio: 2 });
+    expect(result).toEqual({ epreuves: 4, podiums: 1, km: 70, sansDistance: 0, tempsSecondes: 10800, meilleurRatio: 2 });
+  });
+
+  it("counts non-relay races without distance instead of treating them as 0 km", () => {
+    const result = chiffresSaison([
+      part({ course: { distance_km: 40 } }),
+      part({ course: { distance_km: null } }),
+      part({ is_relay: true, course: { is_relay: true, distance_km: null } }),
+    ]);
+    expect(result.km).toBe(40);
+    expect(result.sansDistance).toBe(1);
   });
 
   it("has a null best ratio and zeros when empty", () => {
-    expect(chiffresSaison([])).toEqual({ epreuves: 0, podiums: 0, km: 0, tempsSecondes: 0, meilleurRatio: null });
+    expect(chiffresSaison([])).toEqual({ epreuves: 0, podiums: 0, km: 0, sansDistance: 0, tempsSecondes: 0, meilleurRatio: null });
   });
 });
 

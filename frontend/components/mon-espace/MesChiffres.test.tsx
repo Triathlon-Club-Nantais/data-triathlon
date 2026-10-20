@@ -3,8 +3,8 @@ import { describe, expect, it } from "vitest";
 import type { ChiffresSaison } from "@/lib/mon-espace";
 import { MesChiffres } from "./MesChiffres";
 
-const COURANT: ChiffresSaison = { epreuves: 8, podiums: 2, km: 410, tempsSecondes: 3600 * 20, meilleurRatio: 12 };
-const PRECEDENT: ChiffresSaison = { epreuves: 5, podiums: 3, km: 400, tempsSecondes: 3600 * 20, meilleurRatio: 15 };
+const COURANT: ChiffresSaison = { epreuves: 8, podiums: 2, km: 410, sansDistance: 0, tempsSecondes: 3600 * 20, meilleurRatio: 12 };
+const PRECEDENT: ChiffresSaison = { epreuves: 5, podiums: 3, km: 400, sansDistance: 0, tempsSecondes: 3600 * 20, meilleurRatio: 15 };
 
 describe("MesChiffres", () => {
   it("shows the five figures and the recap link, without deltas when no previous season", () => {
@@ -38,5 +38,40 @@ describe("MesChiffres", () => {
     render(<MesChiffres courant={{ ...COURANT, meilleurRatio: null }} precedent={null} />);
 
     expect(screen.getByText("Meilleur classement").nextSibling).toHaveTextContent("Pas encore de classement");
+  });
+
+  it("says at least N km and counts races without distance when some are unknown", () => {
+    render(<MesChiffres courant={{ ...COURANT, sansDistance: 3 }} precedent={null} />);
+
+    const cellule = screen.getByText("Kilomètres").nextSibling;
+    expect(cellule).toHaveTextContent("au moins 410");
+    expect(screen.getByText("3 épreuves sans distance")).toBeVisible();
+  });
+
+  it("uses the singular for one race without distance", () => {
+    render(<MesChiffres courant={{ ...COURANT, sansDistance: 1 }} precedent={null} />);
+
+    expect(screen.getByText("1 épreuve sans distance")).toBeVisible();
+  });
+
+  it("shows a labelled dash instead of 0 when no race has a distance", () => {
+    render(<MesChiffres courant={{ ...COURANT, km: 0, sansDistance: 8 }} precedent={null} />);
+
+    expect(screen.getByLabelText("Distance inconnue")).toHaveTextContent("—");
+    expect(screen.getByText("8 épreuves sans distance")).toBeVisible();
+  });
+
+  it("keeps 0 km when there is no race", () => {
+    render(<MesChiffres courant={{ ...COURANT, epreuves: 0, podiums: 0, km: 0 }} precedent={null} />);
+
+    expect(screen.getByText("Kilomètres").nextSibling).toHaveTextContent("0");
+  });
+
+  it("hides the kilometre delta when either total is incomplete", () => {
+    const { rerender } = render(<MesChiffres courant={{ ...COURANT, sansDistance: 1 }} precedent={PRECEDENT} />);
+    expect(screen.getAllByTestId("ecart").map((node) => node.textContent)).toEqual(["+3", "−1", "=", "mieux de 3 pts"]);
+
+    rerender(<MesChiffres courant={COURANT} precedent={{ ...PRECEDENT, sansDistance: 2 }} />);
+    expect(screen.getAllByTestId("ecart").map((node) => node.textContent)).toEqual(["+3", "−1", "=", "mieux de 3 pts"]);
   });
 });
