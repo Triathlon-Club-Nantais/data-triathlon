@@ -1087,16 +1087,22 @@ export interface Teammate {
 export interface SeasonGoal {
   id: number;
   season: number;
-  kind: "time" | "count";
+  kind: "time" | "count" | "race";
   event_type: string | null;
-  /** Secondes pour un temps, nombre d'épreuves pour un nombre. */
-  target: number;
+  /** Secondes pour un temps, nombre d'épreuves pour un nombre ; null pour une épreuve cible sans temps visé. */
+  target: number | null;
   best_time: string | null;
   count: number | null;
   reached: boolean;
+  course_id: number | null;
+  race_name: string | null;
+  race_date: string | null;
+  major: boolean;
+  outcome: "upcoming" | "awaiting_results" | "reached" | "missed";
 }
 
-export type SeasonGoalWrite = Pick<SeasonGoal, "kind" | "event_type" | "target">;
+export type SeasonGoalWrite = Pick<SeasonGoal, "kind" | "event_type" | "target" | "major"> &
+  Partial<Pick<SeasonGoal, "course_id" | "race_name" | "race_date">>;
 
 /** Ma réclamation d'un résultat rangé sur une autre fiche (#1637). */
 export interface ResultClaim {
