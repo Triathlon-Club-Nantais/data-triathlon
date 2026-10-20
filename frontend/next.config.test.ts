@@ -15,6 +15,19 @@ async function enTetes(): Promise<Map<string, string>> {
   return new Map(attrapeTout.headers.map(({ key, value }) => [key, value]));
 }
 
+describe("redirects()", () => {
+  it("renvoie /dashboard vers /mon-espace en 308 (#1725)", async () => {
+    const regles = await nextConfig.redirects!();
+    // Next conserve la query string d'une redirection par défaut : le filtre
+    // `?seasons=2025` d'un ancien signet survit sans règle dédiée.
+    expect(regles).toContainEqual({
+      source: "/dashboard",
+      destination: "/mon-espace",
+      permanent: true,
+    });
+  });
+});
+
 describe("headers()", () => {
   it("interdit l'encadrement de toute page dans une iframe", async () => {
     expect((await enTetes()).get("X-Frame-Options")).toBe("DENY");
