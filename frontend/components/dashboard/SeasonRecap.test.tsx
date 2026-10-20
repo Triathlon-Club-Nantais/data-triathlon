@@ -100,7 +100,7 @@ describe("SeasonRecap (#1372)", () => {
   it("still shows the season goals when the season has no result", async () => {
     getAthlete.mockResolvedValue(detail([]));
     getSeasonGoals.mockResolvedValue([
-      { id: 1, season: 2025, kind: "count", event_type: null, target: 3, best_time: null, count: 0, reached: false },
+      { id: 1, season: 2025, kind: "count", event_type: null, target: 3, best_time: null, count: 0, reached: false, outcome: "missed" },
     ]);
     afficher();
 

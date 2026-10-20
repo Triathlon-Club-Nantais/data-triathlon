@@ -21,9 +21,11 @@ export function RecapObjectifs({ season }: { season: number }) {
             </div>
             {goal.reached ? (
               <MetaPill accent dot>Atteint</MetaPill>
-            ) : (
-              <MetaPill>{goal.outcome === "awaiting_results" ? "Sans résultat" : "Non atteint"}</MetaPill>
-            )}
+            ) : goal.outcome === "awaiting_results" ? (
+              <MetaPill>Sans résultat</MetaPill>
+            ) : goal.outcome === "missed" ? (
+              <MetaPill>Non atteint</MetaPill>
+            ) : null}
           </li>
         ))}
       </ul>
