@@ -137,7 +137,7 @@ describe("MaSaison — état rempli", () => {
     const ligneVisible = await screen.findByTestId("ma-saison-ligne");
     expect(within(ligneVisible).getByText(/1 podium/)).toBeInTheDocument();
     expect(
-      within(ligneVisible).getByText(/^Podiums : général, genre ou catégorie · hors relais/),
+      within(ligneVisible).getByText(/^Podiums : général, sexe ou catégorie · hors relais/),
     ).toBeInTheDocument();
   });
 
