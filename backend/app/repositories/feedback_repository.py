@@ -39,6 +39,13 @@ def create(
     return entry
 
 
+def list_for_user(db: Session, user_id: int) -> list[UserFeedback]:
+    """Export du compte (#1674) : ses signalements, du plus récent au plus ancien."""
+    return list(
+        db.scalars(select(UserFeedback).where(UserFeedback.user_id == user_id).order_by(UserFeedback.created_at.desc()))
+    )
+
+
 def count_recent_by_ip(db: Session, *, ip_address: str, since: datetime) -> int:
     """Signalements de cette IP depuis `since` — fenêtre glissante (research.md §D1)."""
     return (

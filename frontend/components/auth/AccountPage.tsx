@@ -201,12 +201,16 @@ function Compte({
       <Card>
         <h2 style={TITRE}>Mes données</h2>
         <p style={{ ...DISCRET, marginBottom: 12 }}>
-          Une copie de votre compte, de vos connexions, demandes, objectifs, déclarations de bénévolat et des
-          résultats de votre fiche, dans un fichier JSON.
+          Une copie de ce que le site conserve à votre sujet : compte, connexions, demandes de rattachement,
+          objectifs, déclarations de bénévolat, signalements et résultats de votre fiche. Fichier au format JSON,
+          lisible par un logiciel.
         </p>
         <a href="/api/v1/auth/me/export" download className="tcn-btn tcn-btn--secondary tcn-cible-tactile">
-          Télécharger mes données
+          Télécharger mes données (JSON)
         </a>
+        <p style={{ ...DISCRET, marginTop: 12, fontSize: 14 }}>
+          Si le téléchargement échoue, reconnectez-vous puis réessayez.
+        </p>
       </Card>
 
       <Card style={{ borderColor: "var(--tcn-danger-border)" }}>

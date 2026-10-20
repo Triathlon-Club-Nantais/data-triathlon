@@ -7,7 +7,7 @@ from datetime import date
 
 from pydantic import BaseModel, ConfigDict
 
-from app.schemas.athlete_claim import AthleteClaimRead, ResultClaimRead
+from app.schemas.athlete_claim import AthleteClaimRead
 from app.schemas.auth import AccountIdentityRead
 from app.schemas.course import CourseBrief
 from app.schemas.utc_datetime import UtcDatetime
@@ -39,6 +39,31 @@ class ExportedSeasonGoal(BaseModel):
     kind: str
     event_type: str | None
     target: int
+    created_at: UtcDatetime
+
+
+class ExportedResultClaim(BaseModel):
+    """Une réclamation de résultat : l'épreuve, sa date et le temps réclamé, sans le club ni la catégorie
+    de la ligne, qui peuvent être ceux d'une autre personne."""
+
+    participation_id: int
+    status: str
+    created_at: UtcDatetime
+    course_name: str
+    event_date: date | None
+    total_time: str | None
+
+
+class ExportedFeedback(BaseModel):
+    """Un signalement du compte, sans `ip_address`, `user_agent` ni `github_url`."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    type: str
+    title: str
+    body: str
+    page_url: str | None
+    status: str
     created_at: UtcDatetime
 
 
@@ -78,7 +103,8 @@ class AccountExport(BaseModel):
     identities: list[AccountIdentityRead]
     athlete: ExportedAthlete | None
     athlete_claim: AthleteClaimRead | None
-    result_claims: list[ResultClaimRead]
+    result_claims: list[ExportedResultClaim]
     season_goals: list[ExportedSeasonGoal]
     volunteer_actions: list[ExportedVolunteerAction]
+    feedback: list[ExportedFeedback]
     results: list[ExportedResult]

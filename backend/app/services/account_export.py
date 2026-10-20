@@ -4,10 +4,11 @@ from sqlalchemy.orm import Session
 from app.models.user import User
 from app.repositories import (
     athlete_repository,
+    feedback_repository,
     participation_repository,
     volunteer_action_repository,
 )
-from app.schemas.account_export import AccountExport, ExportedVolunteerAction
+from app.schemas.account_export import AccountExport, ExportedResultClaim, ExportedVolunteerAction
 from app.schemas.auth import AccountIdentityRead
 from app.services.auth.idp import registry
 
@@ -32,7 +33,14 @@ def build(db: Session, user: User) -> AccountExport:
         "identities": identities_of(user),
         "athlete": athlete_repository.get(db, athlete_id) if athlete_id else None,
         "athlete_claim": user.athlete_claim,
-        "result_claims": user.result_claims,
+        "result_claims": [
+            ExportedResultClaim(
+                participation_id=claim.participation_id, status=claim.status, created_at=claim.created_at,
+                course_name=claim.participation.course.name, event_date=claim.participation.course.event_date,
+                total_time=claim.participation.total_time,
+            )
+            for claim in user.result_claims
+        ],
         "season_goals": sorted(user.season_goals, key=lambda goal: (goal.season, goal.created_at)),
         "volunteer_actions": [
             ExportedVolunteerAction(
@@ -41,6 +49,7 @@ def build(db: Session, user: User) -> AccountExport:
             )
             for action in volunteer_action_repository.list_for_account(db, user_id=user.id, athlete_id=athlete_id)
         ],
+        "feedback": feedback_repository.list_for_user(db, user.id),
         # En attente et refusés compris : ce sont aussi ses données.
         "results": participation_repository.list_for_athlete(db, athlete_id, include_pending=True) if athlete_id else [],
     }, from_attributes=True)

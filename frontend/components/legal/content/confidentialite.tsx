@@ -237,8 +237,11 @@ export const PRIVACY_POLICY: LegalDocument = {
             <li>
               <strong>accéder</strong> aux données qui vous concernent et en obtenir une copie dans un format
               réutilisable (<strong>portabilité</strong>). Si vous avez un compte, téléchargez-la vous-même depuis
-              la page Mon compte (« Télécharger mes données ») : un fichier JSON avec votre compte, vos connexions,
-              vos demandes, vos objectifs, vos déclarations de bénévolat et les résultats de votre fiche ;
+              la page Mon compte (« Télécharger mes données (JSON) ») : une copie de ce que le site conserve à
+              votre sujet (compte, connexions, demandes de rattachement, objectifs, déclarations de bénévolat,
+              signalements et résultats de votre fiche), dans un fichier au format JSON, lisible par un logiciel.
+              La liste des licenciés et la liste des adresses d&apos;adhérents ne figurent pas dans ce fichier :
+              écrivez au club pour les obtenir ;
             </li>
             <li>
               <strong>faire rectifier</strong> une donnée inexacte (un nom mal orthographié, un club erroné) ;

@@ -143,9 +143,11 @@ describe("AccountPage: export my data (#1674)", () => {
     afficher(SESSION);
 
     expect(await screen.findByRole("heading", { name: "Mes données" })).toBeInTheDocument();
-    const lien = screen.getByRole("link", { name: "Télécharger mes données" });
+    const lien = screen.getByRole("link", { name: "Télécharger mes données (JSON)" });
     expect(lien).toHaveAttribute("href", "/api/v1/auth/me/export");
     expect(lien).toHaveAttribute("download");
+    expect(screen.getByText(/signalements et résultats de votre fiche/)).toBeInTheDocument();
+    expect(screen.getByText("Si le téléchargement échoue, reconnectez-vous puis réessayez.")).toBeInTheDocument();
   });
 });
 
