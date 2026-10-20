@@ -7,10 +7,15 @@ export const GUIDE_MEMBRE: GuideSection[] = [
     casUsage: "Prendre le pouls du club sur l'accueil, puis retrouver sa propre saison dans « Mon espace ».",
     etapes: [
       "Ouvrir « Accueil » depuis la navigation principale : la dernière sortie du club, puis un raccourci vers chaque espace.",
-      "Voir les dernières épreuves du club sur « Accueil », puis ouvrir « Mon espace » pour votre saison et choisir la ou les saisons à afficher avec le sélecteur de saison.",
-      "Filtrer par discipline dans « Mon espace » si besoin.",
+      "Voir la saison du club en chiffres et ses dernières épreuves, et changer de saison avec le sélecteur en haut de « Accueil ».",
+      "Ouvrir « Mon espace » pour votre propre saison : son sélecteur de saison choisit la ou les saisons à afficher, et un filtre par discipline est disponible.",
     ],
-    captures: [{ src: "/guide/membre/accueil.jpg", alt: "Accueil du club : la dernière sortie et les raccourcis vers chaque espace" }],
+    captures: [
+      {
+        src: "/guide/membre/accueil.jpg",
+        alt: "Accueil du club : la dernière sortie, la saison en chiffres, les raccourcis vers chaque espace et le tableau des dernières épreuves",
+      },
+    ],
   },
   {
     id: "club",
