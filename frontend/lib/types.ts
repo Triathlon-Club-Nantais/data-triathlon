@@ -838,6 +838,8 @@ export interface AthleteDetail {
   participations: Participation[];
   /** Classements Challenge (#1008), carrière entière quels que soient les filtres. */
   challenges: AthleteChallenge[];
+  /** Un compte de membre est rattaché à la fiche (#1693). */
+  claimed: boolean;
 }
 
 /** Une ligne de `GET /courses/{id}/sources` — miroir de `CourseSourceOut` (#284). */

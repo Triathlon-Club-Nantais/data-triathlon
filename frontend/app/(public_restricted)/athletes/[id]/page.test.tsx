@@ -742,6 +742,27 @@ describe("AthletePage — l'en-tête identifie l'athlète (PROF-5, #488)", () =>
   });
 });
 
+describe("AthletePage: claimed athlete badge (#1693)", () => {
+  async function renderClaimed(claimed: boolean) {
+    getAthlete.mockResolvedValue({ athlete: { ...ATHLETE, gender: null }, participations: [], challenges: [], claimed });
+    renderPage(await AthletePage({ params: Promise.resolve({ id: "7" }) }));
+  }
+
+  it("shows a focusable badge with an accessible explanation when a member account claims the page", async () => {
+    await renderClaimed(true);
+
+    const badge = screen.getByText("Fiche tenue par l'athlète").closest("[tabindex]") as HTMLElement;
+    expect(badge).toHaveAttribute("tabindex", "0");
+    expect(badge).toHaveAccessibleDescription(/rattaché cette fiche à son compte de membre/);
+  });
+
+  it("shows no badge on an unclaimed page", async () => {
+    await renderClaimed(false);
+
+    expect(screen.queryByText("Fiche tenue par l'athlète")).not.toBeInTheDocument();
+  });
+});
+
 // --- Répartition par saison : couleurs et légende (#655, #656) ---
 
 describe("AthletePage — répartition par saison, couleurs et légende (#655, #656)", () => {

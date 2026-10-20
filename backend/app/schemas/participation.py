@@ -115,6 +115,9 @@ class AthleteDetail(BaseModel):
     #: Classements Challenge (#1008) : la carrière entière, `seasons` et
     #: `federal_only` ne s'y appliquent pas.
     challenges: list[AthleteChallengeOut] = []
+    #: Un compte de membre est rattaché à la fiche (#1693). Le seul fait public
+    #: sur ce compte : ni son adresse ni son identifiant.
+    claimed: bool = False
 
 
 class CourseParticipationPage(BaseModel):

@@ -17,6 +17,7 @@ import {
   AthleteVariantsPanel,
 } from "@/components/athletes/AdminGates";
 import { BestTimesCard } from "@/components/athletes/BestTimesCard";
+import { ClaimedAthleteBadge } from "@/components/athletes/ClaimedAthleteBadge";
 import { formatToken, disciplineBreakdownBySeason, genderShort, ordinalFr, formatCount, pctFr } from "@/lib/utils/format";
 import { BarList } from "@/components/charts/BarList";
 import { CAT_COLORS } from "@/components/charts/CategoryBars";
@@ -39,7 +40,7 @@ export default async function AthletePage({
   const comparer = Number((await searchParams)?.comparer);
   const data = await apiServer.getAthlete(idDeRoute(id)).catch(rendreNullSi404);
   if (!data) notFound();
-  const { athlete, participations, challenges } = data;
+  const { athlete, participations, challenges, claimed } = data;
   const fullName = [athlete.prenom, athlete.nom].filter(Boolean).join(" ");
   const preselect = Number.isInteger(comparer) && comparer > 0 && comparer !== athlete.id ? comparer : undefined;
 
@@ -118,7 +119,7 @@ export default async function AthletePage({
             />
           }
         >
-          {(categorie || athlete.gender) && (
+          {(categorie || athlete.gender || claimed) && (
             <div className="flex flex-wrap items-center gap-2 pt-1">
               {categorie && (
                 // L'année dans la pastille elle-même plutôt qu'en `title` :
@@ -133,6 +134,7 @@ export default async function AthletePage({
                 </MetaPill>
               )}
               {athlete.gender && <MetaPill label="Genre">{genderShort(athlete.gender)}</MetaPill>}
+              {claimed && <ClaimedAthleteBadge />}
             </div>
           )}
         </PageHeader>
