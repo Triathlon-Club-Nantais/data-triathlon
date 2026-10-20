@@ -46,7 +46,7 @@ jobs:
         run: uv run ruff check .
 
       - name: Tests (hors réseau)
-        run: uv run pytest -m "not integration"
+        run: uv run pytest -m "not integration" --migrations
 
   # uv audit interroge OSV sur le uv.lock résolu : aucune dépendance de dev
   # supplémentaire (contrairement à pip-audit), en écho au Principe de

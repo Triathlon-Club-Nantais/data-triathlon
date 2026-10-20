@@ -33,6 +33,25 @@ _config.get_settings.cache_clear()
 _FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
 
+def pytest_addoption(parser):
+    parser.addoption(
+        "--migrations",
+        action="store_true",
+        help="Inclut les tests marqués `migrations` (désélectionnés par défaut, lancés en CI).",
+    )
+
+
+def pytest_collection_modifyitems(config, items):
+    # Désélection explicite plutôt que `-m "not migrations"` : elle tient quel que
+    # soit le `-m` passé en ligne de commande.
+    if config.getoption("--migrations"):
+        return
+    deselected = [item for item in items if item.get_closest_marker("migrations")]
+    if deselected:
+        config.hook.pytest_deselected(items=deselected)
+        items[:] = [item for item in items if item not in deselected]
+
+
 def load_klikego_fixture(name: str) -> str:
     """Charge un HTML de test Klikego depuis backend/tests/fixtures/klikego/.
 
