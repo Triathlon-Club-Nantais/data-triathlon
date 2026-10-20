@@ -18,7 +18,7 @@ export type GuideSection = {
   etapes: string[];
   /** Ce que l'utilisateur cherche à accomplir. */
   casUsage: string;
-  /** Vide tant que les gestes décrits ne sont pas en production : rien n'est rendu. */
+  /** Peut être vide (gestes pas encore en production) : aucun bloc de captures n'est alors rendu. */
   captures: GuideCapture[];
   /**
    * Destination du rail que la section décrit (#879) : la section se tait
