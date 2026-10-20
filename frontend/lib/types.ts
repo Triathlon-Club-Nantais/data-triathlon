@@ -1043,7 +1043,6 @@ export interface AthleteClaim {
   created_at: string;
 }
 
-/** Objectif de saison privé de l'athlète rattaché, et sa progression (#1373). */
 export interface Teammate {
   athlete_id: number;
   prenom: string;
@@ -1051,6 +1050,7 @@ export interface Teammate {
   courses_communes: number;
 }
 
+/** Objectif de saison privé de l'athlète rattaché, et sa progression (#1373). */
 export interface SeasonGoal {
   id: number;
   season: number;

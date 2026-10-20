@@ -262,7 +262,7 @@ export default async function AthletePage({
           </Card>
         )}
 
-        {validated.length > 0 && <AthleteComparisonChart mine={validated} preselect={Number.isInteger(comparer) && comparer > 0 ? comparer : undefined} />}
+        {validated.length > 0 && <AthleteComparisonChart mine={validated} preselect={Number.isInteger(comparer) && comparer > 0 && comparer !== athlete.id ? comparer : undefined} />}
 
         <EventsTable participations={participations} athleteId={athlete.id} athleteName={fullName} />
 

@@ -15,8 +15,8 @@ from .test_admin_data_api import _session_etroite
 URL = "/api/v1/auth/me/teammates"
 
 
-def _race(db, athlete, course, club="TCN"):
-    db.add(Participation(course_id=course.id, athlete_id=athlete.id, status="finisher", club=club,
+def _race(db, athlete, course, club="TCN", status="finisher"):
+    db.add(Participation(course_id=course.id, athlete_id=athlete.id, status=status, club=club,
                          total_time="1:00:00"))
 
 
@@ -71,3 +71,22 @@ def test_requires_a_session(client):
     client.cookies.clear()
 
     assert client.get(URL).status_code == 401
+
+
+def test_dnf_teammate_relay_course_and_non_federal_events_do_not_count(client, db_session, lea):
+    me, durand, bernard, petit, *_ = lea
+    relay = Course(name="Relais", event_date=date(2026, 6, 20), event_type="triathlon-m", is_relay=True)
+    trail = Course(name="Trail", event_date=date(2026, 6, 21), event_type="trail", is_relay=False)
+    db_session.add_all([relay, trail])
+    db_session.flush()
+    for course in (relay, trail):
+        _race(db_session, me, course)
+        _race(db_session, petit, course)
+    _race(db_session, bernard, trail, status="dnf")
+    db_session.commit()
+
+    assert [(t["nom"], t["courses_communes"]) for t in client.get(URL).json()] == [
+        ("Durand", 3), ("Bernard", 2), ("Petit", 2)]
+    federal = client.get(URL, params={"federal_only": "true"}).json()
+    assert [(t["nom"], t["courses_communes"]) for t in federal] == [("Durand", 3), ("Bernard", 2), ("Petit", 1)]
+    assert all(t["athlete_id"] != me.id for t in federal)

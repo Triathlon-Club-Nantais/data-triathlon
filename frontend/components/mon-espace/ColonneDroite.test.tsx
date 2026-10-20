@@ -3,10 +3,12 @@ import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Participation, SessionUser } from "@/lib/types";
 
-const { getSession, getClubRosterRank, getAthlete } = vi.hoisted(() => ({ getSession: vi.fn(), getClubRosterRank: vi.fn(), getAthlete: vi.fn() }));
+const { getSession, getClubRosterRank, getAthlete, getMyTeammates, getEventsGeo } = vi.hoisted(() => ({
+  getSession: vi.fn(), getClubRosterRank: vi.fn(), getAthlete: vi.fn(), getMyTeammates: vi.fn(), getEventsGeo: vi.fn(),
+}));
 vi.mock("@/lib/api/client", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api/client")>();
-  return { ...original, apiClient: { ...original.apiClient, getSession, getClubRosterRank, getAthlete } };
+  return { ...original, apiClient: { ...original.apiClient, getSession, getClubRosterRank, getAthlete, getMyTeammates, getEventsGeo } };
 });
 
 import { ColonneDroite } from "./ColonneDroite";
@@ -30,6 +32,8 @@ function afficher(ui: React.ReactElement) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  getMyTeammates.mockResolvedValue([]);
+  getEventsGeo.mockResolvedValue([]);
   document.cookie = "tcn_logged_in=1; path=/";
   getSession.mockResolvedValue({ id: 1, athlete: LEA, permissions: [], roles: [], groups: [] } as unknown as SessionUser);
 });
@@ -47,6 +51,18 @@ describe("ColonneDroite", () => {
     expect(await screen.findByRole("link", { name: /Récente/ })).toBeInTheDocument();
     expect(await screen.findByText("record perso")).toBeInTheDocument();
     expect(await screen.findByText(/Encore 1 épreuve pour égaler/)).toBeInTheDocument();
+  });
+});
+
+describe("ColonneDroite empty data", () => {
+  it("shows the map card nowhere and the teammates card as empty", async () => {
+    getAthlete.mockResolvedValue({ athlete: LEA, participations: [], challenges: [] });
+    getClubRosterRank.mockResolvedValue(null);
+    afficher(<ColonneDroite athleteId={42} selection={[resultat()]} seasons={[2026]} federalOnly />);
+
+    expect(await screen.findByText(/Aucun coéquipier de course/)).toBeInTheDocument();
+    expect(getEventsGeo).toHaveBeenCalled();
+    expect(screen.queryByText("Carte de mes épreuves")).not.toBeInTheDocument();
   });
 });
 

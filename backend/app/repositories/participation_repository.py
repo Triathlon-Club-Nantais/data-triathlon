@@ -1413,7 +1413,13 @@ def teammate_rows(db: Session, *, athlete_id: int, federal_only: bool = False, s
         .filter(Participation.athlete_id != athlete_id)
     )
     for row in (Participation, mine):
-        q = q.filter(validated_clause(row.is_pending_validation), row.counts_for_tcn.is_(True), row.is_relay.is_(False))
+        q = q.filter(
+            validated_clause(row.is_pending_validation),
+            row.counts_for_tcn.is_(True),
+            row.is_relay.is_(False),
+            row.status == STATUS_FINISHER,
+        )
+    q = q.filter(func.coalesce(Course.is_relay, False).is_(False))
     if federal_only:
         q = q.filter(federal_clause(Course.event_type))
     if seasons:
