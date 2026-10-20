@@ -155,8 +155,8 @@ Score = tués / (tués + survivants), timeouts exclus.
   | awk -F': ' '{print $2}' | sort | uniq -c`. Le premier `run` d'une session
   exécute toute la suite unitaire en séquentiel (`-n 0`, 4 min à 5 min) pour
   cartographier quel test couvre quelle fonction, puis chaque mutant ne rejoue
-  que ses tests ; modifier un test ou un fichier source invalide ce qu'il faut,
-  un `run` suivant dure ~1 min sur `app.core.gender*` (36 mutants). Il ne lit
+  que ses tests ; modifier une fonction source invalide ses mutants (un test
+  modifié, voir « Relancer » plus bas), un `run` suivant dure ~1 min sur `app.core.gender*` (36 mutants). Il ne lit
   pas `--migrations` et n'en a pas besoin.
 - **Stryker** : le tableau affiche « total » qui compte les timeouts comme
   détectés ; recalculer avec la formule ci-dessus. `--force` est indispensable
@@ -177,3 +177,63 @@ Score = tués / (tués + survivants), timeouts exclus.
   et `alembic.ini` sont copiés via `also_copy`.
 - **Mesures de référence** (machine chargée, load 3 à 10) : `app.core.gender*`
   34 tués, 2 survivants (94,4 %) ; `lib/rank.ts` 7 tués, 3 survivants (70 %).
+- **Relancer après une modification de test** : mutmut ne réinvalide que les
+  fonctions **source** modifiées. Un `run` sans motif garderait le verdict
+  d'avant pour un mutant dont seul le test a changé ; un `run` **avec** motif
+  rejoue tous les mutants qu'il désigne et cartographie les nouveaux tests.
+  Toujours passer le motif pour une comparaison.
+
+## Consolider un lot
+
+Procédure de `docs/superpowers/specs/2026-10-20-test-process-design.md` (K),
+appliquée lot par lot. Les lots et leur statut :
+`docs/superpowers/specs/2026-10-20-test-consolidation-inventaire.md`.
+
+1. **Référence**, sur le code couvert par le lot, depuis `backend/` ou
+   `frontend/` :
+   - tests passés et nombre collecté ;
+   - couverture de lignes du **seul** fichier du lot sur son code couvert, et la
+     liste des lignes manquées :
+
+     ```bash
+     uv run --with pytest-cov pytest <tests> --cov=<module> --cov-report=term-missing -n 0
+     npx vitest run <tests> --coverage --coverage.include=<source>
+     ```
+
+     Côté frontend, `--coverage` exige `@vitest/coverage-v8`, absent des
+     dépendances au 20/10 : le premier lot frontend l'ajoute en dépendance de
+     dev, à la version de `vitest`.
+
+   - score de mutation (section « Mutation » ci-dessus), avec la liste des
+     survivants pour vérifier ensuite que l'ensemble des mutants est le même.
+     Noter durée murale et `uptime` au départ. Budget 30 min : au delà,
+     restreindre aux fonctions dont des tests seront supprimés ou fusionnés
+     (un motif de nom de mutant par fonction, `app.x.y.x_<fonction>__mutmut_*`),
+     et garder **les mêmes motifs** pour la mesure d'après. Timeouts et mutants
+     instables exclus des deux côtés.
+2. **Consolider** :
+   - `parametrize` / `it.each` pour les cas répétés ;
+   - fusionner deux tests au même montage dont l'un prolonge l'autre ;
+   - supprimer les tests d'interaction (vérification d'appels de mocks), de
+     structure (constante, expression rationnelle privée) et ceux de haut
+     niveau déjà couverts plus bas.
+
+   Aucune assertion de comportement observable ne disparaît sans qu'un autre
+   test la porte ; aucune assertion n'est affaiblie pour faire passer le lot. Un
+   test d'interaction qui est le seul à tuer ses mutants (ex. :
+   `follow_redirects=True` vérifié par espion) reste.
+3. **Mesurer après**, mêmes commandes, mêmes motifs. Garder le lot seulement si
+   le score de mutation est ≥ référence **et** la couverture ≥ référence (mêmes
+   lignes manquées ou moins), sur le même ensemble de mutants. Sinon annuler le
+   lot entier (`/usr/bin/git -C <worktree> checkout <fichier>`) et consigner
+   l'abandon dans l'inventaire.
+4. **Un commit par lot** : `test(<zone>): consolidate <fichier> (#1707)`, corps
+   `tests: A -> B, mutation: X/Y -> X'/Y', coverage: P% -> P'%` (X tués, Y
+   tués + survivants ; A et B comptent les tests collectés, un cas de
+   `parametrize` compte pour un).
+5. **Mettre à jour la ligne de l'inventaire** (statut, chiffres, motifs
+   restreints s'il y en a) dans le même commit, et ce qui a été envisagé puis
+   écarté.
+
+Un lot qui ne rapporte rien n'est pas forcé : une ligne « rien à consolider »
+dans l'inventaire vaut mieux qu'une réécriture.

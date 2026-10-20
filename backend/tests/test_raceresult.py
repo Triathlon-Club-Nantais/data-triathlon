@@ -195,13 +195,6 @@ def test_event_id_introuvable_leve_value_error():
         raceresult._resolve_event_id(url, client)
 
 
-def test_base_api_unique_quel_que_soit_le_host():
-    """C-A/§2 du sondage : l'apex `my.raceresult.com` sert les 9 épreuves du
-    panel, y compris celles que l'interface héberge sur my2/my3/my4. Il n'y a
-    donc plus de résolution de serveur — une seule constante."""
-    assert raceresult._API_BASE == "https://my.raceresult.com"
-
-
 # ── Métadonnées (JSON-LD) et configuration ──────────────────────────────────
 
 def test_fetch_meta_lit_le_json_ld():
@@ -225,7 +218,11 @@ def test_fetch_config_interroge_la_route_canonique():
     """C-A : `/{id}/RRPublish/data/config` est un alias hérité qui répond 404 sur
     toute épreuve de la saison en cours. Seule `/{id}/results/config` est
     générale — le faux client ne route QUE celle-ci, donc un retour à l'alias
-    fait échouer ce test au lieu de passer inaperçu."""
+    fait échouer ce test au lieu de passer inaperçu.
+
+    C-A/§2 du sondage : l'apex `my.raceresult.com` sert les 9 épreuves du
+    panel, y compris celles que l'interface héberge sur my2/my3/my4. Il n'y a
+    donc plus de résolution de serveur, d'où l'hôte fixe de l'appel."""
     client = _FauxClient({
         "/results/config": (200, _fixture("raceresult_config_rumilly.json")),
     })
@@ -240,7 +237,7 @@ def test_fetch_config_interroge_la_route_canonique():
         "4": "Distance M",
     }
     assert "page=results" in client.appels[0]
-    assert "/393893/results/config" in client.appels[0]
+    assert client.appels[0].startswith("https://my.raceresult.com/393893/results/config")
     assert "RRPublish/data" not in client.appels[0]
 
 
@@ -298,12 +295,18 @@ def test_iter_list_specs_ne_filtre_pas_sur_live():
     )
 
 
-def test_iter_list_specs_leve_sur_une_forme_inattendue():
+@pytest.mark.parametrize("iter_specs,config,message", [
+    (raceresult._iter_list_specs, {"lists": [{"Name": "X", "Contest": "0"}]},
+     "TabConfig.Lists de forme inattendue"),
+    (raceresult._iter_hidden_list_specs, {"lists": []}, "TabConfig.Lists"),
+])
+def test_iter_specs_leve_sur_une_forme_inattendue(iter_specs, config, message):
     """Une config sans `TabConfig.Lists` exploitable lève bruyamment : c'est le
     symptôme exact d'une interrogation de la route héritée, qui doit se voir
-    plutôt que de produire une épreuve silencieusement vide."""
-    with pytest.raises(ValueError, match="TabConfig.Lists de forme inattendue"):
-        raceresult._iter_list_specs({"lists": [{"Name": "X", "Contest": "0"}]})
+    plutôt que de produire une épreuve silencieusement vide. Même garde côté
+    listes `hidden`."""
+    with pytest.raises(ValueError, match=message):
+        iter_specs(config)
 
 
 def test_iter_hidden_list_specs_ne_rend_que_les_hidden():
@@ -338,13 +341,6 @@ def test_iter_hidden_list_specs_deduplique_les_couples_repetes():
         ("Classement général", "0"),
         ("Liste des Inscrits", "0"),
     ]
-
-
-def test_iter_hidden_list_specs_leve_sur_une_forme_inattendue():
-    """Même garde que `_iter_list_specs` : une `TabConfig.Lists` absente trahit
-    la route héritée."""
-    with pytest.raises(ValueError, match="TabConfig.Lists"):
-        raceresult._iter_hidden_list_specs({"lists": []})
 
 
 # ── Mapping des colonnes ─────────────────────────────────────────────────────
@@ -1435,15 +1431,6 @@ def test_build_result_protege_le_nom_et_le_club_dune_colonne_composee():
     assert r.club == "TCN"
 
 
-def test_resolve_event_id_exige_bien_les_deux_syntaxes():
-    """Garde directe sur l'expression rationnelle : les deux façades réelles."""
-    quote = 'new RRPublish(document.getElementById("d"), "392745", "results");'
-    nu = 'new RRPublish(document.getElementById("d"), 411749, "results");'
-
-    assert raceresult._RE_RRPUBLISH.search(quote).group(1) == "392745"
-    assert raceresult._RE_RRPUBLISH.search(nu).group(1) == "411749"
-
-
 # ── Groupes (contest / statut) ──────────────────────────────────────────────
 
 @pytest.mark.parametrize("cle,attendu", [
@@ -1592,25 +1579,6 @@ def test_build_result_extras_dans_raw_data():
     assert r.raw_data["Arrivée.OVERALL.GapTop"] == "+2:44"
 
 
-def test_build_result_dnf_depuis_le_groupe():
-    ligne = _payload_rumilly()["data"]["#1_Distance M"]["#2_Abandons"][0]
-
-    r = _construire(ligne, statut="Abandons")
-
-    assert r.status == STATUS_DNF
-    assert r.total_time == ""
-    assert (r.rank_overall, r.rank_category, r.rank_gender) == (None, None, None)
-
-
-def test_build_result_dns_depuis_le_groupe():
-    ligne = _payload_rumilly()["data"]["#1_Distance M"]["#3_Non Partants"][0]
-
-    r = _construire(ligne, statut="Non Partants")
-
-    assert r.status == STATUS_DNS
-    assert r.total_time == ""
-
-
 def test_build_result_statut_depuis_la_cellule_de_rang():
     """Sans groupe de statut, la cellule de rang vaut littéralement « DNF »."""
     ligne = _payload_rumilly()["data"]["#1_Distance M"]["#2_Abandons"][0]
@@ -1623,7 +1591,7 @@ def test_build_result_statut_depuis_la_cellule_de_rang():
 def test_build_result_statut_du_groupe_sans_cellule():
     """Le groupe suffit : une cellule de rang vide ne dégrade pas le statut.
 
-    Sans ce cas, `test_build_result_dnf_depuis_le_groupe` serait un faux vert —
+    Sans ce cas, un statut lu sur une ligne réelle d'abandon serait un faux vert :
     il passerait par le repli sur la cellule sans jamais exercer le groupe.
     """
     ligne = list(_payload_rumilly()["data"]["#1_Distance M"]["#2_Abandons"][0])
@@ -1633,7 +1601,11 @@ def test_build_result_statut_du_groupe_sans_cellule():
     assert _construire(ligne, statut="Non Partants").status == STATUS_DNS
 
 
-def test_build_result_purge_temps_et_rangs_dun_non_finisher():
+@pytest.mark.parametrize("statut,attendu", [
+    ("Abandons", STATUS_DNF),
+    ("Non Partants", STATUS_DNS),
+])
+def test_build_result_purge_temps_et_rangs_dun_non_finisher(statut, attendu):
     """M15 : la purge finale, sur une ligne qui porte **vraiment** temps et rangs.
 
     Les lignes « Abandons » de la capture Rumilly ont déjà une cellule de temps
@@ -1665,13 +1637,13 @@ def test_build_result_purge_temps_et_rangs_dun_non_finisher():
         2, 1, None,
     )
 
-    abandon = _construire(ligne, statut="Abandons")
+    non_finisher = _construire(ligne, statut=statut)
 
-    assert abandon.status == STATUS_DNF
-    assert abandon.total_time == ""
-    assert (abandon.rank_overall, abandon.rank_category, abandon.rank_gender) == (
-        None, None, None,
-    )
+    assert non_finisher.status == attendu
+    assert non_finisher.total_time == ""
+    assert (
+        non_finisher.rank_overall, non_finisher.rank_category, non_finisher.rank_gender,
+    ) == (None, None, None)
 
 
 def test_build_result_le_groupe_prime_sur_la_cellule_en_cas_de_divergence():
@@ -1851,38 +1823,20 @@ def _res(**kw):
     return ScrapedResult(**base)
 
 
-def test_identites_incompatibles_deux_noms_pleins_distincts():
-    assert raceresult._identities_conflict(
-        _res(athlete_name="DUPONT", athlete_firstname="Jean"),
-        _res(athlete_name="MARTIN", athlete_firstname="Luc"),
-    ) is True
-
-
-def test_identites_incompatibles_un_cote_anonyme_est_un_enrichissement():
+@pytest.mark.parametrize("a,b,attendu", [
+    (("DUPONT", "Jean"), ("MARTIN", "Luc"), True),
     # Une liste sans patronyme : fusion d'enrichissement légitime, pas collision.
-    assert raceresult._identities_conflict(
-        _res(athlete_name="DUPONT", athlete_firstname="Jean"),
-        _res(athlete_name="", athlete_firstname=""),
-    ) is False
-    assert raceresult._identities_conflict(
-        _res(athlete_name="", athlete_firstname=""),
-        _res(athlete_name="MARTIN", athlete_firstname="Luc"),
-    ) is False
-
-
-def test_identites_incompatibles_tolere_casse_et_accents():
+    (("DUPONT", "Jean"), ("", ""), False),
+    (("", ""), ("MARTIN", "Luc"), False),
     # « José » / « JOSE » : même personne, divergence de casse/accent seulement.
+    (("DUPONT", "José"), ("dupont", "JOSE"), False),
+    (("DUPONT", "Jean"), ("DUPONT", "Jean"), False),
+], ids=["noms_distincts", "anonyme_apres", "anonyme_avant", "casse_accents", "identiques"])
+def test_identites_incompatibles(a, b, attendu):
     assert raceresult._identities_conflict(
-        _res(athlete_name="DUPONT", athlete_firstname="José"),
-        _res(athlete_name="dupont", athlete_firstname="JOSE"),
-    ) is False
-
-
-def test_identites_incompatibles_meme_identite_pleine():
-    assert raceresult._identities_conflict(
-        _res(athlete_name="DUPONT", athlete_firstname="Jean"),
-        _res(athlete_name="DUPONT", athlete_firstname="Jean"),
-    ) is False
+        _res(athlete_name=a[0], athlete_firstname=a[1]),
+        _res(athlete_name=b[0], athlete_firstname=b[1]),
+    ) is attendu
 
 
 # ── Enrichissement d'un résultat publié par une ligne hidden ────────────────
@@ -2009,15 +1963,13 @@ def test_enrichir_ne_touche_ni_identite_ni_rang_ni_statut():
 
 # ── Pipeline complet : listes explicites, fusion, erreurs ───────────────────
 
-def test_fetch_list_renvoie_none_sur_404():
-    """Une liste annoncée mais non servie n'interrompt pas le balayage."""
-    client = _FauxClient({"/results/list": (404, "")})
-
-    assert raceresult._fetch_list("393893", "k", "L", "1", client) is None
-
-
-def test_fetch_list_renvoie_none_sur_payload_sans_data():
-    client = _FauxClient({"/results/list": (200, '{"DataFields": [], "data": {}}')})
+@pytest.mark.parametrize("status,texte", [
+    (404, ""),
+    (200, '{"DataFields": [], "data": {}}'),
+], ids=["404", "sans_data"])
+def test_fetch_list_renvoie_none(status, texte):
+    """Une liste annoncée mais non servie (ou vide) n'interrompt pas le balayage."""
+    client = _FauxClient({"/results/list": (status, texte)})
 
     assert raceresult._fetch_list("393893", "k", "L", "1", client) is None
 
@@ -2094,19 +2046,20 @@ def _monte_pipeline(monkeypatch, specs, payloads, *, hidden=(), contests=None):
     return appels
 
 
-def test_scrape_event_all_interroge_exactement_les_listes_annoncees(monkeypatch):
+@pytest.mark.parametrize("url", [
+    "https://my.raceresult.com/1/results",
+    # #989 : `?contest=0` n'est pas une sous-URL, il vaut l'épreuve entière.
+    "https://my.raceresult.com/1/results?contest=0",
+])
+def test_scrape_event_all_interroge_exactement_les_listes_annoncees(monkeypatch, url):
     """Le contest étant explicite dans `TabConfig.Lists`, il n'y a plus rien à
     découvrir : une requête par couple annoncé, ni plus ni moins. L'ancienne
     version balayait `contest=0` puis chaque contest déclaré, soit 15 requêtes
     dont 11 en 404 sur Rumilly."""
     specs = [("Classement", "1"), ("Classement", "2")]
-    payloads = {
-        ("Classement", "1"): _payload({"#1_Distance S": {"#1_": [["7", "1", "Jean DUPONT", "TCN", "01:00:00"]]}}),
-        ("Classement", "2"): _payload({"#1_Distance M": {"#1_": [["8", "2", "Luc MARTIN", "TCN", "02:00:00"]]}}),
-    }
-    appels = _monte_pipeline(monkeypatch, specs, payloads)
+    appels = _monte_pipeline(monkeypatch, specs, _payloads_deux_contests())
 
-    res = raceresult.scrape_event_all("https://my.raceresult.com/1/results")
+    res = raceresult.scrape_event_all(url)
 
     assert appels == [("Classement", "1"), ("Classement", "2")]
     assert len(res) == 2
@@ -2928,10 +2881,11 @@ def test_scrape_event_all_410891_hidden_recupere_les_splits_intermediaires(monke
 # Contest="0" est **réservé** et ne doit pas être fan-outé.
 
 
-def test_scrape_event_fanout_nominal_returns_trace(monkeypatch):
-    """3 contests énumérés, 3 scrapés, trace complète — sans cache_probe."""
-    specs = [("Classement", "1"), ("Classement", "2"), ("Classement", "3")]
-    contests = {"1": "Distance S", "2": "Distance M", "3": "Distance L"}
+_TROIS_CONTESTS = {"1": "Distance S", "2": "Distance M", "3": "Distance L"}
+
+
+def _monte_trois_contests(monkeypatch):
+    """Trois contests publiés, un participant chacun ; rend les appels."""
     payloads = {
         ("Classement", "1"): _payload(
             {"#1_Distance S": {"#1_": [["7", "1", "Jean DUPONT", "TCN", "01:00:00"]]}}
@@ -2943,68 +2897,29 @@ def test_scrape_event_fanout_nominal_returns_trace(monkeypatch):
             {"#1_Distance L": {"#1_": [["9", "3", "Anne DURAND", "TCN", "03:00:00"]]}}
         ),
     }
-    _monte_pipeline(monkeypatch, specs, payloads)
-    # `_monte_pipeline` fixe `contests` à {"1", "2"} — on l'étend ici pour
-    # que les 3 contests aient un libellé.
-    monkeypatch.setattr(
-        raceresult, "_fetch_config",
-        lambda ev, client: {
-            "key": "k", "eventname": "Épreuve", "contests": contests,
-            "TabConfig": {"Lists": [
-                {"Name": n, "Contest": c, "Mode": ""} for n, c in specs
-            ]},
-        },
-    )
-
-    results, trace = raceresult.scrape_event_fanout(
-        "https://my.raceresult.com/1/results",
-    )
-
-    assert trace.heats_enumerated == 3
-    assert trace.heats_cached == 0
-    assert trace.heats_imported == 0  # dérivé côté import_service
-    assert trace.failures == []
-    assert trace.cached_urls == []
-    assert len(results) == 3
+    specs = [("Classement", c) for c in _TROIS_CONTESTS]
+    return _monte_pipeline(monkeypatch, specs, payloads, contests=_TROIS_CONTESTS)
 
 
 def test_scrape_event_fanout_cache_probe_skips_heats(monkeypatch):
-    """1 sous-unité fraîche → 1 sautée, 2 autres scrapées."""
-    specs = [("Classement", "1"), ("Classement", "2"), ("Classement", "3")]
-    contests = {"1": "Distance S", "2": "Distance M", "3": "Distance L"}
-    payloads = {
-        ("Classement", "1"): _payload(
-            {"#1_Distance S": {"#1_": [["7", "1", "Jean DUPONT", "TCN", "01:00:00"]]}}
-        ),
-        ("Classement", "2"): _payload(
-            {"#1_Distance M": {"#1_": [["8", "2", "Luc MARTIN", "TCN", "02:00:00"]]}}
-        ),
-        ("Classement", "3"): _payload(
-            {"#1_Distance L": {"#1_": [["9", "3", "Anne DURAND", "TCN", "03:00:00"]]}}
-        ),
-    }
-    appels = _monte_pipeline(monkeypatch, specs, payloads)
-    monkeypatch.setattr(
-        raceresult, "_fetch_config",
-        lambda ev, client: {
-            "key": "k", "eventname": "Épreuve", "contests": contests,
-            "TabConfig": {"Lists": [
-                {"Name": n, "Contest": c, "Mode": ""} for n, c in specs
-            ]},
-        },
-    )
+    """1 sous-unité fraîche → 1 sautée, 2 autres scrapées.
 
-    # Cache le contest 2.
+    `on_heat_start` n'est jamais appelé pour un contest caché : total notifié =
+    nombre de contests à scraper, pas le nombre énuméré. Sans quoi la
+    progression paraîtrait sauter des indices sur un ré-import majoritairement
+    caché.
+    """
+    appels = _monte_trois_contests(monkeypatch)
     cache_url = raceresult._sub_source_url("1", "2")
-    probe_calls: list[str] = []
+    notifications: list[tuple[str, str, int, int]] = []
 
-    def probe(sub_url: str) -> bool:
-        probe_calls.append(sub_url)
-        return sub_url == cache_url
+    def on_heat_start(contest_slug, contest_label, index, total):
+        notifications.append((contest_slug, contest_label, index, total))
 
     results, trace = raceresult.scrape_event_fanout(
         "https://my.raceresult.com/1/results",
-        cache_probe=probe,
+        cache_probe=lambda sub_url: sub_url == cache_url,
+        on_heat_start=on_heat_start,
     )
 
     assert trace.heats_enumerated == 3
@@ -3016,43 +2931,21 @@ def test_scrape_event_fanout_cache_probe_skips_heats(monkeypatch):
     assert ("Classement", "1") in appels
     assert ("Classement", "3") in appels
     assert len(results) == 2
+    # Un appel par contest scrapé (index, total), jamais pour le contest caché.
+    assert [(n[0], n[2], n[3]) for n in notifications] == [("1", 1, 2), ("3", 2, 2)]
 
 
 def test_scrape_event_fanout_heat_failure_isolated(monkeypatch, caplog):
     """Un contest qui lève ne casse pas les autres — cause dans trace.failures."""
-    specs = [("Classement", "1"), ("Classement", "2"), ("Classement", "3")]
-    contests = {"1": "Distance S", "2": "Distance M", "3": "Distance L"}
-    payloads = {
-        ("Classement", "1"): _payload(
-            {"#1_Distance S": {"#1_": [["7", "1", "Jean DUPONT", "TCN", "01:00:00"]]}}
-        ),
-        ("Classement", "3"): _payload(
-            {"#1_Distance L": {"#1_": [["9", "3", "Anne DURAND", "TCN", "03:00:00"]]}}
-        ),
-    }
-    _monte_pipeline(monkeypatch, specs, payloads)
-    monkeypatch.setattr(
-        raceresult, "_fetch_config",
-        lambda ev, client: {
-            "key": "k", "eventname": "Épreuve", "contests": contests,
-            "TabConfig": {"Lists": [
-                {"Name": n, "Contest": c, "Mode": ""} for n, c in specs
-            ]},
-        },
-    )
-
-    # Un `_fetch_list` qui lève sur le contest 2, laisse passer les autres.
-    original_fetch = raceresult._fetch_list
+    _monte_trois_contests(monkeypatch)
+    faux_fetch = raceresult._fetch_list  # posé par `_monte_pipeline`
 
     def flaky_fetch(event_id, key, listname, contest, client):
         if contest == "2":
             raise RuntimeError("boom on contest 2")
-        return payloads.get((listname, contest))
+        return faux_fetch(event_id, key, listname, contest, client)
 
     monkeypatch.setattr(raceresult, "_fetch_list", flaky_fetch)
-    # Neutralise le http.client — `_run_pipeline` ouvre un client puis n'appelle
-    # que les helpers monkeypatchés.
-    del original_fetch
 
     with _capture_logs("app.scrapers.raceresult") as logs:
         results, trace = raceresult.scrape_event_fanout(
@@ -3094,55 +2987,6 @@ def test_scrape_event_fanout_no_sub_units_returns_empty(monkeypatch):
     assert len(results) == 1
 
 
-def test_scrape_event_fanout_on_heat_start_notifie_par_heat_non_cache(monkeypatch):
-    """`on_heat_start` n'est jamais appelé pour un contest caché.
-
-    Total notifié = nombre de contests à scraper, pas le nombre énuméré. Sans
-    quoi la progression paraîtrait sauter des indices sur un ré-import
-    majoritairement caché.
-    """
-    specs = [("Classement", "1"), ("Classement", "2"), ("Classement", "3")]
-    contests = {"1": "Distance S", "2": "Distance M", "3": "Distance L"}
-    payloads = {
-        ("Classement", "1"): _payload(
-            {"#1_Distance S": {"#1_": [["7", "1", "Jean DUPONT", "TCN", "01:00:00"]]}}
-        ),
-        ("Classement", "3"): _payload(
-            {"#1_Distance L": {"#1_": [["9", "3", "Anne DURAND", "TCN", "03:00:00"]]}}
-        ),
-    }
-    _monte_pipeline(monkeypatch, specs, payloads)
-    monkeypatch.setattr(
-        raceresult, "_fetch_config",
-        lambda ev, client: {
-            "key": "k", "eventname": "Épreuve", "contests": contests,
-            "TabConfig": {"Lists": [
-                {"Name": n, "Contest": c, "Mode": ""} for n, c in specs
-            ]},
-        },
-    )
-
-    cache_url = raceresult._sub_source_url("1", "2")
-    def probe(sub_url: str) -> bool:
-        return sub_url == cache_url
-
-    notifications: list[tuple[str, str, int, int]] = []
-    def on_heat_start(contest_slug, contest_label, index, total):
-        notifications.append((contest_slug, contest_label, index, total))
-
-    raceresult.scrape_event_fanout(
-        "https://my.raceresult.com/1/results",
-        cache_probe=probe, on_heat_start=on_heat_start,
-    )
-
-    assert len(notifications) == 2, "un appel par contest scrapé, pas par contest énuméré"
-    assert [n[0] for n in notifications] == ["1", "3"]
-    assert [n[2] for n in notifications] == [1, 2]
-    assert all(n[3] == 2 for n in notifications)
-    # Le contest caché (`"2"`) n'est jamais notifié.
-    assert not any(n[0] == "2" for n in notifications)
-
-
 def test_scrape_event_fanout_contest_zero_reserve_pas_fan_oute(monkeypatch):
     """Contest="0" est **exclu** du fan-out et jamais soumis à `cache_probe`.
 
@@ -3151,7 +2995,6 @@ def test_scrape_event_fanout_contest_zero_reserve_pas_fan_oute(monkeypatch):
     `trace.cached_urls` — sa clé ne serait pas un `sub_source_url` cache-able.
     """
     specs = [("Explicite", "1"), ("Général", "0")]
-    contests = {"1": "Distance S", "2": "Distance M"}
     payloads = {
         ("Explicite", "1"): _payload(
             {"#1_Distance S": {"#1_": [["7", "1", "Jean DUPONT", "TCN", "01:00:00"]]}}
@@ -3161,15 +3004,6 @@ def test_scrape_event_fanout_contest_zero_reserve_pas_fan_oute(monkeypatch):
         ),
     }
     _monte_pipeline(monkeypatch, specs, payloads)
-    monkeypatch.setattr(
-        raceresult, "_fetch_config",
-        lambda ev, client: {
-            "key": "k", "eventname": "Épreuve", "contests": contests,
-            "TabConfig": {"Lists": [
-                {"Name": n, "Contest": c, "Mode": ""} for n, c in specs
-            ]},
-        },
-    )
 
     probe_calls: list[str] = []
 
@@ -3194,28 +3028,21 @@ def test_scrape_event_fanout_contest_zero_reserve_pas_fan_oute(monkeypatch):
 def test_provider_raceresult_expose_fanout_par_defaut(monkeypatch):
     """Le `RaceResultProvider` du registre fait du fan-out par défaut.
 
-    Sans kwargs, l'appel doit peupler `trace` avec la trace
-    produite par `scrape_event_fanout`. Contrat symétrique à `KlikegoProvider`.
+    Sans kwargs, l'appel rend la trace de `scrape_event_fanout` : 3 contests
+    énumérés, 3 scrapés, trace complète. Contrat symétrique à `KlikegoProvider`.
     """
-    specs = [("Classement", "1"), ("Classement", "2")]
-    payloads = {
-        ("Classement", "1"): _payload(
-            {"#1_Distance S": {"#1_": [["7", "1", "Jean DUPONT", "TCN", "01:00:00"]]}}
-        ),
-        ("Classement", "2"): _payload(
-            {"#1_Distance M": {"#1_": [["8", "2", "Luc MARTIN", "TCN", "02:00:00"]]}}
-        ),
-    }
-    _monte_pipeline(monkeypatch, specs, payloads)
+    _monte_trois_contests(monkeypatch)
 
     provider = registry.RaceResultProvider()
     results, trace = provider.scrape_event_all("https://my.raceresult.com/1/results")
 
     assert trace is not None
-    assert trace.heats_enumerated == 2
+    assert trace.heats_enumerated == 3
     assert trace.heats_cached == 0
+    assert trace.heats_imported == 0  # dérivé côté import_service
     assert trace.failures == []
-    assert len(results) == 2
+    assert trace.cached_urls == []
+    assert len(results) == 3
 
 
 def test_provider_raceresult_single_heat_court_circuite_le_fan_out(monkeypatch):
@@ -3304,16 +3131,6 @@ def test_scrape_event_all_sans_selecteur_pose_la_sous_url_de_chaque_contest(monk
         ("7", "https://my.raceresult.com/1/results?contest=1"),
         ("8", "https://my.raceresult.com/1/results?contest=2"),
     }
-
-
-def test_scrape_event_all_contest_zero_dans_l_url_vaut_l_epreuve_entiere(monkeypatch):
-    specs = [("Classement", "1"), ("Classement", "2")]
-    appels = _monte_pipeline(monkeypatch, specs, _payloads_deux_contests())
-
-    res = raceresult.scrape_event_all("https://my.raceresult.com/1/results?contest=0")
-
-    assert appels == [("Classement", "1"), ("Classement", "2")]
-    assert len(res) == 2
 
 
 def test_scrape_event_all_sous_url_d_un_contest_inconnu_leve(monkeypatch):
