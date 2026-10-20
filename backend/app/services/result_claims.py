@@ -67,10 +67,13 @@ def _claim_not_pending() -> NotFoundError:
 def _claimable(participation: Participation, athlete_id: int, kind: str) -> bool:
     if participation.athlete_id == athlete_id or participation.is_pending_validation:
         return False
+    is_relay = participation.is_relay or participation.course.is_relay
     if kind == KIND_TEAM:
-        is_relay = participation.is_relay or participation.course.is_relay
-        return is_relay and athlete_id not in {link.athlete_id for link in participation.teammate_links}
-    return not participation.is_relay
+        links = participation.teammate_links
+        # Même portée que la recherche : une fiche d'équipe ou une composition déjà posée.
+        in_scope = is_team_record(participation.athlete) or bool(links)
+        return is_relay and in_scope and athlete_id not in {link.athlete_id for link in links}
+    return not is_relay
 
 
 def request_claim(db: Session, user: User, participation_id: int, *, kind: str = KIND_RESULT) -> ResultClaim:

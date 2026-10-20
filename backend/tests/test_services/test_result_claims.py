@@ -70,7 +70,7 @@ def test_a_request_is_pending(db_session, lea, homonym):
     assert result.athlete_id == homonym.id
 
 
-@pytest.mark.parametrize("case", ["own", "pending", "relay", "unknown"])
+@pytest.mark.parametrize("case", ["own", "pending", "relay", "relay_course", "unknown"])
 def test_a_result_that_cannot_be_claimed_is_refused(db_session, lea, homonym, case):
     if case == "own":
         target = _result(db_session, db_session.get(Athlete, lea.athlete_id)).id
@@ -78,6 +78,8 @@ def test_a_result_that_cannot_be_claimed_is_refused(db_session, lea, homonym, ca
         target = _result(db_session, homonym, is_pending_validation=True).id
     elif case == "relay":
         target = _result(db_session, homonym, is_relay=True).id
+    elif case == "relay_course":
+        target = _result(db_session, homonym, course_relay=True).id
     else:
         target = 999_999
 
@@ -243,11 +245,14 @@ def test_a_team_claim_accepts_a_relay_flagged_on_the_course_only(db_session, lea
     assert claim.kind == KIND_TEAM
 
 
-@pytest.mark.parametrize("case", ["not_relay", "pending", "already_carrier", "already_teammate"])
+@pytest.mark.parametrize("case", ["not_relay", "pending", "already_carrier", "already_teammate", "person_carrier"])
 def test_a_team_claim_is_refused(db_session, lea, case):
     team = _athlete(db_session, nom="LES MOLLETS D'ACIER", prenom="")
     if case == "not_relay":
         target = _result(db_session, team)
+    elif case == "person_carrier":
+        # Outside the search: a relay split across person records, without a composition.
+        target = _result(db_session, _athlete(db_session, nom="DURAND", prenom="Paul"), is_relay=True)
     elif case == "pending":
         target = _result(db_session, team, is_relay=True, is_pending_validation=True)
     elif case == "already_carrier":
