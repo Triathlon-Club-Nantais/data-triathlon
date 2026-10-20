@@ -114,7 +114,7 @@ export function OngletsMonEspace({
       <TabsContent value="disciplines">
         <OngletDisciplines participations={participations} federalOnly={federalOnly} seasons={seasons} />
       </TabsContent>
-      <TabsContent value="epreuves"className="space-y-6">
+      <TabsContent value="epreuves" className="space-y-6">
         <EventsTable participations={participations} athleteId={athleteId} athleteName={athleteName} />
         <AthleteChallenges challenges={challenges} />
       </TabsContent>

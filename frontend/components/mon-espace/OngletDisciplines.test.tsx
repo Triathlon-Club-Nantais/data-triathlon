@@ -17,7 +17,7 @@ function resultat(extra: Partial<Participation> & { type?: string; relay?: boole
   const { type = "triathlon-m", relay = false, ...rest } = extra;
   return {
     id: numero,
-    course: { id: numero, name: `Epreuve ${numero}`, event_date: "2026-06-01", event_type: type, provider: "k", source_url: "", is_relay: relay, is_reliable: true, distance_km: 50 },
+    course: { id: numero, name: `Epreuve ${numero}`, event_date: "2026-06-01", event_type: type, provider: "k", source_url: "", is_relay: relay, is_reliable: true, has_reliable_splits: true, distance_km: 50 },
     total_time: "1:00:00", status: "finisher", is_relay: relay, is_pending_validation: false,
     splits: { swim: "0:10:00", t1: "0:01:00", bike: "0:30:00", t2: "0:01:00", run: "0:18:00" },
     split_gap_ratio: 0,
@@ -52,13 +52,21 @@ describe("OngletDisciplines", () => {
     expect(getClubSplitMedians).toHaveBeenCalledWith({ event_type: "triathlon-m", federal_only: true, seasons: [2025] });
   });
 
-  it("hides the comparison with a small club sample or without reliable splits", async () => {
+  it("hides the comparison with a small club sample", async () => {
     getClubSplitMedians.mockResolvedValue({ event_type: "triathlon-m", sample: 4, swim: "0:12:00", bike: "0:32:00", run: "0:17:00" });
-    afficher([resultat(), resultat({ type: "duathlon-s", split_gap_ratio: null })]);
+    afficher([resultat()]);
+
+    expect(await screen.findByText("Aucune comparaison possible sur cette sélection")).toBeInTheDocument();
+  });
+
+  it("hides the comparison without evaluable splits or on a course with unreliable splits", async () => {
+    const douteuse = resultat({ type: "duathlon-s" });
+    douteuse.course.has_reliable_splits = false;
+    afficher([resultat({ split_gap_ratio: null }), douteuse]);
 
     await screen.findByRole("img", { name: /Répartition/ });
-    expect(await screen.findByText("Aucune comparaison possible sur cette sélection")).toBeInTheDocument();
-    expect(getClubSplitMedians).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText("Mes splits face au club")).not.toBeInTheDocument();
+    expect(getClubSplitMedians).not.toHaveBeenCalled();
   });
 
   it("shows an empty state without races", () => {

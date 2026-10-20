@@ -65,13 +65,14 @@ export type CleSegment = (typeof SEGMENTS)[number]["cle"];
 
 /**
  * Ma médiane de natation, vélo et course par `event_type`. Seules comptent les lignes
- * dont les splits sont évaluables côté serveur (`split_gap_ratio`) et qui valent
- * performance : la même fiabilité que la médiane du club.
+ * dont les splits sont évaluables côté serveur (`split_gap_ratio`), qui valent
+ * performance et dont l'épreuve a des splits fiables (`has_reliable_splits`, le
+ * critère de la médiane du club).
  */
 export function mesMediansDeSplits(participations: Participation[]): Map<string, Record<CleSegment, number>> {
   const valeurs = new Map<string, Record<CleSegment, number[]>>();
   for (const p of participations) {
-    if (!countsAsPerformance(p) || p.split_gap_ratio == null) continue;
+    if (!countsAsPerformance(p) || !p.course.has_reliable_splits || p.split_gap_ratio == null) continue;
     const secondes = SEGMENTS.map(({ cle }) => secondsFromHms(p.splits?.[cle]));
     if (secondes.some((s) => !s)) continue;
     const type = p.course.event_type;

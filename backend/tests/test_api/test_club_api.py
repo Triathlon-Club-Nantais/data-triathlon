@@ -384,3 +384,29 @@ def test_club_split_medians_empty_gives_nulls(client, db_session):
     body = client.get("/api/v1/club/split-medians?event_type=triathlon-s").json()
 
     assert body == {"event_type": "triathlon-s", "sample": 0, "swim": None, "bike": None, "run": None}
+
+
+def test_club_split_medians_reference_gap_median_covers_the_whole_course(client, db_session):
+    course = _split_course(db_session)
+    _split_row(db_session, course, 0)
+    _split_row(db_session, course, 1)
+    # Ligne cassée du club : les inters dépassent le total (écart négatif).
+    _split_row(db_session, course, 2, swim="00:50:00", total="01:00:00")
+    for index in range(10, 20):
+        _split_row(db_session, course, index, club="AUTRE")
+    db_session.commit()
+
+    body = client.get("/api/v1/club/split-medians?event_type=triathlon-s").json()
+
+    assert body["sample"] == 2
+    assert body["swim"] == "00:10:00"
+
+
+def test_course_brief_exposes_whether_splits_are_reliable(db_session):
+    from app.schemas.course import CourseBrief
+
+    good = _split_course(db_session)
+    unreliable = _split_course(db_session, provider="breizhchrono", day=17)
+
+    assert CourseBrief.model_validate(good).has_reliable_splits is True
+    assert CourseBrief.model_validate(unreliable).has_reliable_splits is False

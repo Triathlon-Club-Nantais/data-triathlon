@@ -1398,6 +1398,23 @@ def club_split_rows(db: Session, *, event_type: str, federal_only: bool = False,
     return q.all()
 
 
+def course_split_gap_rows(db: Session, course_ids: list[int]):
+    """Colonnes (course, total, splits) de toutes les lignes validées avec splits de ces épreuves.
+
+    Sert de population à la médiane d'écart d'une épreuve (#1699), club ou non.
+    """
+    if not course_ids:
+        return []
+    return (
+        db.query(Participation.course_id, Participation.total_time, Participation.splits)
+        .filter(Participation.course_id.in_(course_ids))
+        .filter(validated_clause(Participation.is_pending_validation))
+        .filter(Participation.is_relay.is_(False))
+        .filter(Participation.splits.isnot(None))
+        .all()
+    )
+
+
 def _grouped_events_query(
     db: Session,
     *,

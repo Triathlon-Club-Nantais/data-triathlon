@@ -302,13 +302,12 @@ export const apiClient = {
   // n'en transporte que l'aperçu (#1354).
   getClubPodiums: (opts: { federal_only?: boolean; seasons?: number[] } = {}) =>
     request<ClubPodiums>(`/club/podiums${toQuery(opts as Record<string, unknown>)}`),
+  getClubSplitMedians: (opts: { event_type: string; federal_only?: boolean; seasons?: number[] }) =>
+    request<ClubSplitMedians>(`/club/split-medians${toQuery(opts as Record<string, unknown>)}`),
   // Rang exact d'un athlète dans le roster club, au-delà de l'aperçu de 12
   // (#504, #641) — appelé côté client, jamais transporté dans la page
   // (`RosterApercu`, seul appelant, ne le demande que si l'athlète retenu en
   // sort). `null` sur 404 : hors roster est un état normal, pas une panne.
-  getClubSplitMedians: (opts: { event_type: string; federal_only?: boolean; seasons?: number[] }) =>
-    request<ClubSplitMedians>(`/club/split-medians${toQuery(opts as Record<string, unknown>)}`),
-
   getClubRosterRank: async (
     athleteId: number,
     opts: { federal_only?: boolean; seasons?: number[] } = {},

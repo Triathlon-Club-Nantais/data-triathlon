@@ -225,8 +225,7 @@ def get_club_split_medians(
 
     Ne retient que les lignes dont les splits sont fiables et évaluables, hors lignes
     aberrantes face à la médiane d'écart de leur épreuve. `sample` compte ces lignes.
-    shortcut: la médiane d'écart d'une épreuve ne porte que sur ses lignes du club, donc
-    une épreuve de moins de 10 lignes club ne rejette rien, à relever si les inters TCN dérivent.
+    La médiane d'écart de référence porte sur toutes les lignes de l'épreuve, pas sur le club seul.
     """
     rows = [
         row
@@ -239,8 +238,10 @@ def get_club_split_medians(
         row.id: split_gap.gap(row.total_time, row.splits, event_type=event_type, is_relay=False) for row in rows
     }
     by_course = defaultdict(list)
-    for row in rows:
-        by_course[row.course_id].append(gaps[row.id])
+    for course_id, total_time, splits in participation_repository.course_split_gap_rows(
+        db, sorted({row.course_id for row in rows})
+    ):
+        by_course[course_id].append(split_gap.gap(total_time, splits, event_type=event_type, is_relay=False))
     values = {key: [] for key in ("swim", "bike", "run")}
     sample = 0
     for row in rows:
