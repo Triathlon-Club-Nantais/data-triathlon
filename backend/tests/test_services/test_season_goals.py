@@ -207,6 +207,31 @@ def test_known_course_goal_closes_on_result(db_session, lea):
     assert _progress_of(db_session, lea).outcome == "reached"
 
 
+def test_known_course_goal_ignores_other_courses_and_falls_back_on_date_when_deleted(db_session, lea):
+    athlete = db_session.get(Athlete, lea.athlete_id)
+    mine = _result(db_session, athlete, day=RACE_DAY, time="3:00:00")
+    _result(db_session, athlete, day=RACE_DAY, time="2:00:00")
+    goal = season_goals.create(db_session, lea, _write(kind="race", course_id=mine.course_id, target=9000))
+    progress = _progress_of(db_session, lea)
+    assert (progress.outcome, progress.best_time) == ("missed", "3:00:00")
+    goal.course_id = None
+    db_session.flush()
+    progress = _progress_of(db_session, lea)
+    assert (progress.outcome, progress.best_time) == ("reached", "2:00:00")
+
+
+def test_detached_goals_report_their_closed_state(db_session, lea, monkeypatch):
+    race = _race_goal(db_session, lea)
+    time_goal = season_goals.create(db_session, lea, _write(kind="time", event_type="triathlon-m", target=9000))
+    lea.athlete_id = None
+    db_session.flush()
+    assert {p.goal.id: p.outcome for p in season_goals.list_with_progress(db_session, lea, SEASON)} == {
+        race.id: "upcoming", time_goal.id: "upcoming"}
+    monkeypatch.setattr(season, "utcnow", lambda: datetime(SEASON + 1, 10, 15, 12, 0, 0))
+    assert {p.goal.id: p.outcome for p in season_goals.list_with_progress(db_session, lea, SEASON)} == {
+        race.id: "missed", time_goal.id: "missed"}
+
+
 def test_free_race_goal_closes_by_date(db_session, lea):
     athlete = db_session.get(Athlete, lea.athlete_id)
     _result(db_session, athlete, day=RACE_DAY, time="2:35:10")
