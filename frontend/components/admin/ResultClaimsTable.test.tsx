@@ -15,6 +15,12 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
 });
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
+vi.mock("@/components/athletes/TeammatesDialog", () => ({
+  TeammatesDialog: ({ equipiers }: { equipiers: { prenom: string; nom: string }[] }) => (
+    <div role="dialog">{equipiers.map((e) => `${e.prenom} ${e.nom}`).join("|")}</div>
+  ),
+}));
+
 import { ResultClaimsTable } from "./ResultClaimsTable";
 
 const RECLAMATION: ResultClaimReview = {
@@ -33,6 +39,19 @@ const RECLAMATION: ResultClaimReview = {
   claimant_has_result_on_course: false,
   claimant_athlete: { id: 42, prenom: "Léa", nom: "Martin", club: "TCN" },
   licensee: { prenom: "Léa", nom: "MARTIN", season: 2026 },
+};
+
+const EQUIPIERS = [
+  { id: 1, prenom: "Ana", nom: "Roux" },
+  { id: 2, prenom: "Bob", nom: "Lenoir" },
+];
+const EQUIPE: ResultClaimReview = {
+  ...RECLAMATION,
+  id: 8,
+  kind: "team",
+  teammates: EQUIPIERS,
+  proposed_teammates: [...EQUIPIERS, { id: 42, prenom: "Léa", nom: "Martin" }],
+  claimant_has_result_on_course: true,
 };
 
 function afficher() {
@@ -80,5 +99,49 @@ describe("ResultClaimsTable (#1637)", () => {
     afficher();
 
     expect(await screen.findByText(/aucun résultat réclamé/i)).toBeInTheDocument();
+  });
+
+  it("une_demande_d_equipe_montre_la_composition_proposee", async () => {
+    getResultClaims.mockResolvedValue([EQUIPE]);
+    afficher();
+
+    const ligne = (await screen.findByText("lea@exemple.fr")).closest("tr") as HTMLElement;
+    expect(within(ligne).getByText("Résultat d'équipe")).toBeInTheDocument();
+    expect(ligne).toHaveTextContent("Équipe actuelle : Ana Roux, Bob Lenoir");
+    expect(ligne).toHaveTextContent("Après validation : Ana Roux, Bob Lenoir, Léa Martin");
+    expect(ligne).toHaveTextContent("Cet athlète a déjà un résultat sur cette épreuve.");
+    expect(within(ligne).queryByRole("button", { name: /déplacer/i })).not.toBeInTheDocument();
+  });
+
+  it("ajouter_a_l_equipe_valide_la_demande", async () => {
+    getResultClaims.mockResolvedValue([EQUIPE]);
+    approveResultClaim.mockResolvedValue(null);
+    afficher();
+
+    await userEvent.click(await screen.findByRole("button", { name: /Ajouter à l.équipe/ }));
+    await waitFor(() => expect(approveResultClaim).toHaveBeenCalledWith(8));
+  });
+
+  it("une_equipe_composee_a_la_main_ouvre_la_fenetre_preremplie", async () => {
+    getResultClaims.mockResolvedValue([{ ...EQUIPE, proposed_teammates: null, claimant_has_result_on_course: false }]);
+    approveResultClaim.mockResolvedValue(null);
+    afficher();
+
+    expect(await screen.findByText(/À composer : la composition a été posée à la main\./)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Ajouter à l.équipe/ })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Composer l'équipe" }));
+    expect(screen.getByRole("dialog")).toHaveTextContent("Ana Roux|Bob Lenoir|Léa Martin");
+    await userEvent.click(screen.getByRole("button", { name: "Clore la demande" }));
+    await waitFor(() => expect(approveResultClaim).toHaveBeenCalledWith(8));
+  });
+
+  it("une_demande_de_resultat_reste_inchangee", async () => {
+    getResultClaims.mockResolvedValue([RECLAMATION]);
+    afficher();
+
+    const ligne = (await screen.findByText("lea@exemple.fr")).closest("tr") as HTMLElement;
+    expect(within(ligne).getByRole("button", { name: /Déplacer le résultat/ })).toBeInTheDocument();
+    expect(within(ligne).queryByRole("button", { name: /Ajouter à l.équipe/ })).not.toBeInTheDocument();
+    expect(ligne).not.toHaveTextContent("Équipe actuelle");
   });
 });
