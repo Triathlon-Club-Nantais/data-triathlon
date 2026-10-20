@@ -25,6 +25,13 @@ FULL = [
     "python3 -m pytest",
     "pytest",
     "vitest run",
+    "uv run pytest -q 2>&1 | tail -5",
+    "npm test -- --run 2>&1",
+    "uv run pytest > out.txt",
+    "uv run pytest 2> /dev/null",
+    "time uv run pytest",
+    "uv run --directory backend pytest",
+    "env CI=1 npm test",
 ]
 TARGETED = [
     "FULL_SUITE=1 uv run pytest",
@@ -40,6 +47,8 @@ TARGETED = [
     "npx vitest --changed origin/main",
     "git status && ls",
     "npm run build",
+    "env FULL_SUITE=1 uv run pytest",
+    "uv run pytest tests/test_api 2>&1 | tail",
 ]
 
 

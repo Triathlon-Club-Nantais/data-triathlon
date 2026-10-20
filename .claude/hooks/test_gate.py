@@ -15,12 +15,14 @@ MESSAGE = (
     "Voir docs/tests-boucle.md."
 )
 SEPARATORS = {"&&", "||", ";", "|", "&"}
-WRAPPERS = {"rtk", "uv", "run", "npx", "python", "python3", "-m"}
+WRAPPERS = {"rtk", "time", "env", "uv", "run", "npx", "python", "python3", "-m"}
+UV_OPTIONS = ("--directory", "--project", "--with")
 PYTEST_TARGETING = {"-k", "--lf", "--last-failed", "--sw", "--stepwise"}
 # Options whose next token is a value, not a positional argument.
 VALUE_OPTIONS = {"-m", "-k", "-n", "-p", "-c", "-o", "--maxfail", "--tb", "--durations",
                  "--rootdir", "--ignore", "--deselect", "--junitxml", "--reporter"}
 ASSIGNMENT = re.compile(r"^[A-Za-z_]\w*=")
+REDIRECTION = re.compile(r"^[<>&]+$")
 
 
 def positionals(args):
@@ -51,10 +53,19 @@ def vitest_is_full(args):
 
 
 def segment_is_full_suite(tokens):
-    while tokens and ASSIGNMENT.match(tokens[0]):
-        if tokens[0] == "FULL_SUITE=1":
-            return False
-        tokens = tokens[1:]
+    while tokens:
+        if ASSIGNMENT.match(tokens[0]):
+            if tokens[0] == "FULL_SUITE=1":
+                return False
+            tokens = tokens[1:]
+        elif tokens[0] in WRAPPERS:
+            tokens = tokens[1:]
+        elif tokens[0] in UV_OPTIONS:
+            tokens = tokens[2:]
+        elif tokens[0].startswith(tuple(option + "=" for option in UV_OPTIONS)):
+            tokens = tokens[1:]
+        else:
+            break
     if tokens[:1] == ["npm"]:
         rest = tokens[1:]
         if rest[:1] == ["--prefix"]:
@@ -65,8 +76,6 @@ def segment_is_full_suite(tokens):
             return False
         after_dashes = rest[rest.index("--") + 1:] if "--" in rest else []
         return vitest_is_full(after_dashes)
-    while tokens and tokens[0] in WRAPPERS:
-        tokens = tokens[1:]
     if tokens[:1] in (["pytest"], ["py.test"]):
         return pytest_is_full(tokens[1:])
     if tokens[:1] == ["vitest"]:
@@ -78,8 +87,14 @@ def is_full_suite(command):
     lexer = shlex.shlex(command.replace("\n", ";"), posix=True, punctuation_chars=True)
     lexer.whitespace_split = True
     segment, segments = [], []
-    for token in lexer:
-        if token in SEPARATORS:
+    tokens = iter(lexer)
+    for token in tokens:
+        if REDIRECTION.match(token) and token not in SEPARATORS:
+            # drop the operator, its target and an attached fd digit (`2>&1` lexes as 2, >&, 1)
+            if segment[-1:] and segment[-1].isdigit():
+                segment.pop()
+            next(tokens, None)
+        elif token in SEPARATORS:
             segments.append(segment)
             segment = []
         else:
