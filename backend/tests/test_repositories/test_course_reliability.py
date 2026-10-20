@@ -148,7 +148,7 @@ def test_le_filtre_unreliable_ne_garde_que_les_epreuves_douteuses(db_session):
     douteuse = _epreuve_filtrable(db_session, name="Douteuse", is_reliable_computed=False)
     _epreuve_filtrable(db_session, name="Fiable", is_reliable_computed=True)
 
-    resultats = course_repository.list_all(db_session, unreliable=True)
+    resultats = course_repository.list_all(db_session, unreliable=True, hide_pending_only=False)
 
     assert [c.id for c in resultats] == [douteuse.id]
 
@@ -160,7 +160,7 @@ def test_une_epreuve_jamais_evaluee_reste_hors_de_la_file(db_session):
     """
     _epreuve_filtrable(db_session, name="Jamais évaluée", is_reliable_computed=None)
 
-    assert course_repository.list_all(db_session, unreliable=True) == []
+    assert course_repository.list_all(db_session, unreliable=True, hide_pending_only=False) == []
 
 
 def test_l_avis_humain_favorable_sort_l_epreuve_de_la_file(db_session):
@@ -169,7 +169,7 @@ def test_l_avis_humain_favorable_sort_l_epreuve_de_la_file(db_session):
         db_session, name="Revalidée", is_reliable_computed=False, reliability_override=True
     )
 
-    assert course_repository.list_all(db_session, unreliable=True) == []
+    assert course_repository.list_all(db_session, unreliable=True, hide_pending_only=False) == []
 
 
 def test_l_avis_humain_defavorable_fait_entrer_l_epreuve_dans_la_file(db_session):
@@ -179,7 +179,7 @@ def test_l_avis_humain_defavorable_fait_entrer_l_epreuve_dans_la_file(db_session
         db_session, name="Contestée", is_reliable_computed=True, reliability_override=False
     )
 
-    resultats = course_repository.list_all(db_session, unreliable=True)
+    resultats = course_repository.list_all(db_session, unreliable=True, hide_pending_only=False)
 
     assert [c.id for c in resultats] == [contestee.id]
 
@@ -190,7 +190,7 @@ def test_sans_le_filtre_le_catalogue_est_inchange(db_session):
     _epreuve_filtrable(db_session, name="Fiable", is_reliable_computed=True)
     _epreuve_filtrable(db_session, name="Jamais évaluée", is_reliable_computed=None)
 
-    assert len(course_repository.list_all(db_session)) == 3
+    assert len(course_repository.list_all(db_session, hide_pending_only=False)) == 3
 
 
 def test_count_all_compte_le_meme_ensemble_que_list_all(db_session):
@@ -199,8 +199,8 @@ def test_count_all_compte_le_meme_ensemble_que_list_all(db_session):
     _epreuve_filtrable(db_session, name="Douteuse 2", is_reliable_computed=False)
     _epreuve_filtrable(db_session, name="Fiable", is_reliable_computed=True)
 
-    assert course_repository.count_all(db_session, unreliable=True) == 2
-    assert len(course_repository.list_all(db_session, unreliable=True)) == 2
+    assert course_repository.count_all(db_session, unreliable=True, hide_pending_only=False) == 2
+    assert len(course_repository.list_all(db_session, unreliable=True, hide_pending_only=False)) == 2
 
 
 def test_le_filtre_unreliable_se_combine_aux_filtres_du_catalogue(db_session):
@@ -210,6 +210,6 @@ def test_le_filtre_unreliable_se_combine_aux_filtres_du_catalogue(db_session):
     )
     _epreuve_filtrable(db_session, name="Triathlon de Carnac", is_reliable_computed=False)
 
-    resultats = course_repository.list_all(db_session, unreliable=True, name="Vertou")
+    resultats = course_repository.list_all(db_session, unreliable=True, name="Vertou", hide_pending_only=False)
 
     assert [c.id for c in resultats] == [cible.id]

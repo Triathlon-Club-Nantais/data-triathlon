@@ -159,18 +159,25 @@ est masquée au public (#1615).** Sans quoi la fiche et l'épreuve neuves d'une
 saisie gardée trahissaient celle, annulée, d'une personne opposée. Masquée :
 elle n'a que des résultats en attente ou refusés (porteuse ou équipière de
 relais pour une fiche), aucun validé, et, pour une fiche, aucune autre
-référence (`referenced_outside_results` : compte lié, bénévolat, validation de
-saison, challenge). Une ligne sans aucun résultat reste visible (#562). Le
+référence (`referenced_outside_results` : compte lié, bénévolat validé,
+validation de saison, challenge ; un bénévolat en attente, que n'importe qui
+déclare, ne compte pas). Une ligne sans aucun résultat reste visible (#562). Le
 public reçoit alors le 404 d'un identifiant inconnu sur `GET /athletes/{id}`,
-son CSV, `GET /courses/{id}`, `/summary`, `/sources` et la demande de
-rattachement (`POST /auth/me/athlete-claim`, dont la réponse nomme la fiche),
+son CSV, `GET /courses/{id}`, `/summary`, `/sources`, la demande de
+rattachement (`POST /auth/me/athlete-claim`, dont la réponse nomme la fiche)
+et la déclaration de bénévolat (`POST /volunteer-actions`) ; une saisie en
+attente répond aussi `404` à la réclamation de résultat
+(`POST /auth/me/result-claims`, #1637), comme un identifiant inconnu,
 et ne la trouve ni dans `GET /athletes`, `GET /athletes/search`,
 `GET /courses` ni `GET /courses/count`. Un bénévole (`is_volunteer`) la voit
 partout comme avant. Le prédicat est `core/validation.pending_only_clause`,
 lié à chaque entité par `athlete_repository.pending_only` et
-`course_repository.pending_only`, et appliqué par l'option `hide_pending_only`
-de `get`, `search`, `search_by_relevance` et `_filtered` (défaut `False` :
-les routes d'administration ne changent pas).
+`course_repository.pending_only`, et appliqué par l'argument `hide_pending_only`
+de `search`, `search_by_relevance`, `list_all`, `count_all`, `athlete_or_404`
+et `course_or_404`, sans défaut : chaque appelant tranche (le public `True`,
+l'administration `False`). Le 404 masqué tient en une requête, comme celui
+d'un identifiant inconnu. Chaque chemin vers les résultats est son propre
+`EXISTS` : imbriqué, celui des équipiers ne se corrélait plus à la fiche.
 Preuve : `tests/test_api/test_private_pending_entries.py`.
 
 ## Classement d'une épreuve : paginé, et l'ordre est en base (#163)

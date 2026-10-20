@@ -631,8 +631,8 @@ def test_scope_club_lists_a_course_once_despite_several_club_members(db_session)
         )
     db_session.flush()
 
-    assert [c.id for c in course_repository.list_all(db_session, club_only=True)] == [course.id]
-    assert course_repository.count_all(db_session, club_only=True) == 1
+    assert [c.id for c in course_repository.list_all(db_session, club_only=True, hide_pending_only=False)] == [course.id]
+    assert course_repository.count_all(db_session, club_only=True, hide_pending_only=False) == 1
 
 
 @_SQLITE_ONLY

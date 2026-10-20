@@ -102,7 +102,7 @@ def _adds_alias(kept: Athlete, absorbed: Athlete) -> bool:
 
 def merge_impact(db: Session, *, kept_id: int, absorbed_id: int) -> dict:
     """Ce que la fusion ferait, sans rien écrire."""
-    kept, absorbed = athlete_or_404(db, kept_id), athlete_or_404(db, absorbed_id)
+    kept, absorbed = athlete_or_404(db, kept_id, hide_pending_only=False), athlete_or_404(db, absorbed_id, hide_pending_only=False)
     reason = blocking_reason(db, kept, absorbed)
     return {
         "kept": _brief(db, kept),
@@ -217,7 +217,7 @@ def merge_athletes(db: Session, *, kept_id: int, absorbed_id: int, user_id: int)
 
 def list_aliases(db: Session, *, athlete_id: int) -> list[AthleteAlias]:
     """Les variantes de graphie d'une fiche (#1242), ou 404."""
-    athlete_or_404(db, athlete_id)
+    athlete_or_404(db, athlete_id, hide_pending_only=False)
     return athlete_alias_repository.list_for_athlete(db, athlete_id)
 
 

@@ -9,7 +9,7 @@ from app.repositories import athlete_repository, course_repository, user_reposit
 
 
 def athlete_or_404(
-    db: Session, athlete_id: int, *, message: str = "Athlète introuvable.", hide_pending_only: bool = False
+    db: Session, athlete_id: int, *, hide_pending_only: bool, message: str = "Athlète introuvable."
 ) -> Athlete:
     athlete = athlete_repository.get(db, athlete_id, hide_pending_only=hide_pending_only)
     if athlete is None:
@@ -17,8 +17,10 @@ def athlete_or_404(
     return athlete
 
 
-def course_or_404(db: Session, course_id: int, *, message: str = "Épreuve introuvable.") -> Course:
-    course = course_repository.get(db, course_id)
+def course_or_404(
+    db: Session, course_id: int, *, hide_pending_only: bool, message: str = "Épreuve introuvable."
+) -> Course:
+    course = course_repository.get(db, course_id, hide_pending_only=hide_pending_only)
     if course is None:
         raise NotFoundError(message)
     return course

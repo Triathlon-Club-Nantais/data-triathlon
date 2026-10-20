@@ -42,7 +42,7 @@ class NoClaimedAthleteError(DomainError):
 
 class UnclaimableResultError(DomainError):
     status_code = 409
-    message = "Ce résultat ne peut pas être réclamé : il est déjà sur votre fiche, en attente de validation, ou d'un relais."
+    message = "Ce résultat ne peut pas être réclamé : il est déjà sur votre fiche, ou d'un relais."
 
 
 class TooManyClaimsError(DomainError):
@@ -58,9 +58,10 @@ def request_claim(db: Session, user: User, participation_id: int) -> ResultClaim
     if user.athlete_id is None:
         raise NoClaimedAthleteError()
     participation = participation_repository.get(db, participation_id)
-    if participation is None:
+    # En attente, comme une absente : la réponse de `GET /participations/{id}` (#1519, #1615).
+    if participation is None or participation.is_pending_validation:
         raise NotFoundError("Résultat introuvable.")
-    if participation.athlete_id == user.athlete_id or participation.is_pending_validation or participation.is_relay:
+    if participation.athlete_id == user.athlete_id or participation.is_relay:
         raise UnclaimableResultError()
     existing = result_claim_repository.get_for_participation(db, user.id, participation_id)
     if existing is not None and existing.status == STATUS_PENDING:

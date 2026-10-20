@@ -350,7 +350,7 @@ _VOLUNTEER_ACTION = "/api/v1/volunteer-actions"
 def _volunteer_action_body(db_session) -> dict:
     from app.repositories import athlete_repository
 
-    athlete = athlete_repository.get_or_create(db_session, nom="DUPONT", prenom="Jean", club="TCN")
+    athlete = athlete_repository.get_or_create(db_session, nom="MARTIN", prenom="Léa", club="TCN")
     db_session.commit()
     return {"athlete_id": athlete.id, "title": "Ravitaillement", "description": "Poste eau km 15."}
 

@@ -168,7 +168,7 @@ def test_search_by_name(db_session):
     athlete_repository.get_or_create(db_session, nom="MOREAU", prenom="Eric", club="TCN")
     db_session.flush()
 
-    found = athlete_repository.search(db_session, name="lero")
+    found = athlete_repository.search(db_session, name="lero", hide_pending_only=False)
     assert [a.nom for a in found] == ["LEROY"]
 
 
@@ -178,7 +178,7 @@ def test_search_par_prenom_nom(db_session):
     athlete_repository.get_or_create(db_session, nom="MARTIN", prenom="Paul")
     db_session.flush()
 
-    found = athlete_repository.search(db_session, name="Jean Dupont")
+    found = athlete_repository.search(db_session, name="Jean Dupont", hide_pending_only=False)
 
     assert [a.nom for a in found] == ["DUPONT"]
 
@@ -188,7 +188,7 @@ def test_search_par_nom_prenom(db_session):
     athlete_repository.get_or_create(db_session, nom="DUPONT", prenom="Jean")
     db_session.flush()
 
-    found = athlete_repository.search(db_session, name="Dupont Jean")
+    found = athlete_repository.search(db_session, name="Dupont Jean", hide_pending_only=False)
 
     assert [a.nom for a in found] == ["DUPONT"]
 
@@ -198,7 +198,7 @@ def test_search_par_prenom_nom_accentue(db_session):
     athlete_repository.get_or_create(db_session, nom="LEMÉE", prenom="Sébastien")
     db_session.flush()
 
-    found = athlete_repository.search(db_session, name="sebastien lemee")
+    found = athlete_repository.search(db_session, name="sebastien lemee", hide_pending_only=False)
 
     assert [a.nom for a in found] == ["LEMÉE"]
 
@@ -208,7 +208,7 @@ def test_search_avec_terme_tout_espaces_ne_rend_rien(db_session):
     athlete_repository.get_or_create(db_session, nom="DUPONT", prenom="Jean")
     db_session.flush()
 
-    found = athlete_repository.search(db_session, name="   ")
+    found = athlete_repository.search(db_session, name="   ", hide_pending_only=False)
 
     assert found == []
 
@@ -731,7 +731,7 @@ def test_search_by_relevance_classe_prefixe_avant_sous_chaine_malgre_le_volume(d
         _inscrit(db_session, milieu, _epreuve(db_session, f"P-milieu-{i}"), "1")
     db_session.commit()
 
-    resultats = athlete_repository.search_by_relevance(db_session, term="herr")
+    resultats = athlete_repository.search_by_relevance(db_session, term="herr", hide_pending_only=False)
 
     assert [a.nom for a, _ in resultats] == ["HERRMANN", "CHERRUEAU"]
 
@@ -743,7 +743,7 @@ def test_search_by_relevance_classe_les_trois_paliers(db_session):
     athlete_repository.get_or_create(db_session, nom="CHERRUEAU", prenom="Yves")
     db_session.flush()
 
-    resultats = athlete_repository.search_by_relevance(db_session, term="herr")
+    resultats = athlete_repository.search_by_relevance(db_session, term="herr", hide_pending_only=False)
 
     assert [a.nom for a, _ in resultats] == ["HERRMANN", "DUBOIS-HERRY", "CHERRUEAU"]
 
@@ -759,7 +759,7 @@ def test_search_by_relevance_departage_par_volume_dans_un_meme_palier(db_session
         _inscrit(db_session, tres_couru, _epreuve(db_session, f"P-herry-{i}"), "1")
     db_session.commit()
 
-    resultats = athlete_repository.search_by_relevance(db_session, term="herr")
+    resultats = athlete_repository.search_by_relevance(db_session, term="herr", hide_pending_only=False)
 
     assert [a.nom for a, _ in resultats] == ["HERRY", "HERRMANN"]
 
@@ -773,7 +773,7 @@ def test_search_by_relevance_respecte_club_only(db_session):
     )
     db_session.flush()
 
-    resultats = athlete_repository.search_by_relevance(db_session, term="herr", club_only=True)
+    resultats = athlete_repository.search_by_relevance(db_session, term="herr", club_only=True, hide_pending_only=False)
 
     assert [a.nom for a, _ in resultats] == ["HERRMANN"]
 
@@ -783,7 +783,7 @@ def test_search_by_relevance_respecte_la_limite(db_session):
         athlete_repository.get_or_create(db_session, nom=f"HERR{i}", prenom="A")
     db_session.flush()
 
-    resultats = athlete_repository.search_by_relevance(db_session, term="herr", limit=2)
+    resultats = athlete_repository.search_by_relevance(db_session, term="herr", limit=2, hide_pending_only=False)
 
     assert len(resultats) == 2
 
@@ -1049,7 +1049,7 @@ def test_create_batch_rend_la_fiche_existante_d_une_identite_deja_connue(db_sess
     assert created[0] is existante
     assert created[1].nom == "NOUVEAU" and created[1].id is not None
     assert inserted == {created[1].id}
-    assert len(athlete_repository.search(db_session, page_size=50)) == 2
+    assert len(athlete_repository.search(db_session, page_size=50, hide_pending_only=False)) == 2
 
 
 def test_create_batch_rend_une_seule_fiche_pour_deux_graphies_du_meme_appel(db_session):
@@ -1256,7 +1256,7 @@ def test_recherche_compte_le_relais_d_un_equipier(db_session):
     _relais_attribue(db_session)
     db_session.flush()
 
-    ((athlete, compte),) = athlete_repository.search_by_relevance(db_session, term="MARTIN")
+    ((athlete, compte),) = athlete_repository.search_by_relevance(db_session, term="MARTIN", hide_pending_only=False)
 
     assert (athlete.nom, compte) == ("MARTIN", 1)
 
@@ -1546,9 +1546,9 @@ def test_saison_club_only_needs_a_licence_for_the_requested_season(db_session):
 def test_club_search_lists_a_licensed_member_whatever_the_record_club(db_session):
     _city_records(db_session)
 
-    assert [a.nom for a in athlete_repository.search(db_session, club_only=True)] == ["LICENCIE"]
+    assert [a.nom for a in athlete_repository.search(db_session, club_only=True, hide_pending_only=False)] == ["LICENCIE"]
     assert [a.nom for a, _ in athlete_repository.search_by_relevance(
-        db_session, term="i", club_only=True
+        db_session, term="i", club_only=True, hide_pending_only=False
     )] == ["LICENCIE"]
 
 
@@ -1567,7 +1567,7 @@ def test_search_by_relevance_counts_a_relay_once_for_its_carrier(db_session):
     _relais_attribue(db_session)
     db_session.flush()
 
-    ((athlete, compte),) = athlete_repository.search_by_relevance(db_session, term="DUPONT")
+    ((athlete, compte),) = athlete_repository.search_by_relevance(db_session, term="DUPONT", hide_pending_only=False)
 
     assert (athlete.nom, compte) == ("DUPONT", 1)
 
@@ -1586,7 +1586,7 @@ def test_search_by_relevance_counts_only_the_matched_athletes_participations(db_
 
     event.listen(engine, "before_cursor_execute", capture)
     try:
-        athlete_repository.search_by_relevance(db_session, term="herr")
+        athlete_repository.search_by_relevance(db_session, term="herr", hide_pending_only=False)
     finally:
         event.remove(engine, "before_cursor_execute", capture)
 

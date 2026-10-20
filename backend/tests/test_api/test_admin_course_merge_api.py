@@ -682,7 +682,7 @@ def test_the_five_mesquer_rows_collapse_to_one_course_per_real_heat(
     db_session.expire_all()
     restantes = [
         (course.name, course.event_type, course.is_relay)
-        for course in course_repository.list_all(db_session, date_from=MESQUER_JOUR)
+        for course in course_repository.list_all(db_session, date_from=MESQUER_JOUR, hide_pending_only=False)
     ]
     assert sorted(restantes) == [
         (MESQUER, "triathlon-s", False),

@@ -17,7 +17,8 @@ def create_pending(
 ) -> VolunteerAction:
     """Un adhérent connecté crédite l'athlète de son choix pour la saison en
     cours, toujours à l'état « en attente » (FR-001 à FR-004, FR-009)."""
-    athlete_or_404(db, athlete_id)
+    # Route publique : une fiche masquée répond comme une absente (#1615).
+    athlete_or_404(db, athlete_id, hide_pending_only=True)
 
     return volunteer_action_repository.create_pending(
         db,

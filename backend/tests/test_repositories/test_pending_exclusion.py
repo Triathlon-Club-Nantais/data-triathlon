@@ -193,8 +193,8 @@ def test_list_all_club_only_exclut_une_epreuve_dont_lunique_participation_club_e
         is_pending_validation=True,
     )
     db_session.flush()
-    assert course_repository.list_all(db_session, club_only=True) == []
-    assert course_repository.count_all(db_session, club_only=True) == 0
+    assert course_repository.list_all(db_session, club_only=True, hide_pending_only=False) == []
+    assert course_repository.count_all(db_session, club_only=True, hide_pending_only=False) == 0
 
 
 def test_list_with_season_participation_count_exclut_une_pendante(db_session):
@@ -231,7 +231,7 @@ def test_list_with_season_participation_count_garde_un_athlete_100pourcent_penda
 def test_search_by_relevance_ne_compte_pas_la_pendante(db_session):
     _, _, validee = _duo(db_session)
     athlete = athlete_repository.get(db_session, validee.athlete_id)
-    resultats = athlete_repository.search_by_relevance(db_session, term="DUPONT")
+    resultats = athlete_repository.search_by_relevance(db_session, term="DUPONT", hide_pending_only=False)
     assert resultats == [(athlete, 1)]
 
 
@@ -250,7 +250,7 @@ def test_search_by_relevance_garde_lathlete_dont_lunique_resultat_est_pendant(db
         is_pending_validation=True,
     )
     db_session.flush()
-    resultats = athlete_repository.search_by_relevance(db_session, term="SOLOPENDING")
+    resultats = athlete_repository.search_by_relevance(db_session, term="SOLOPENDING", hide_pending_only=False)
     assert resultats == [(athlete, 0)]
 
 

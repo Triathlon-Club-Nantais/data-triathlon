@@ -28,7 +28,7 @@ def detach_participations(
     ids = list(dict.fromkeys(participation_ids))
     if not ids:
         raise DomainError("Choisissez au moins un résultat à séparer.")
-    source = athlete_or_404(db, athlete_id)
+    source = athlete_or_404(db, athlete_id, hide_pending_only=False)
     participations = []
     for participation_id in ids:
         participation = participation_repository.get(db, participation_id)

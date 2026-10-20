@@ -107,11 +107,11 @@ def name_filter(term: str, *, also=None):
 
 def get(db: Session, athlete_id: int, *, hide_pending_only: bool = False) -> Athlete | None:
     """`hide_pending_only` : une fiche que seules des saisies en attente font exister
-    se lit comme une absente, pour le public (#1615)."""
-    athlete = db.get(Athlete, athlete_id)
-    if athlete is not None and hide_pending_only and db.scalar(select(pending_only(athlete_id))):
-        return None
-    return athlete
+    se lit comme une absente, pour le public (#1615), en une seule requête pour ne
+    pas se distinguer d'une absente au temps de réponse."""
+    if not hide_pending_only:
+        return db.get(Athlete, athlete_id)
+    return db.scalar(select(Athlete).where(Athlete.id == athlete_id, ~pending_only(Athlete.id)))
 
 
 def pending_only(athlete_id) -> ColumnElement[bool]:
@@ -120,18 +120,19 @@ def pending_only(athlete_id) -> ColumnElement[bool]:
 
     Masquée au public : sinon elle trahit qu'une saisie a été gardée, là où celle
     d'une personne opposée est annulée (#1514). Une fiche liée à un compte, un
-    bénévolat ou un challenge existe par autre chose et reste visible.
+    bénévolat validé ou un challenge existe par autre chose et reste visible ; un
+    bénévolat en attente, que n'importe qui déclare, ne suffit pas.
     """
-    involves = or_(
-        Participation.athlete_id == athlete_id,
-        exists().where(
+    paths = [
+        (Participation.athlete_id == athlete_id,),
+        (
             ParticipationTeammate.participation_id == Participation.id,
             ParticipationTeammate.athlete_id == athlete_id,
         ),
-    )
+    ]
     return and_(
-        pending_only_clause(involves, Participation.is_pending_validation),
-        ~referenced_outside_results(athlete_id),
+        pending_only_clause(paths, Participation.is_pending_validation),
+        ~referenced_outside_results(athlete_id, volunteering="validee"),
     )
 
 
@@ -527,7 +528,7 @@ def search(
     club_only: bool = False,
     page: int = 1,
     page_size: int = 50,
-    hide_pending_only: bool = False,
+    hide_pending_only: bool,
 ) -> list[Athlete]:
     q = db.query(Athlete)
     if name:
@@ -592,7 +593,7 @@ def credits():
     return union_all(without_teammates, teammates).subquery("credits")
 
 
-def referenced_outside_results(athlete_id):
+def referenced_outside_results(athlete_id, *, volunteering: str | None = None):
     """Vrai si la fiche `athlete_id` est référencée hors des résultats (#901).
 
     Bénévolats, validations de saison et comptes liés pointent vers
@@ -601,9 +602,14 @@ def referenced_outside_results(athlete_id):
     PostgreSQL (invisible en SQLite, où les FK sont inertes). Les lignes
     Challenge aussi (#1008) : un cumul n'est pas une participation, mais il
     désigne la fiche (FK `RESTRICT`).
+
+    `volunteering` ne compte que les bénévolats de ce statut (#1615).
     """
+    volunteer = [VolunteerAction.athlete_id == athlete_id]
+    if volunteering:
+        volunteer.append(VolunteerAction.status == volunteering)
     return or_(
-        exists().where(VolunteerAction.athlete_id == athlete_id),
+        exists().where(*volunteer),
         exists().where(SeasonValidation.athlete_id == athlete_id),
         exists().where(User.athlete_id == athlete_id),
         exists().where(ChallengeResult.athlete_id == athlete_id),
@@ -878,7 +884,7 @@ def _relevance_rank(term: str):
 
 
 def search_by_relevance(
-    db: Session, *, term: str, club_only: bool = False, limit: int = 12, hide_pending_only: bool = False
+    db: Session, *, term: str, hide_pending_only: bool, club_only: bool = False, limit: int = 12
 ) -> list[tuple[Athlete, int]]:
     """Classement pour la palette `⌘K` (#484, NAV-8) : pertinence puis volume.
 
