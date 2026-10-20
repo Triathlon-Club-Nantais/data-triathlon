@@ -19,6 +19,7 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
   };
 });
 
+import { eventTypeLabel } from "@/lib/constants";
 import { currentSeason, seasonLabel } from "@/lib/utils/season";
 import { SeasonGoals, libelle, progression } from "./SeasonGoals";
 
@@ -326,5 +327,36 @@ describe("SeasonGoals, épreuve cible (#1694)", () => {
     expect(body).toMatchObject({ course_id: 7 });
     expect(body).not.toHaveProperty("race_name");
     expect(body).not.toHaveProperty("race_date");
+  });
+
+  it("hides relay and unreliable courses and labels the format of each result", async () => {
+    listCourses.mockResolvedValue([
+      COURSE,
+      { ...COURSE, id: 8, name: "Triathlon de Nantes relais", is_relay: true },
+      { ...COURSE, id: 9, name: "Triathlon de Nantes douteux", is_reliable: false },
+      { ...COURSE, id: 10, name: "Triathlon de Nantes S", event_type: "triathlon-s", is_reliable: true },
+    ]);
+    afficher();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Ajouter un objectif" }));
+    await userEvent.click(screen.getByRole("radio", { name: "Une épreuve cible" }));
+    await userEvent.type(screen.getByLabelText("Rechercher votre épreuve"), "Nantes");
+
+    await screen.findByRole("button", { name: new RegExp(`Triathlon de Nantes.*${eventTypeLabel("triathlon-m")}`) });
+    expect(screen.getByRole("button", { name: new RegExp(`Triathlon de Nantes S.*${eventTypeLabel("triathlon-s")}`) })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /relais/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /douteux/ })).not.toBeInTheDocument();
+  });
+
+  it("locks the discipline select once a known course is chosen", async () => {
+    listCourses.mockResolvedValue([COURSE]);
+    afficher();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Ajouter un objectif" }));
+    await userEvent.click(screen.getByRole("radio", { name: "Une épreuve cible" }));
+    expect(screen.getByLabelText("Discipline")).toBeEnabled();
+    await userEvent.type(screen.getByLabelText("Rechercher votre épreuve"), "Nantes");
+    await userEvent.click(await screen.findByRole("button", { name: /Triathlon de Nantes/ }));
+    expect(screen.getByLabelText("Discipline")).toBeDisabled();
   });
 });

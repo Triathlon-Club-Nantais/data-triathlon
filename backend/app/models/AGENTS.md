@@ -448,12 +448,18 @@ adresses qui reconnaissent un adhérent, importées de l'export AssoConnect
 ## Objectifs de saison (#1373)
 
 `season_goals` (`id`, `user_id`, `season`, `kind`, `event_type`, `target`,
-`created_at`) : un objectif privé du compte rattaché, `time` (secondes, format
-requis) ou `count` (nombre d'épreuves, format facultatif). Seul point de
+`course_id`, `race_name`, `race_date`, `major`, `created_at`) : un objectif
+privé du compte rattaché. `kind` vaut `time` (secondes, format requis), `count`
+(nombre d'épreuves, format facultatif) ou `race` (épreuve cible, `target`
+facultatif donc nullable). Une épreuve cible est connue (`course_id`, FK
+`ON DELETE SET NULL`) ou saisie libre (`race_name`, `race_date`, recopiés, donc
+l'objectif survit à la suppression de l'épreuve). Le `SET NULL` est inerte en
+SQLite : `course_repository.delete`/`.delete_all` mettent `course_id` à NULL
+explicitement. `major` : un seul par compte et par saison. Seul point de
 passage : `season_goal_repository`, toujours par compte. **Possédé** (cascade
 ORM `User.season_goals`, `_OWNED_TABLES`). La progression se calcule à la
-lecture (`participation_repository.athlete_season_times` et
-`athlete_season_count`), jamais stockée.
+lecture (`participation_repository.athlete_season_times`, `athlete_season_count`
+et, pour `race`, `athlete_race_times`), jamais stockée.
 
 ## Réclamations de résultat (#1637)
 
