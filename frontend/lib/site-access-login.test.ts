@@ -10,6 +10,7 @@ vi.mock("@/lib/api/server", () => ({ apiServer: { listAuthMethods, getSession } 
 import { connexionAdherent } from "./site-access-login";
 
 const GITHUB = [{ slug: "github", label: "GitHub", audience: "admin" }];
+const ENTRA = [{ slug: "entra", label: "Google ou code par e-mail", audience: "member" }];
 
 describe("connexionAdherent (#1322)", () => {
   beforeEach(() => {
@@ -17,11 +18,19 @@ describe("connexionAdherent (#1322)", () => {
     getSession.mockReset();
   });
 
-  it("propose de se connecter à un anonyme quand un moyen existe", async () => {
-    listAuthMethods.mockResolvedValue(GITHUB);
+  it("propose de se connecter à un anonyme quand un moyen adhérent existe", async () => {
+    listAuthMethods.mockResolvedValue([...GITHUB, ...ENTRA]);
     getSession.mockResolvedValue(null);
 
     expect(await connexionAdherent()).toBe("proposee");
+  });
+
+  // #1666 : GitHub seul ne sert qu'aux administrateurs, /login dirait à l'adhérent que sa connexion n'existe pas.
+  it("ne propose rien quand seul un moyen d'administration existe", async () => {
+    listAuthMethods.mockResolvedValue(GITHUB);
+    getSession.mockResolvedValue(null);
+
+    expect(await connexionAdherent()).toBeNull();
   });
 
   it("ne propose rien quand aucun moyen de connexion n'existe", async () => {

@@ -41,6 +41,8 @@ créerait un second sens et un second `registry.py` homonyme. Le contrat
 `IdentityProvider` **n'énumère aucun mécanisme** : `authorize()` rend un
 `round_trip` opaque que le flux signe sans le lire, ce qui permettra à OIDC d'y
 ranger son `nonce` sans toucher au contrat, au flux, ni au fournisseur GitHub.
+Chaque fournisseur déclare son `audience` (`member` ou `admin`), qui choisit son
+bloc sur `/login` (#1666) : `entra` est `member`, `github` est `admin`.
 Une doublure de test ne s'enregistre **jamais** au niveau module — elle
 existerait en production, et `is_configured()` est un garde de configuration,
 pas un garde de sécurité.
@@ -126,7 +128,7 @@ d'autorisation. `services/auth/idp/github.py` et `entra.py` sont, avec
 exemption est doublée d'un test positif : nominative, jamais un motif de dossier.
 
 **Second fournisseur : Entra External ID (#1323)**, slug `entra`, libellé
-« Google ou code par e-mail ». OIDC par code + PKCE, `nonce` rangé dans le
+« Google ou code par e-mail », audience `member` (bloc adhérent de `/login`). OIDC par code + PKCE, `nonce` rangé dans le
 `round_trip` comme le contrat l'avait prévu, sans toucher au flux ni à GitHub.
 `authorize()` construit ses points de terminaison depuis le sous-domaine et le
 tenant : la découverte n'est lue qu'au retour, puis gardée une heure avec le

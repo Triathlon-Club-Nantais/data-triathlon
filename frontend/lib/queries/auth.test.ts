@@ -108,12 +108,12 @@ describe("SESSION_QUERY_DEFAULTS: bounded retry of transient failures (#954)", (
 
 describe("useAuthMethods", () => {
   it("rend les méthodes déclarées par le backend", async () => {
-    listAuthMethods.mockResolvedValue([{ slug: "github", label: "GitHub" }]);
+    listAuthMethods.mockResolvedValue([{ slug: "github", label: "GitHub", audience: "admin" }]);
 
     const { result } = renderHook(() => useAuthMethods(), { wrapper });
 
     await waitFor(() => expect(result.current.isPending).toBe(false));
-    expect(result.current.data).toEqual([{ slug: "github", label: "GitHub" }]);
+    expect(result.current.data).toEqual([{ slug: "github", label: "GitHub", audience: "admin" }]);
   });
 
   it("traite une liste vide comme une réponse valide", async () => {

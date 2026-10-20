@@ -31,19 +31,23 @@ function Connexion() {
   useEffect(() => withPostHog(() => {}), []);
 
   // Le public de chaque méthode vient du backend (#1666), jamais d'un slug codé ici.
-  const adherents = methodes?.filter((methode) => methode.audience === "member") ?? [];
+  // Sans `audience` (backend pas encore déployé), une méthode est adhérente, comme le défaut du backend.
+  const adherents = methodes?.filter((methode) => methode.audience !== "admin") ?? [];
   const admins = methodes?.filter((methode) => methode.audience === "admin") ?? [];
+  const adminSeul = adherents.length === 0 && admins.length > 0;
 
   return (
     <div className="mx-auto my-16 max-w-[460px] px-4">
       <Card>
         <Eyebrow id={idAdherent}>Espace adhérent</Eyebrow>
         <h1 className="font-display mt-1.5 mb-1 text-[30px] text-[var(--tcn-ink)]">Connexion</h1>
-        <p className="mb-5 text-sm text-[var(--tcn-text-muted)]">
-          La connexion adhérent ouvre votre espace personnel : vos résultats, vos objectifs et
-          votre page d&apos;athlète. Les résultats du club se consultent aussi sans compte, avec
-          le code d&apos;accès du club.
-        </p>
+        {!adminSeul && (
+          <p className="mb-5 text-sm text-[var(--tcn-text-muted)]">
+            La connexion adhérent ouvre votre espace personnel : vos résultats, vos objectifs et
+            votre page d&apos;athlète. Les résultats du club se consultent aussi sans compte, avec
+            le code d&apos;accès du club.
+          </p>
+        )}
 
         {erreur && (
           <div className="mb-4">
@@ -51,7 +55,11 @@ function Connexion() {
           </div>
         )}
 
-        {isPending && <p className="text-sm text-[var(--tcn-text-faint)]">Chargement…</p>}
+        {isPending && (
+          <p role="status" className="text-sm text-[var(--tcn-text-faint)]">
+            Chargement…
+          </p>
+        )}
 
         {isError && (
           <div className="mb-4">
@@ -79,14 +87,15 @@ function Connexion() {
 
         {!isPending && !isError && methodes?.length === 0 && (
           <Alert status="warning">
-            Aucun moyen de connexion n&apos;est disponible sur ce site pour le moment.
+            Aucun moyen de connexion n&apos;est disponible sur ce site pour le moment. Les
+            résultats du club se consultent avec le code d&apos;accès.
           </Alert>
         )}
 
-        {adherents.length === 0 && admins.length > 0 && (
+        {adminSeul && !isError && (
           <Alert status="warning">
-            La connexion adhérent n&apos;est pas encore disponible sur ce site. Les résultats du
-            club se consultent avec le code d&apos;accès.
+            La connexion adhérent n&apos;est pas disponible sur ce site. Les résultats du club se
+            consultent avec le code d&apos;accès.
           </Alert>
         )}
 
