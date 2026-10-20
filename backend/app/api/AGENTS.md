@@ -565,9 +565,11 @@ repli, et l'ancien front ne connaît pas `/encadrement` : backend et front sorte
 seul, `can_supervise` est indéfini et `/encadrement` refuse tout le monde.
 
 `GET /auth/me/teammates` (#1701), `GET /auth/me/volunteer-actions` (#1696) et
-`GET /auth/me/identities` (#1663), comme `POST /auth/me/opposition[/preview]` (#1673, 403 sans fiche rattachée), ne portent, comme `GET /auth/me`, que sur soi : liste vide quand aucun athlète
+`GET /auth/me/identities` (#1663) ne portent, comme `GET /auth/me`, que sur soi : liste vide quand aucun athlète
 n'est rattaché à son compte ; la seconde rend `MyVolunteerActionOut`, sans
 identité de fiche ni auteur de la déclaration.
+
+`POST /auth/me/opposition` et sa prévisualisation (#1673) ne visent que la fiche rattachée à la session ; sans fiche, `403`.
 
 **Les sept ressources de `/admin/groups` (#197) n'ajoutent aucun mécanisme.**
 Elles reprennent `require_permission` à l'identique, route par route, et se
