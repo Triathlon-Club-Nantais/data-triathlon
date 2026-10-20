@@ -208,6 +208,6 @@ describe("Politique de confidentialité (#333)", () => {
   });
 
   it("date la politique du jour de sa dernière modification", () => {
-    expect(PRIVACY_POLICY.updatedAt).toBe("2026-10-17");
+    expect(PRIVACY_POLICY.updatedAt).toBe("2026-10-20");
   });
 });

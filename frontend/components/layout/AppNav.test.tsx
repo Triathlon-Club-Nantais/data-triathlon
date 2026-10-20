@@ -742,8 +742,8 @@ describe("AppNav: unreadable session (#954)", () => {
     getSession.mockResolvedValue(SESSION);
     await userEvent.click(within(tiroir).getByRole("button", { name: "Réessayer" }));
 
-    const deconnexion = await within(tiroir).findByRole("button", { name: "Se déconnecter" });
-    await waitFor(() => expect(deconnexion).toHaveFocus());
+    const compte = await within(tiroir).findByRole("link", { name: "Mon compte" });
+    await waitFor(() => expect(compte).toHaveFocus());
   });
 
   it("shows a neutral busy placeholder while the session is pending", async () => {

@@ -12,11 +12,15 @@ import { formatDate } from "@/lib/utils/date";
 
 const TITRE = { fontFamily: "var(--tcn-font-display)", fontSize: 22, fontWeight: 400, color: "var(--tcn-ink)", margin: "0 0 12px" } as const;
 const DISCRET = { margin: 0, color: "var(--tcn-text-muted)" } as const;
+const ERREUR = { margin: 0, color: "var(--tcn-danger-text)" } as const;
 const LIEN = "font-semibold text-accent-ink hover:underline";
 
 /** Page « Mon compte » (#1663) : identité, fiche rattachée, suppression. */
 export function AccountPage() {
   const { data: session, isPending, errorUpdateCount, refetch, isFetching } = useSession();
+  const router = useRouter();
+  // Ici et non dans `Compte` : démonté dès que la session passe à null, il ferait sauter le rappel de `mutate`.
+  const suppression = useDeleteAccount();
 
   // Même lecture que `UserMenu` (#954) : sans `data`, une relance repasse en `pending`.
   if (session === undefined && errorUpdateCount > 0) {
@@ -44,6 +48,8 @@ export function AccountPage() {
       </div>
     );
   }
+  // Compte supprimé : la session relue est anonyme, la redirection vers l'accueil est en cours.
+  if (suppression.isSuccess) return null;
   // Sans moyen de connexion configuré, la garde laisse passer un anonyme.
   if (!session) {
     return (
@@ -52,12 +58,24 @@ export function AccountPage() {
       </p>
     );
   }
-  return <Compte session={session} />;
+  return (
+    <Compte
+      session={session}
+      suppression={suppression}
+      onSupprimer={() => suppression.mutate(undefined, { onSuccess: () => router.push("/") })}
+    />
+  );
 }
 
-function Compte({ session }: { session: SessionUser }) {
-  const router = useRouter();
-  const suppression = useDeleteAccount();
+function Compte({
+  session,
+  suppression,
+  onSupprimer,
+}: {
+  session: SessionUser;
+  suppression: ReturnType<typeof useDeleteAccount>;
+  onSupprimer: () => void;
+}) {
   const [suppressionOuverte, setSuppressionOuverte] = useState(false);
   const detachement = useDetachAthlete();
   const [detachementOuvert, setDetachementOuvert] = useState(false);
@@ -67,7 +85,7 @@ function Compte({ session }: { session: SessionUser }) {
   return (
     <div className="space-y-6">
       <Card>
-        <h2 style={TITRE}>Compte</h2>
+        <h2 style={TITRE}>Mes informations</h2>
         <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-[max-content_1fr]" style={{ margin: 0 }}>
           <dt style={DISCRET}>Adresse</dt>
           <dd style={{ margin: 0, overflowWrap: "anywhere" }}>{session.email}</dd>
@@ -122,10 +140,13 @@ function Compte({ session }: { session: SessionUser }) {
             <Button variant="secondary" disabled={annulation.isPending} onClick={() => annulation.mutate()}>
               Annuler la demande
             </Button>
-            {annulation.error && <p role="alert" style={DISCRET}>{annulation.error.message}</p>}
+            {annulation.error && <p role="alert" style={ERREUR}>{annulation.error.message}</p>}
           </div>
         ) : demande ? (
-          <p style={{ margin: 0 }}>Demande refusée : {nomComplet(demande.athlete)}</p>
+          <div className="space-y-3">
+            <p style={{ margin: 0 }}>Demande refusée : {nomComplet(demande.athlete)}</p>
+            <Link href="/mon-espace" className={LIEN}>Faire une nouvelle demande depuis Mon espace</Link>
+          </div>
         ) : (
           <p style={DISCRET}>
             Aucune fiche athlète n&apos;est rattachée à votre compte.{" "}
@@ -157,14 +178,7 @@ function Compte({ session }: { session: SessionUser }) {
           }
           avertissement={suppression.error?.message}
           enAttente={suppression.isPending}
-          onConfirm={() =>
-            suppression.mutate(undefined, {
-              onSuccess: () => {
-                setSuppressionOuverte(false);
-                router.push("/");
-              },
-            })
-          }
+          onConfirm={onSupprimer}
         />
       </Card>
     </div>
@@ -173,13 +187,30 @@ function Compte({ session }: { session: SessionUser }) {
 
 /** Fournisseurs liés au compte, monté seulement pour une session ouverte (401 sinon). */
 function Connexions() {
-  const { data, isPending, error } = useMyIdentities();
+  const { data, isPending, error, refetch, isFetching } = useMyIdentities();
   if (isPending) return <Skeleton className="h-5 w-48" />;
-  if (error) return <span style={DISCRET}>Connexions indisponibles pour le moment.</span>;
+  if (error) {
+    return (
+      <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <p role="alert" style={ERREUR}>Connexions indisponibles pour le moment.</p>
+        <Button
+          variant="secondary"
+          size="sm"
+          aria-disabled={isFetching || undefined}
+          onClick={() => {
+            if (!isFetching) void refetch();
+          }}
+        >
+          {isFetching ? "Nouvelle tentative…" : "Réessayer"}
+        </Button>
+      </div>
+    );
+  }
+  if (data.length === 0) return <span style={DISCRET}>Aucune connexion enregistrée.</span>;
   return (
     <ul style={{ margin: 0, padding: 0, listStyle: "none" }} className="space-y-1">
       {data.map((identite) => (
-        <li key={`${identite.provider}-${identite.email}`}>
+        <li key={`${identite.provider}-${identite.created_at}`}>
           <strong>{identite.label}</strong>{" "}
           <span style={{ color: "var(--tcn-text-muted)", overflowWrap: "anywhere" }}>{identite.email}</span>
         </li>

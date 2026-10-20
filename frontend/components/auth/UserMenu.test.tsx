@@ -336,6 +336,8 @@ describe("UserMenu: link to Mon compte (#1663)", () => {
     const lien = await screen.findByRole("link", { name: "Mon compte" });
     expect(lien).toHaveAttribute("href", "/mon-compte");
     expect(screen.queryByRole("button", { name: "Supprimer mon compte" })).not.toBeInTheDocument();
+    const deconnexion = screen.getByRole("button", { name: "Se déconnecter" });
+    expect(lien.compareDocumentPosition(deconnexion) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
     await userEvent.click(lien);
     expect(onNavigate).toHaveBeenCalled();

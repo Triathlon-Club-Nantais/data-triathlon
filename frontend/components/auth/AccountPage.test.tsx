@@ -83,6 +83,32 @@ describe("AccountPage: account section", () => {
     expect(screen.getByText("Non adhérent")).toBeInTheDocument();
   });
 
+  it("names the card « Mes informations »", async () => {
+    afficher(SESSION);
+
+    expect(await screen.findByRole("heading", { name: "Mes informations" })).toBeInTheDocument();
+  });
+
+  it("says when no sign-in is recorded", async () => {
+    getMyIdentities.mockResolvedValue([]);
+    afficher(SESSION);
+
+    expect(await screen.findByText("Aucune connexion enregistrée.")).toBeInTheDocument();
+  });
+
+  it("flags a failed identities read as an error and retries it", async () => {
+    getMyIdentities.mockRejectedValue(new ApiError(500, "boom"));
+    afficher(SESSION);
+
+    const alerte = await screen.findByRole("alert");
+    expect(alerte).toHaveTextContent("Connexions indisponibles pour le moment.");
+    expect(alerte).toHaveStyle({ color: "var(--tcn-danger-text)" });
+    getMyIdentities.mockResolvedValue(IDENTITIES);
+    await userEvent.click(screen.getByRole("button", { name: "Réessayer" }));
+
+    expect(await screen.findByText("GitHub")).toBeInTheDocument();
+  });
+
   it("says « Adhérent » for a member", async () => {
     afficher({ ...SESSION, is_member: true });
 
@@ -114,12 +140,22 @@ describe("AccountPage: athlete record section", () => {
     await waitFor(() => expect(cancelAthleteClaim).toHaveBeenCalled());
   });
 
+  it("shows a failed cancellation in the error colour", async () => {
+    cancelAthleteClaim.mockRejectedValue(new ApiError(409, "Déjà traitée."));
+    afficher({ ...SESSION, athlete_claim: claim("pending") });
+
+    await userEvent.click(await screen.findByRole("button", { name: "Annuler la demande" }));
+
+    expect(await screen.findByRole("alert")).toHaveStyle({ color: "var(--tcn-danger-text)" });
+  });
+
   it("says a claim was rejected, without any gesture", async () => {
     afficher({ ...SESSION, athlete_claim: claim("rejected") });
 
     expect(await screen.findByText("Demande refusée : Jean Dupont")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Annuler la demande" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Me détacher de ma fiche" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Mon espace/ })).toHaveAttribute("href", "/mon-espace");
   });
 
   it("points to Mon espace to link a record when there is neither record nor claim", async () => {
@@ -158,6 +194,7 @@ describe("AccountPage: sensitive zone", () => {
 
     await waitFor(() => expect(deleteAccount).toHaveBeenCalled());
     await waitFor(() => expect(push).toHaveBeenCalledWith("/"));
+    expect(screen.queryByText(/pour gérer votre compte/)).not.toBeInTheDocument();
   });
 
   it("shows the server refusal inside the dialog and stays put", async () => {

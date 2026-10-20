@@ -1,4 +1,5 @@
 "use client";
+import { useEffect, useRef } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { usePathname, useRouter } from "next/navigation";
@@ -45,6 +46,16 @@ export function UserMenu({
   const router = useRouter();
   const chemin = usePathname();
 
+  // Le bouton « Réessayer » du tiroir disparaît avec la panne : sans relais, le
+  // focus tomberait sur `body` au retour de la session.
+  const tiroir = useRef<HTMLDivElement>(null);
+  const relance = useRef(false);
+  useEffect(() => {
+    if (session === undefined || !relance.current) return;
+    relance.current = false;
+    if (document.activeElement === document.body) tiroir.current?.querySelector<HTMLElement>("a, button")?.focus();
+  }, [session]);
+
   // Une session illisible n'est pas une session anonyme (#954) : proposer
   // « Se connecter » à un connecté relancerait un parcours OAuth inutile.
   // Après un succès, React Query garde `data` et le menu reste affiché.
@@ -63,7 +74,9 @@ export function UserMenu({
           size="sm"
           aria-disabled={isFetching || undefined}
           onClick={() => {
-            if (!isFetching) void refetch();
+            if (isFetching) return;
+            relance.current = true;
+            void refetch();
           }}
         >
           {isFetching ? "Nouvelle tentative…" : "Réessayer"}
@@ -123,17 +136,17 @@ export function UserMenu({
   // humaine PR #214) : la catégorie Administration de la nav le rend redondant.
   if (pleineLargeur) {
     return (
-      <div style={{ display: "flex", flexDirection: "column", gap: 10, width: "100%" }}>
+      <div ref={tiroir} style={{ display: "flex", flexDirection: "column", gap: 10, width: "100%" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
           <Avatar name={nom} size={34} />
           <Identite session={session} />
         </div>
-        <Button variant="secondary" disabled={logout.isPending} onClick={seDeconnecter}>
-          Se déconnecter
-        </Button>
         <Link href="/mon-compte" className="tcn-btn tcn-btn--md tcn-btn--secondary" onClick={onNavigate}>
           Mon compte
         </Link>
+        <Button variant="secondary" disabled={logout.isPending} onClick={seDeconnecter}>
+          Se déconnecter
+        </Button>
       </div>
     );
   }

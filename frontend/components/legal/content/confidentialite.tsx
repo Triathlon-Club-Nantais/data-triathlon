@@ -10,7 +10,7 @@ export const PRIVACY_POLICY: LegalDocument = {
   title: "Politique de confidentialité",
   description:
     "Ce que le Triathlon Club Nantais fait des données de ce site, pourquoi, combien de temps, et comment faire valoir vos droits.",
-  updatedAt: "2026-10-17",
+  updatedAt: "2026-10-20",
   sections: [
     {
       id: "responsable",
