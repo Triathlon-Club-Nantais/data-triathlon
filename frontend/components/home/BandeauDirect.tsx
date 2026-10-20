@@ -47,7 +47,10 @@ function LignesEpreuves({ courses, resultatsHref }: { courses: ClubLastOuting["c
               {pastilleFormat(course.event_type)}
             </span>
             <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 700 }}>{course.name}</span>
-            <span style={{ flex: "none", fontWeight: 800 }}>{course.tcn}</span>
+            <span style={{ flex: "none", fontWeight: 800 }}>
+              <span aria-hidden="true">{course.tcn}</span>
+              <span className="sr-only">{motCompte(course.tcn, "athlète")} du club</span>
+            </span>
             {course.podiums > 0 && (
               <span data-podiums className="hidden md:inline-flex items-center gap-1" style={{ flex: "none" }}>
                 <Medal aria-hidden="true" size={16} />

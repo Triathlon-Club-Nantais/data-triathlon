@@ -233,18 +233,13 @@ export function AthleteComparisonChart({ mine, preselect }: { mine: Participatio
   }, [selected]);
 
   // `?comparer=<id>` (#1701) : le coéquipier arrive déjà choisi ; sans le paramètre, rien ne change.
+  // Le nom provisoire est remplacé par celui de la réponse, y compris après « Réessayer ».
   useEffect(() => {
     if (preselect === undefined) return;
-    const numero = ++requete.current;
-    apiClient
-      .getAthlete(preselect)
-      .then(({ athlete, participations }) => {
-        if (numero !== requete.current) return;
-        setSelected({ id: athlete.id, nom: athlete.nom, prenom: athlete.prenom, gender: athlete.gender, club: athlete.club, participation_count: participations.length });
-        setTheirs(participations);
-        setEtat("ok");
-      })
-      .catch(() => {});
+    const provisoire = { id: preselect, prenom: "cet", nom: "athlète", gender: "", club: null, participation_count: 0 };
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSelected(provisoire);
+    charger(provisoire);
   }, [preselect]);
 
   const search = debouncedQuery.trim();
@@ -276,6 +271,8 @@ export function AthleteComparisonChart({ mine, preselect }: { mine: Participatio
       .getAthlete(athlete.id)
       .then((detail) => {
         if (numero !== requete.current) return;
+        const { athlete: nom } = detail;
+        if (nom) setSelected({ id: nom.id, nom: nom.nom, prenom: nom.prenom, gender: nom.gender, club: nom.club, participation_count: detail.participations.length });
         setTheirs(detail.participations);
         setEtat("ok");
       })

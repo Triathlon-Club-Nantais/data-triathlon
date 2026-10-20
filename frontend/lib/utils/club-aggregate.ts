@@ -13,7 +13,7 @@ const RANK_KEYS: Record<RankType, (keyof Participation)[]> = {
  * true si la participation a décroché un podium (top-3 sur le rang du mode).
  *
  * Miroir de `stats_service._rank_counters` côté backend — seul appelant : la
- * bande « Ma saison » (#502), qui compare des participations d'athlète que le
+ * Mon espace (#502), qui compare des participations d'athlète que le
  * backend n'agrège pas.
  */
 export function isPodium(p: Participation, rankType: RankType = "all"): boolean {

@@ -16,7 +16,7 @@ export default async function DashboardPage({
 }: {
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
-  // Mon espace = vitrine du club : portée TCN forcée, pas de choix « Tous »
+  // Mon espace : portée TCN forcée, pas de choix « Tous »
   // (validé par Vincent, issue #6). Le paramètre `?scope` est volontairement
   // ignoré, mais on lit `?seasons` pour le sélecteur de saison (issue #7) et
   // `?sports` pour le filtre fédéral/hors-fédération (issue #76).

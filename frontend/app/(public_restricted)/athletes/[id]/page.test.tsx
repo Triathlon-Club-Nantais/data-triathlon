@@ -477,7 +477,7 @@ describe("AthletePage", () => {
 
     expect(
       await screen.findByText(
-        "Choisir cet athlète pour retrouver ses résultats en un geste et voir sa saison en tête de Mon espace",
+        "Choisir cet athlète pour retrouver ses résultats en un geste.",
       ),
     ).toBeInTheDocument();
     expect(screen.getByTestId("athlete-avatar")).toHaveAttribute("data-selected", "false");
@@ -489,7 +489,7 @@ describe("AthletePage", () => {
 
     expect(await screen.findByText("C'est vous")).toBeInTheDocument();
     expect(screen.getByTestId("athlete-avatar")).toHaveAttribute("data-selected", "true");
-    expect(screen.queryByText(/voir sa saison en tête de Mon espace/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/retrouver ses résultats en un geste/)).not.toBeInTheDocument();
   });
 
   // --- KPI et participations en attente de validation (#438) ---

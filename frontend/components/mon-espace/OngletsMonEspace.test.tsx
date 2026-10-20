@@ -62,6 +62,12 @@ describe("OngletsMonEspace", () => {
     expect(getMyVolunteerActions).not.toHaveBeenCalled();
   });
 
+  it("keeps 44 px tabs that scroll sideways instead of overflowing the page", () => {
+    afficher();
+
+    expect(screen.getByRole("tablist")).toHaveClass("h-11", "max-w-full", "justify-start", "overflow-x-auto");
+  });
+
   it("shows my races with their challenges in their tab", () => {
     searchParams = new URLSearchParams("onglet=epreuves");
     afficher();
@@ -81,6 +87,7 @@ describe("OngletsMonEspace", () => {
 
     expect(screen.getByRole("tab", { name: "Bénévolat" })).toHaveAttribute("aria-selected", "true");
     expect(await screen.findByText("Buvette")).toBeInTheDocument();
+    expect(screen.getByText(/déclarée le/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Déclarer/ })).toHaveAttribute("href", "/benevolat");
   });
 

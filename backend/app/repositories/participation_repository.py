@@ -610,7 +610,7 @@ def list_for_athlete(
 
     Les deux filtres sont **neutres par défaut** : la fiche athlète
     (`GET /athletes/{id}` sans paramètre) continue de rendre une carrière
-    entière. Ils n'existent que pour la bande « Ma saison » du tableau de bord,
+    entière. Ils n'existent que pour Mon espace,
     qui doit compter sur exactement la même base que les compteurs club — d'où
     les mêmes clauses que `for_stats`, et non une recopie.
     """

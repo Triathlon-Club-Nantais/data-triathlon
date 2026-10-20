@@ -36,23 +36,11 @@ export const ATHLETE_CHANGED_EVENT = "tcn-athlete-changed";
  * Émis sur `window` pour demander l'ouverture de la palette de sélection
  * (#502, revue UI/UX item 11). Même forme que `ATHLETE_CHANGED_EVENT` — pas de
  * payload, l'abonné (`AppNav`, seul à porter l'état `pickerOpen`) réagit en
- * ouvrant sa propre modale. Premier appelant : la bande « Ma saison » du
- * tableau de bord, qui n'a par elle-même ni route ni état pour ouvrir la
+ * ouvrant sa propre modale. Appelant : l'invitation de Mon espace, qui n'a par elle-même ni route ni état pour ouvrir la
  * palette quand l'athlète retenu a disparu ; #503 et #504 en auront besoin
  * aussi.
  */
 export const OPEN_PICKER_EVENT = "tcn-athlete-open-picker";
-
-/**
- * Émis sur `window` quand l'athlète retenu vient d'être purgé parce que sa
- * fiche a disparu (`MaSaison`, #502 item 11) — jamais lors d'un relâchement
- * délibéré (`clearAthlete()` depuis la page profil, #323) : seul l'appelant
- * sait distinguer les deux cas, donc c'est à lui de l'émettre, pas à
- * `clearAthlete()` elle-même. Sert à `InvitationAthlete` (#588) à ne pas
- * doubler l'invitation à choisir un athlète que `MaSaison` porte déjà dans
- * son état « perdu ».
- */
-export const ATHLETE_LOST_EVENT = "tcn-athlete-lost";
 
 /** Nom d'usage — `filter` couvre l'athlète dont un des deux champs est vide. */
 export function nomComplet(athlete: { prenom: string; nom: string }): string {
@@ -158,8 +146,7 @@ function snapshotAthlete(): PickedAthlete | null {
  * L'athlète retenu lui-même, côté client uniquement — le pendant de
  * `useIsSelectedAthlete` pour les écrans qui ont besoin de son **nom** et non
  * d'un booléen : la pastille de `/resultats`, le raccourci du rail, le saut
- * vers sa ligne dans un classement (#503) et la bande « Ma saison » du
- * tableau de bord (#502). Même arbitrage qu'en #467 : le stock se lit là où
+ * vers sa ligne dans un classement (#503) et l'invitation de Mon espace. Même arbitrage qu'en #467 : le stock se lit là où
  * il vit, jamais par un cookie miroir — `null` au rendu serveur, la lecture
  * réelle dès l'hydratation (`docs/frontend/athlete-retenu.md`).
  */
@@ -314,7 +301,7 @@ export function AthletePicker({
       footer={
         designation ? (
           <div style={{ fontSize: 13, color: "var(--tcn-text-faint)", textAlign: "center" }}>
-            Votre saison s&apos;affichera en tête de Mon espace.
+            Vous demanderez ensuite le lien avec « C&apos;est moi ».
           </div>
         ) : null
       }

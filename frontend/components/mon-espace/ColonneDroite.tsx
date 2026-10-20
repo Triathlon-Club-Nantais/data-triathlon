@@ -5,7 +5,7 @@ import { apiClient } from "@/lib/api/client";
 import { chiffresSaison, prochainPalier, recordsPersonnels } from "@/lib/mon-espace";
 import type { Participation } from "@/lib/types";
 import { compteMaSaison } from "@/lib/utils/ma-saison";
-import { seasonOf } from "@/lib/utils/season";
+import { currentSeason, seasonOf } from "@/lib/utils/season";
 import { DernierResultat } from "./DernierResultat";
 import { MaPlaceAuClub } from "./MaPlaceAuClub";
 import { MesCoequipiers } from "./MesCoequipiers";
@@ -44,9 +44,9 @@ export function ColonneDroite({
   const record =
     dernier !== null && toutes !== undefined && recordsPersonnels(selection, toutes).some((r) => r.badge === "record" && r.meilleur.participation.id === dernier.id);
 
-  // Un palier se mesure à ses saisons : sans saison unique ni carrière, il n'y en a pas.
+  // Un palier vise la saison en cours : pas de « prochain » pour une saison close, ni sans carrière.
   let palier = null;
-  if (seasons.length === 1 && toutes !== undefined) {
+  if (seasons.length === 1 && seasons[0] === currentSeason() && toutes !== undefined) {
     const parSaison = new Map<number, Participation[]>();
     for (const p of toutes) {
       if (p.course.event_date === null) continue;

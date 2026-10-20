@@ -41,7 +41,7 @@ from app.schemas.auth import (
 from app.schemas.ids import DbId
 from app.schemas.season_goal import SeasonGoalRead, SeasonGoalWrite
 from app.schemas.teammate import Teammate
-from app.schemas.volunteer_action import AdminVolunteerActionOut
+from app.schemas.volunteer_action import MyVolunteerActionOut
 from app.services import (
     athlete_claims,
     membership,
@@ -461,7 +461,7 @@ def delete_goal(goal_id: DbId, user: User = Depends(current_user), db: Session =
     return Response(status_code=204, headers=NO_STORE_HEADERS)
 
 
-@router.get("/auth/me/volunteer-actions", response_model=list[AdminVolunteerActionOut])
+@router.get("/auth/me/volunteer-actions", response_model=list[MyVolunteerActionOut])
 def list_my_volunteer_actions(user: User = Depends(current_user), db: Session = Depends(get_db)):
     """Mes actions de bénévolat validées (#1696) ; liste vide sans fiche rattachée."""
     if user.athlete_id is None:

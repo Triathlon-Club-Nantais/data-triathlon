@@ -26,6 +26,7 @@ export const queryKeys = {
   // mutation réussie (`app/providers.tsx`) : une clé hors des préfixes des listes.
   adminBadgeCounts: () => ["admin-badge-counts"] as const,
   athleteClaims: () => ["athlete-claims"] as const,
+  myTeammates: (seasons: number[], federalOnly: boolean) => ["my-teammates", federalOnly, seasons] as const,
   myVolunteerActions: () => ["my-volunteer-actions"] as const,
   seasonGoals: () => ["season-goals"] as const,
   athleteLinks: () => ["athlete-links"] as const,

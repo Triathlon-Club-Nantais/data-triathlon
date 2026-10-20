@@ -794,7 +794,7 @@ describe("AppNav — actions primaires", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  // #502, revue UI/UX item 11 : la bande « Ma saison » n'a ni route ni état
+  // #502, revue UI/UX item 11 : l'invitation de Mon espace n'a ni route ni état
   // pour ouvrir la palette quand l'athlète retenu a disparu (404) — elle le
   // demande par cet événement, qu'`AppNav` seul sait exaucer (`pickerOpen`
   // est local à ce composant). #503 et #504 en auront besoin aussi.

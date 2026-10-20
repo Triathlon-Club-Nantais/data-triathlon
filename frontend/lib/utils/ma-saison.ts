@@ -3,7 +3,7 @@ import type { Participation } from "@/lib/types";
 import { isPodium } from "@/lib/utils/club-aggregate";
 import { estRelais } from "@/lib/utils/relais";
 
-/** Les deux chiffres de la bande « Ma saison » (#502). */
+/** Les deux chiffres d'une saison de Mon espace (#502). */
 export type CompteursMaSaison = { epreuves: number; podiums: number };
 
 /**

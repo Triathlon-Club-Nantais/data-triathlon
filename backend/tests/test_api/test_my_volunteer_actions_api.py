@@ -37,6 +37,7 @@ def test_lists_only_my_validated_actions(client, lea):
 
     assert response.status_code == 200
     assert [a["title"] for a in response.json()] == ["Buvette"]
+    assert set(response.json()[0]) == {"id", "season", "title", "description", "status", "created_at"}
 
 
 def test_unlinked_account_gets_an_empty_list(client, db_session):

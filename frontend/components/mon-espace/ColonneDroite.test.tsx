@@ -11,6 +11,7 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
   return { ...original, apiClient: { ...original.apiClient, getSession, getClubRosterRank, getAthlete, getMyTeammates, getEventsGeo } };
 });
 
+import { currentSeason } from "@/lib/utils/season";
 import { ColonneDroite } from "./ColonneDroite";
 import { DernierResultat } from "./DernierResultat";
 import { MaPlaceAuClub } from "./MaPlaceAuClub";
@@ -46,11 +47,29 @@ describe("ColonneDroite", () => {
     const recent = resultat({ id: 2, course: course(2, "Récente", "2026-10-01"), total_time: "1:50:00" });
     getAthlete.mockResolvedValue({ athlete: LEA, participations: [vieux, autre, recent], challenges: [] });
     getClubRosterRank.mockResolvedValue(null);
-    afficher(<ColonneDroite athleteId={42} selection={[recent]} seasons={[2026]} federalOnly />);
+    afficher(<ColonneDroite athleteId={42} selection={[recent]} seasons={[currentSeason()]} federalOnly />);
 
     expect(await screen.findByRole("link", { name: /Récente/ })).toBeInTheDocument();
     expect(await screen.findByText("record perso")).toBeInTheDocument();
     expect(await screen.findByText(/Encore 1 épreuve pour égaler/)).toBeInTheDocument();
+  });
+});
+
+describe("ColonneDroite past season", () => {
+  it("states no next milestone for a season that is not the current one", async () => {
+    const ancien = resultat({ id: 1, course: { id: 1, name: "Ancienne", event_date: "2024-05-01", event_type: "triathlon-m" } as Participation["course"] });
+    const course = (id: number, event_date: string) => ({ id, name: "Passée", event_date, event_type: "triathlon-m" }) as Participation["course"];
+    const passe = resultat({ id: 2, course: course(2, "2025-05-01") });
+    const autres = [resultat({ id: 3, course: course(3, "2025-06-01") }), resultat({ id: 4, course: course(4, "2025-07-01") })];
+    getAthlete.mockResolvedValue({ athlete: LEA, participations: [ancien, passe, ...autres], challenges: [] });
+    getClubRosterRank.mockResolvedValue(null);
+    afficher(<ColonneDroite athleteId={42} selection={[ancien]} seasons={[2024]} federalOnly />);
+
+    expect(await screen.findByRole("link", { name: /Ancienne/ })).toBeInTheDocument();
+    await vi.waitFor(() => expect(getAthlete).toHaveBeenCalled());
+    await getAthlete.mock.results[0].value;
+    await new Promise((r) => setTimeout(r, 20));
+    expect(screen.queryByText(/Encore \d+ (épreuve|podium)/)).toBeNull();
   });
 });
 

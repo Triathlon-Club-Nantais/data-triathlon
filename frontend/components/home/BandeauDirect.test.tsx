@@ -152,6 +152,13 @@ describe("BandeauDirect", () => {
       expect(outing().querySelector(".tcn-carte-sortie-contenu")).toContainElement(lien);
     });
 
+    it("gives the TCN count an accessible name and hides the bare number", () => {
+      render(<BandeauDirect resultatsHref="/resultats" sortie={sortie(trois)} stats={STATS} seasons={[2026]} today={TODAY} />);
+      const lien = within(outing()).getByRole("link", { name: /Triathlon de Nantes/ });
+      expect(within(lien).getByText("36 athlètes du club")).toHaveClass("sr-only");
+      expect(within(lien).getByText("36")).toHaveAttribute("aria-hidden", "true");
+    });
+
     it("keeps the podium count off the mobile layout and shows two rows there", () => {
       render(<BandeauDirect resultatsHref="/resultats" sortie={sortie(trois)} stats={STATS} seasons={[2026]} today={TODAY} />);
       const [premiere, , troisieme] = within(outing()).getAllByRole("link");

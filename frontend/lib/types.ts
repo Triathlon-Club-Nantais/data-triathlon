@@ -1448,6 +1448,16 @@ export interface AdminVolunteerActionOut {
   created_at: string;
 }
 
+// Miroir de MyVolunteerActionOut backend (#1696) : mes actions validées, sans identité.
+export interface MyVolunteerActionOut {
+  id: number;
+  season: number;
+  title: string | null;
+  description: string | null;
+  status: string;
+  created_at: string;
+}
+
 // Miroir de SeasonValidationOut backend (#709).
 export interface SeasonValidation {
   athlete_id: number;

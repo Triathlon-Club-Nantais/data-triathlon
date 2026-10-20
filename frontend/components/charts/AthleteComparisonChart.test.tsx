@@ -235,6 +235,19 @@ describe("AthleteComparisonChart preselect", () => {
     expect(getAthlete).toHaveBeenCalledWith(7);
   });
 
+  it("offers retry when the athlete named by `preselect` fails to load, then shows the comparison", async () => {
+    getAthlete
+      .mockRejectedValueOnce(new Error("réveil"))
+      .mockResolvedValueOnce({ athlete: { id: 7, nom: "Durand", prenom: "Paul" }, participations: [participation(11, 10, "2026-06-01", "01:55:00")] });
+    render(<AthleteComparisonChart mine={[participation(1, 10, "2026-06-01", "02:00:00")]} preselect={7} />);
+
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent(/impossible de charger les résultats/i));
+    await userEvent.click(screen.getByRole("button", { name: /réessayer/i }));
+
+    expect(await screen.findByText(/Comparaison avec Paul Durand/)).toBeInTheDocument();
+    expect(getAthlete).toHaveBeenCalledTimes(2);
+  });
+
   it("keeps the search field without `preselect`", () => {
     render(<AthleteComparisonChart mine={[participation(1, 10, "2026-06-01", "02:00:00")]} />);
 

@@ -8,7 +8,7 @@ import type { DashboardRankCounters } from "@/lib/types";
 /**
  * KPI « Podiums » côté client — recalcule selon `?rank=…` sans re-fetch RSC.
  * Lit `rankCounters` (déjà calculé côté backend, #376) au lieu de recompter
- * sur les participations brutes (#581) : même source que `MaSaison`.
+ * sur les participations brutes (#581) : même source que Mon espace.
  * Les autres KPI (Résultats / Athlètes / Épreuves) ne dépendent pas du rank
  * et restent SSR dans `ClubDashboard`. Miroir de `PodiumsList` (issue #132).
  */

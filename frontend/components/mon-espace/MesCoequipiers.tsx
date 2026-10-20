@@ -4,12 +4,13 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { Card, Eyebrow } from "@/components/tcn";
 import { apiClient } from "@/lib/api/client";
+import { queryKeys } from "@/lib/queries/keys";
 import { motCompte } from "@/lib/utils/format";
 
 /** Les membres du club avec qui j'ai le plus couru sur la sélection (#1701). */
 export function MesCoequipiers({ athleteId, seasons, federalOnly }: { athleteId: number; seasons: number[]; federalOnly: boolean }) {
   const coequipiers = useQuery({
-    queryKey: ["mon-espace", "coequipiers", federalOnly, seasons],
+    queryKey: queryKeys.myTeammates(seasons, federalOnly),
     queryFn: () => apiClient.getMyTeammates({ federal_only: federalOnly, seasons }),
     retry: false,
   });

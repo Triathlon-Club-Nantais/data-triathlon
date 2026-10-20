@@ -102,6 +102,7 @@ import type {
   SeasonQuota,
   SeasonValidation,
   ValidationQueueHistory,
+  MyVolunteerActionOut,
   VolunteerActionSelfCreate,
   VolunteerActionSelfOut,
 } from "@/lib/types";
@@ -324,9 +325,8 @@ export const apiClient = {
   },
 
   // Premier appel navigateur de cette route : `/athletes/{id}` n'était jusqu'ici
-  // lu que par le rendu serveur de la fiche athlète. La bande « Ma saison »
-  // (#502) l'appelle côté client, parce que l'athlète retenu vit en
-  // `localStorage` et ne franchit pas la frontière serveur (#467).
+  // lu que par le rendu serveur de la fiche athlète. Mon espace (#1695)
+  // l'appelle côté client pour les records et les paliers de la carrière.
   getAthlete: (
     id: number,
     filters: { seasons?: string; federal_only?: boolean } = {},
@@ -936,7 +936,7 @@ export const apiClient = {
   detachAthlete: () => request<null>("/auth/me/athlete", { method: "DELETE" }),
   getAthleteClaims: () => request<AthleteClaimReview[]>("/admin/athlete-claims"),
   // ── Objectifs de saison (#1373), privés au compte ───────────────────────────
-  getMyVolunteerActions: () => request<AdminVolunteerActionOut[]>("/auth/me/volunteer-actions"),
+  getMyVolunteerActions: () => request<MyVolunteerActionOut[]>("/auth/me/volunteer-actions"),
   getMyTeammates: (opts: { federal_only?: boolean; seasons?: number[] } = {}) =>
     request<Teammate[]>(`/auth/me/teammates${toQuery(opts as Record<string, unknown>)}`),
   getSeasonGoals: () => request<SeasonGoal[]>("/auth/me/goals"),

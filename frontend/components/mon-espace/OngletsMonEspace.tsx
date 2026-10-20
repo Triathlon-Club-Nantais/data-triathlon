@@ -49,7 +49,7 @@ function MesActionsBenevolat() {
             {actions.data.map((action) => (
               <li key={action.id} style={{ marginTop: 10 }}>
                 <strong>{action.title ?? "Action sans titre"}</strong>
-                <span style={{ color: "var(--tcn-text-faint)" }}> ({formatDate(action.created_at)}, saison {action.season})</span>
+                <span style={{ color: "var(--tcn-text-faint)" }}> (déclarée le {formatDate(action.created_at)}, saison {action.season})</span>
               </li>
             ))}
           </ul>
@@ -98,7 +98,7 @@ export function OngletsMonEspace({
 
   return (
     <Tabs value={courant} onValueChange={choisir}>
-      <TabsList variant="line" aria-label="Mon espace" activateOnFocus>
+      <TabsList variant="line" aria-label="Mon espace" activateOnFocus className="h-11 max-w-full justify-start overflow-x-auto">
         {onglets.map((o) => (
           <TabsTrigger key={o.value} value={o.value}>
             {o.label}
