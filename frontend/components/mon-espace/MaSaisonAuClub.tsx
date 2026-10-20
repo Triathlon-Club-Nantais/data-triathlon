@@ -12,7 +12,9 @@ function Manque({ quota }: { quota: SeasonQuota }) {
   return (
     <>
       <p style={corps}>
-        {n} {n > 1 ? "épreuves comptées" : "épreuve comptée"} sur {requis} {requis > 1 ? "requises" : "requise"}
+        {n >= requis
+          ? `Épreuves : objectif de ${requis} atteint`
+          : `${n} ${n > 1 ? "épreuves comptées" : "épreuve comptée"} sur ${requis} ${requis > 1 ? "requises" : "requise"}`}
       </p>
       <p style={{ ...corps, marginTop: 4 }}>
         Bénévolat : {quota.has_volunteer_action ? "action validée" : quota.has_pending_volunteer_action ? "action en attente de validation" : "aucune action déclarée"}
