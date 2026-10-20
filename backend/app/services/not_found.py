@@ -8,8 +8,10 @@ from app.models.user import User
 from app.repositories import athlete_repository, course_repository, user_repository
 
 
-def athlete_or_404(db: Session, athlete_id: int, *, message: str = "Athlète introuvable.") -> Athlete:
-    athlete = athlete_repository.get(db, athlete_id)
+def athlete_or_404(
+    db: Session, athlete_id: int, *, message: str = "Athlète introuvable.", hide_pending_only: bool = False
+) -> Athlete:
+    athlete = athlete_repository.get(db, athlete_id, hide_pending_only=hide_pending_only)
     if athlete is None:
         raise NotFoundError(message)
     return athlete

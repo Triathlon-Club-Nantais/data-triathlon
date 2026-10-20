@@ -29,9 +29,16 @@ def list_athletes(
     page: int = Query(1, ge=1, le=MAX_PAGE),
     page_size: int = Query(50, ge=1, le=500),
     db: Session = Depends(get_db),
+    volunteer: bool = Depends(is_volunteer),
 ):
+    """Une fiche que seules des saisies en attente font exister n'est listée qu'aux bénévoles (#1615)."""
     return athlete_repository.search(
-        db, name=name, club_only=is_club_scope(scope), page=page, page_size=page_size
+        db,
+        name=name,
+        club_only=is_club_scope(scope),
+        page=page,
+        page_size=page_size,
+        hide_pending_only=not volunteer,
     )
 
 
@@ -92,6 +99,7 @@ def search_athletes(
     scope: str | None = Query(None, description="« club » restreint aux membres du TCN."),
     limit: int = Query(12, ge=1, le=50),
     db: Session = Depends(get_db),
+    volunteer: bool = Depends(is_volunteer),
 ):
     """Recherche classée par pertinence pour la palette `⌘K` (#484, NAV-8).
 
@@ -99,9 +107,12 @@ def search_athletes(
     exact, début de mot, sous-chaîne) puis volume, et rend le compte de
     participations — deux choses que `GET /athletes` ne fait pas et n'a pas à
     faire pour ses propres appelants.
+
+    Une fiche que seules des saisies en attente font exister n'est trouvée que
+    des bénévoles (#1615).
     """
     rows = athlete_repository.search_by_relevance(
-        db, term=q, club_only=is_club_scope(scope), limit=limit
+        db, term=q, club_only=is_club_scope(scope), limit=limit, hide_pending_only=not volunteer
     )
     return [
         AthleteSearchResult(
@@ -123,6 +134,7 @@ def get_athlete(
     volunteer: bool = Depends(is_volunteer),
 ):
     """Fiche athlète et ses participations, en attente comprises pour un bénévole seul (#1519).
+    Une fiche que seules des saisies en attente font exister répond 404 au public (#1615).
 
     Les deux filtres sont **optionnels et neutres par défaut** (#502) : sans
     eux, la route rend la carrière entière, comme depuis toujours. Ils servent
@@ -130,7 +142,9 @@ def get_athlete(
     base que les compteurs club affichés juste dessous — mêmes noms et mêmes
     sémantiques que sur `/stats` et `/athletes/season-activity`.
     """
-    athlete = not_found.athlete_or_404(db, athlete_id, message="Athlète introuvable")
+    athlete = not_found.athlete_or_404(
+        db, athlete_id, message="Athlète introuvable", hide_pending_only=not volunteer
+    )
     participations = participation_repository.list_for_athlete(
         db,
         athlete_id,
@@ -166,7 +180,9 @@ def get_athlete_participations_csv(
     """Les résultats de la fiche athlète en CSV pour Excel (#1375) : mêmes lignes
     que `GET /athletes/{id}` sans filtre, en attente et refusées comprises pour
     un bénévole seul (#1519)."""
-    athlete = not_found.athlete_or_404(db, athlete_id, message="Athlète introuvable")
+    athlete = not_found.athlete_or_404(
+        db, athlete_id, message="Athlète introuvable", hide_pending_only=not volunteer
+    )
     participations = participation_repository.list_for_athlete(
         db, athlete_id, include_pending=volunteer
     )

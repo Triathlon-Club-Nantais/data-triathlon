@@ -54,9 +54,18 @@ def test_a_volunteer_still_reads_a_pending_entry(volunteer, entries):
     assert volunteer.get(f"/api/v1/participations/{pending.id}").status_code == 200
 
 
+def _published(client, db_session, payload):
+    """Une saisie, puis validée : elle fait exister sa fiche et son épreuve au public."""
+    row = _created(client, db_session, payload)
+    participation_repository.update(db_session, row, is_pending_validation=False)
+    db_session.commit()
+    return row
+
+
 def test_the_course_page_hides_pending_rows_from_a_visitor_only(visitor, entries, db_session):
     pending, _ = entries
     course_id = pending.course_id
+    _published(visitor, db_session, _payload(bib="3", nom="PUBLIE"))
 
     assert visitor.get(f"/api/v1/courses/{course_id}").json()["pending_participations"] == []
 
@@ -81,17 +90,20 @@ def test_the_event_list_hides_pending_only_events_from_a_visitor(visitor, entrie
 
 def test_the_athlete_page_and_csv_hide_pending_rows_from_a_visitor(visitor, entries, db_session):
     pending, rejected = entries
+    for nom in ("ATTENTE", "REFUS"):
+        _published(visitor, db_session, {**_payload(bib=nom, nom=nom), "event_name": "Duathlon de Rezé"})
 
     for entry in (pending, rejected):
         athlete_id = entry.athlete_id
-        assert visitor.get(f"/api/v1/athletes/{athlete_id}").json()["participations"] == []
+        shown = visitor.get(f"/api/v1/athletes/{athlete_id}").json()["participations"]
+        assert [p["course"]["name"] for p in shown] == ["Duathlon de Rezé"]
         csv = visitor.get(f"/api/v1/athletes/{athlete_id}/participations.csv").text
-        assert len(csv.strip().splitlines()) == 1, "en-tête seul"
+        assert "Triathlon de Nantes" not in csv
 
     _volunteer_cookie(visitor, db_session)
     athlete_id = pending.athlete_id
     shown = visitor.get(f"/api/v1/athletes/{athlete_id}").json()["participations"]
-    assert [p["id"] for p in shown] == [pending.id]
+    assert pending.id in [p["id"] for p in shown]
     assert "Triathlon de Nantes" in visitor.get(f"/api/v1/athletes/{athlete_id}/participations.csv").text
 
 
@@ -131,16 +143,24 @@ def test_a_bib_held_by_a_published_result_is_still_refused(visitor, db_session):
 
 def test_a_visitor_cannot_tell_an_opposed_entry_from_another(visitor, db_session):
     """Les oracles de #1519 en séquence. Sans identifiant dans la réponse (#1724),
-    il ne reste à un visiteur que les statuts d'une saisie et de son renvoi."""
+    restent les statuts et les recherches, où la fiche et l'épreuve neuves
+    d'une saisie en attente n'apparaissent pas (#1615)."""
 
     def probe(nom):
-        payload = _payload(nom=nom, bib=nom)
+        payload = {**_payload(nom=nom, bib=nom), "event_name": f"Epreuve {nom}"}
         created = visitor.post("/api/v1/participations", json=payload)
-        return created.status_code, visitor.post("/api/v1/participations", json=payload).status_code
+        return (
+            created.status_code,
+            visitor.post("/api/v1/participations", json=payload).status_code,
+            visitor.get(f"/api/v1/athletes/search?q={nom}").json(),
+            visitor.get(f"/api/v1/athletes?name={nom}").json(),
+            visitor.get(f"/api/v1/courses?name=Epreuve {nom}").json(),
+            visitor.get(f"/api/v1/courses/count?name=Epreuve {nom}").json(),
+        )
 
     _oppose_jean_dupont(db_session)
 
-    assert probe("DUPONT") == probe("MARTIN") == (201, 201)
+    assert probe("DUPONT") == probe("MARTIN") == (201, 201, [], [], [], {"total": 0})
 
 
 def _volunteer_cookie(client, db_session):
@@ -176,3 +196,100 @@ def test_the_public_entry_answer_carries_no_id_opposed_or_not(visitor, db_sessio
     assert _ids_in(opposed.json()) == _ids_in(other.json()) == []
     assert opposed.json() == {**other.json(), "athlete_name": "DUPONT", "bib_number": "42"}
     assert opposed.json()["is_pending_validation"] is True
+
+
+# --- #1615 : une fiche ou une épreuve que seules des saisies en attente font exister ---
+
+
+def _relay_teammate(db_session, entry):
+    """Un équipier attribué au relais d'une saisie en attente."""
+    from app.repositories import athlete_repository
+
+    paul = athlete_repository.get_or_create(db_session, nom="EQUIPIER", prenom="Paul")
+    participation_repository.replace_teammates(db_session, entry, [paul.id, entry.athlete_id])
+    db_session.commit()
+    return paul.id
+
+
+def _pages(athlete_id, course_id):
+    return [
+        f"/api/v1/athletes/{athlete_id}",
+        f"/api/v1/athletes/{athlete_id}/participations.csv",
+        f"/api/v1/courses/{course_id}",
+        f"/api/v1/courses/{course_id}/summary",
+        f"/api/v1/courses/{course_id}/sources",
+    ]
+
+
+def test_a_pending_only_athlete_or_course_answers_a_visitor_like_a_missing_one(visitor, entries, db_session):
+    pending, rejected = entries
+    teammate_id = _relay_teammate(db_session, pending)
+    missing = [visitor.get(path) for path in [*_pages(999999, 999999), "/api/v1/club/roster/rank/999999"]]
+    assert {answer.status_code for answer in missing} == {404}
+
+    for athlete_id in (pending.athlete_id, rejected.athlete_id, teammate_id):
+        paths = [*_pages(athlete_id, pending.course_id), f"/api/v1/club/roster/rank/{athlete_id}"]
+        answers = [visitor.get(path) for path in paths]
+        assert [(a.status_code, a.json()) for a in answers] == [(m.status_code, m.json()) for m in missing]
+
+    _volunteer_cookie(visitor, db_session)
+    for athlete_id in (pending.athlete_id, rejected.athlete_id, teammate_id):
+        assert {visitor.get(path).status_code for path in _pages(athlete_id, pending.course_id)} == {200}
+
+
+def test_searches_and_lists_skip_pending_only_rows_for_a_visitor_only(visitor, entries, db_session):
+    pending, rejected = entries
+    hidden = {pending.athlete_id, rejected.athlete_id, _relay_teammate(db_session, pending)}
+
+    def seen():
+        athletes = {
+            row["id"]
+            for nom in ("ATTENTE", "REFUS", "EQUIPIER")
+            for path in (f"/api/v1/athletes/search?q={nom}", f"/api/v1/athletes?name={nom}")
+            for row in visitor.get(path).json()
+        }
+        courses = {
+            row["id"]
+            for path in ("/api/v1/courses", "/api/v1/courses?name=Nantes")
+            for row in visitor.get(path).json()
+        }
+        counts = {visitor.get(path).json()["total"] for path in ("/api/v1/courses/count", "/api/v1/courses/count?name=Nantes")}
+        return athletes, courses, counts
+
+    assert seen() == (set(), set(), {0})
+
+    _volunteer_cookie(visitor, db_session)
+    assert seen() == (hidden, {pending.course_id}, {1})
+
+
+def test_a_published_result_a_claim_or_no_result_at_all_keeps_a_record_public(visitor, db_session):
+    """Masquer sur « aucun résultat validé » seul retirerait les membres sans résultat (#562)."""
+    from app.models.athlete import Athlete
+
+    bare = Athlete(nom="SANSRESULTAT", prenom="Jean")
+    db_session.add(bare)
+    claimed = _created(visitor, db_session, _payload(bib="1", nom="RATTACHE"))
+    db_session.query(User).first().athlete_id = claimed.athlete_id
+    mixed = _published(visitor, db_session, _payload(bib="2", nom="MIXTE"))
+    _created(visitor, db_session, {**_payload(bib="3", nom="MIXTE"), "event_name": "Autre épreuve"})
+
+    for athlete_id in (bare.id, claimed.athlete_id, mixed.athlete_id):
+        assert visitor.get(f"/api/v1/athletes/{athlete_id}").status_code == 200
+    assert visitor.get(f"/api/v1/courses/{mixed.course_id}").status_code == 200
+    listed = {row["nom"] for row in visitor.get("/api/v1/athletes").json()}
+    assert {"SANSRESULTAT", "RATTACHE", "MIXTE"} <= listed
+
+
+def test_a_member_cannot_claim_a_pending_only_athlete(client, db_session):
+    """La réponse d'une demande nomme la fiche : elle ne doit pas sortir par là."""
+    from tests.test_api.test_athlete_claims_api import MY_CLAIM, _member
+
+    pending = _created(client, db_session, _payload(nom="ATTENTE"))
+    _member(client, db_session)
+
+    missing = client.post(MY_CLAIM, json={"athlete_id": 999999})
+    hidden = client.post(MY_CLAIM, json={"athlete_id": pending.athlete_id})
+
+    assert (hidden.status_code, hidden.json()) == (missing.status_code, missing.json()) == (
+        404, {"detail": "Fiche athlète introuvable."}
+    )

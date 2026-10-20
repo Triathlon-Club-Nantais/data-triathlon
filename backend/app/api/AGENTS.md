@@ -154,9 +154,23 @@ saisie reçue plus `is_pending_validation: true`, bâtie sur la seule requête :
 la même qu'une personne soit opposée ou non. Changement de contrat assumé au
 titre du Principe IV, noté dans les notes de version de v0.9.0 (#1613).
 
-**Ce qui reste, suivi par #1615** : l'existence même de la fiche et de
-l'épreuve qu'une saisie en attente crée (`GET /athletes/{id}`,
-`GET /courses/{id}`, `GET /athletes/search`).
+**Une fiche ou une épreuve que seules des saisies en attente font exister
+est masquée au public (#1615).** Sans quoi la fiche et l'épreuve neuves d'une
+saisie gardée trahissaient celle, annulée, d'une personne opposée. Masquée :
+elle n'a que des résultats en attente ou refusés (porteuse ou équipière de
+relais pour une fiche), aucun validé, et, pour une fiche, aucune autre
+référence (`referenced_outside_results` : compte lié, bénévolat, validation de
+saison, challenge). Une ligne sans aucun résultat reste visible (#562). Le
+public reçoit alors le 404 d'un identifiant inconnu sur `GET /athletes/{id}`,
+son CSV, `GET /courses/{id}`, `/summary`, `/sources` et la demande de
+rattachement (`POST /auth/me/athlete-claim`, dont la réponse nomme la fiche),
+et ne la trouve ni dans `GET /athletes`, `GET /athletes/search`,
+`GET /courses` ni `GET /courses/count`. Un bénévole (`is_volunteer`) la voit
+partout comme avant. Le prédicat est `core/validation.pending_only_clause`,
+lié à chaque entité par `athlete_repository.pending_only` et
+`course_repository.pending_only`, et appliqué par l'option `hide_pending_only`
+de `get`, `search`, `search_by_relevance` et `_filtered` (défaut `False` :
+les routes d'administration ne changent pas).
 Preuve : `tests/test_api/test_private_pending_entries.py`.
 
 ## Classement d'une épreuve : paginé, et l'ordre est en base (#163)
