@@ -361,7 +361,8 @@
   }
   /* Un composant d'interface inactif n'a pas de seuil de contraste (WCAG 1.4.3,
      exception « incidental ») : l'opacité est donc le bon outil ici. */
-  .tcn-btn:disabled {
+  .tcn-btn:disabled,
+  .tcn-btn[aria-disabled="true"] {
     cursor: not-allowed;
     opacity: 0.55;
     box-shadow: none;

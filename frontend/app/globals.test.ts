@@ -238,7 +238,7 @@ describe("bouton TCN", () => {
   it("donne un rendu à disabled", () => {
     // L'attribut était transmis et réellement utilisé (TcnScrapeForm), mais rien
     // ne changeait : même fond orange, même ombre, `cursor: pointer` conservé.
-    const desactive = rule(".tcn-btn:disabled");
+    const desactive = rule(".tcn-btn:disabled,\n  .tcn-btn[aria-disabled=\"true\"]");
     expect(desactive).toContain("cursor: not-allowed");
     expect(desactive).toContain("box-shadow: none");
   });
