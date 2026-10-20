@@ -307,7 +307,8 @@ def apply_for_member(db: Session, user: User) -> AthleteOpposition:
     )
     if licensed_elsewhere or preview(db, athlete_id=user.athlete_id).athletes != 1:
         raise DuplicateError(
-            "Votre nom correspond à plusieurs fiches. Écrivez au club pour exercer votre droit d'opposition."
+            "Votre nom est partagé avec une autre personne connue du club. "
+            "Écrivez au club pour exercer votre droit d'opposition."
         )
     opposition, _ = apply(db, user, athlete_id=user.athlete_id, requested_on=club_today())
     return opposition

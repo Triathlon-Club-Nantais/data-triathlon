@@ -310,7 +310,8 @@ deux (`422`). Contrat : `specs/20261001-181344-athlete-opposition/contracts/`.
 Libre-service (#1673) : `POST /auth/me/opposition/preview` et
 `POST /auth/me/opposition` (`204`) visent la seule fiche rattachée au compte
 (`403` sans rattachement, aucun corps lu, hors code du site), via
-`opposition_service.apply_for_member` ; un homonyme (`athletes != 1`) rend
+`opposition_service.apply_for_member` ; un homonyme (`athletes != 1`), ou une
+ligne de la liste des licenciés au même nom rattachée à une autre fiche, rend
 `409`, le club traite alors la demande. Le journal porte le membre comme auteur.
 
 Ce que l'application fait, et où : `services/opposition_service.py`. Le filtre

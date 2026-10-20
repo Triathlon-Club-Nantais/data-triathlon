@@ -229,18 +229,24 @@ describe("AccountPage: sensitive zone", () => {
   });
 });
 
-describe("AccountPage: hide my results (#1673)", () => {
+describe("AccountPage: anonymise my results (#1673)", () => {
+  const MAILTO = "mailto:president@triathlon-club-nantais.com";
+
   async function ouvrirLOpposition() {
     afficher({ ...SESSION, athlete: JEAN });
-    await userEvent.click(await screen.findByRole("button", { name: "Masquer mes résultats" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Anonymiser mes résultats" }));
     return screen.findByRole("dialog");
+  }
+
+  function confirmerDans(dialog: HTMLElement) {
+    return within(dialog).getByRole("button", { name: "Anonymiser définitivement" });
   }
 
   it("is offered to a linked member only", async () => {
     afficher(SESSION);
 
     await screen.findByRole("button", { name: "Supprimer mon compte" });
-    expect(screen.queryByRole("button", { name: "Masquer mes résultats" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Anonymiser mes résultats" })).not.toBeInTheDocument();
   });
 
   it("blocks the action until the preview arrives, then announces its impact", async () => {
@@ -248,51 +254,101 @@ describe("AccountPage: hide my results (#1673)", () => {
     previewMyOpposition.mockReturnValue(new Promise((resoudre) => (livrer = resoudre)));
     const dialog = await ouvrirLOpposition();
 
-    expect(dialog).toHaveAccessibleName("Masquer vos résultats ?");
+    expect(dialog).toHaveAccessibleName("Anonymiser vos résultats ?");
     expect(previewMyOpposition).toHaveBeenCalled();
-    expect(within(dialog).getByRole("button", { name: "Masquer définitivement" })).toBeDisabled();
+    expect(confirmerDans(dialog)).toBeDisabled();
     livrer({ athletes: 1, results: 3, already_opposed: false });
 
-    await waitFor(() => expect(dialog).toHaveTextContent("3 résultats deviendront anonymes"));
-    expect(dialog).toHaveTextContent(/fiche athlète est supprimée/);
-    expect(dialog).toHaveTextContent(/votre compte n.y est plus rattaché/);
-    expect(dialog).toHaveTextContent(/seul le club peut lever l.opposition/);
-    expect(within(dialog).getByRole("button", { name: "Masquer définitivement" })).toBeEnabled();
+    await waitFor(() => expect(dialog).toHaveTextContent("Cette action est définitive."));
+    expect(dialog).toHaveTextContent("3 résultats deviennent anonymes");
+    expect(dialog).toHaveTextContent(/votre nom, votre club et votre catégorie disparaissent/);
+    expect(dialog).toHaveTextContent(/le temps et le rang restent/);
+    expect(dialog).toHaveTextContent("Votre fiche athlète et son lien avec votre compte sont supprimés.");
+    expect(dialog).toHaveTextContent("Votre compte reste actif.");
+    expect(dialog).toHaveTextContent(
+      "La fiche et le nom ne peuvent pas être rétablis. Pour publier à nouveau vos prochains résultats, écrivez au club.",
+    );
+    expect(dialog).not.toHaveTextContent(/lever l.opposition/);
+    expect(confirmerDans(dialog)).toBeEnabled();
     expect(applyMyOpposition).not.toHaveBeenCalled();
   });
 
-  it("applies the opposition, then shows no linked record and a success message", async () => {
+  it("says when no result is published yet", async () => {
+    previewMyOpposition.mockResolvedValue({ athletes: 1, results: 0, already_opposed: false });
     const dialog = await ouvrirLOpposition();
-    await waitFor(() => expect(dialog).toHaveTextContent("3 résultats deviendront anonymes"));
+
+    await waitFor(() => expect(dialog).toHaveTextContent("Aucun résultat publié à votre nom pour l'instant."));
+    expect(confirmerDans(dialog)).toBeEnabled();
+  });
+
+  it("applies the opposition, then shows no linked record, a success message and focuses it", async () => {
+    const dialog = await ouvrirLOpposition();
+    await waitFor(() => expect(confirmerDans(dialog)).toBeEnabled());
     getSession.mockResolvedValue({ ...SESSION, athlete: null });
 
-    await userEvent.click(within(dialog).getByRole("button", { name: "Masquer définitivement" }));
+    await userEvent.click(confirmerDans(dialog));
 
     await waitFor(() => expect(applyMyOpposition).toHaveBeenCalled());
     expect(await screen.findByText(/Aucune fiche athlète n.est rattachée/)).toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveTextContent("Opposition appliquée : 3 résultats anonymisés.");
-    expect(screen.queryByRole("button", { name: "Masquer mes résultats" })).not.toBeInTheDocument();
+    const statut = screen.getByRole("status");
+    expect(statut).toHaveTextContent("Vos résultats sont anonymisés. 3 résultats ne portent plus votre nom.");
+    await waitFor(() => expect(statut).toHaveFocus());
+    expect(screen.queryByRole("button", { name: "Anonymiser mes résultats" })).not.toBeInTheDocument();
   });
 
-  it("sends a member whose name matches several records to the club, without confirmation", async () => {
-    previewMyOpposition.mockResolvedValue({ athletes: 2, results: 5, already_opposed: false });
+  it("drops the count from the success message when there was no result", async () => {
+    previewMyOpposition.mockResolvedValue({ athletes: 1, results: 0, already_opposed: false });
+    const dialog = await ouvrirLOpposition();
+    await waitFor(() => expect(confirmerDans(dialog)).toBeEnabled());
+
+    await userEvent.click(confirmerDans(dialog));
+
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent(/^Vos résultats sont anonymisés\.$/));
+  });
+
+  it.each([
+    ["several records", { athletes: 2, results: 5, already_opposed: false }],
+    ["no record", { athletes: 0, results: 0, already_opposed: false }],
+    ["an identity already opposed", { athletes: 1, results: 0, already_opposed: true }],
+  ])("sends the member to the club, without confirmation, for %s", async (_cas, apercu) => {
+    previewMyOpposition.mockResolvedValue(apercu);
     const dialog = await ouvrirLOpposition();
 
-    await waitFor(() => expect(dialog).toHaveTextContent(/plusieurs fiches/));
-    expect(dialog).toHaveTextContent(/Écrivez au club/);
+    await waitFor(() => expect(dialog).toHaveTextContent(/Écrivez au club/));
     expect(within(dialog).getByRole("link", { name: "president@triathlon-club-nantais.com" })).toHaveAttribute(
       "href",
-      "mailto:president@triathlon-club-nantais.com",
+      MAILTO,
     );
-    expect(within(dialog).getByRole("button", { name: "Masquer définitivement" })).toBeDisabled();
+    expect(confirmerDans(dialog)).toBeDisabled();
+  });
+
+  it("turns a 409 from the server into the same club redirection", async () => {
+    applyMyOpposition.mockRejectedValue(
+      new ApiError(
+        409,
+        "Votre nom est partagé avec une autre personne connue du club. Écrivez au club pour exercer votre droit d'opposition.",
+      ),
+    );
+    const dialog = await ouvrirLOpposition();
+    await waitFor(() => expect(confirmerDans(dialog)).toBeEnabled());
+
+    await userEvent.click(confirmerDans(dialog));
+
+    await waitFor(() => expect(confirmerDans(dialog)).toBeDisabled());
+    expect(dialog).not.toHaveTextContent(/deviennent anonymes/);
+    expect(dialog).toHaveTextContent(/partagé avec une autre personne connue du club/);
+    expect(within(dialog).getByRole("link", { name: "president@triathlon-club-nantais.com" })).toHaveAttribute(
+      "href",
+      MAILTO,
+    );
   });
 
   it("shows a failed application in the error colour", async () => {
     applyMyOpposition.mockRejectedValue(new ApiError(500, "L'opposition n'a pas pu être appliquée."));
     const dialog = await ouvrirLOpposition();
-    await waitFor(() => expect(dialog).toHaveTextContent("3 résultats deviendront anonymes"));
+    await waitFor(() => expect(confirmerDans(dialog)).toBeEnabled());
 
-    await userEvent.click(within(dialog).getByRole("button", { name: "Masquer définitivement" }));
+    await userEvent.click(confirmerDans(dialog));
 
     const alerte = await within(dialog).findByRole("alert");
     expect(alerte).toHaveTextContent("L'opposition n'a pas pu être appliquée.");
@@ -304,7 +360,7 @@ describe("AccountPage: hide my results (#1673)", () => {
     const dialog = await ouvrirLOpposition();
 
     expect(await within(dialog).findByRole("alert")).toHaveTextContent(/n.ont pas pu être comptés/);
-    expect(within(dialog).getByRole("button", { name: "Masquer définitivement" })).toBeDisabled();
+    expect(confirmerDans(dialog)).toBeDisabled();
   });
 });
 
