@@ -10,9 +10,11 @@ from dataclasses import dataclass
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import DomainError, NotFoundError
-from app.models.season_goal import KIND_COUNT, KIND_TIME, SeasonGoal
+from app.core.season import current_season, season_of
+from app.models.season_goal import KIND_COUNT, KIND_RACE, KIND_TIME, SeasonGoal
 from app.models.user import User
-from app.repositories import participation_repository, season_goal_repository
+from app.repositories import course_repository, participation_repository, season_goal_repository
+from app.schemas.season_goal import SeasonGoalWrite
 from app.scrapers.classify import CANONICAL_TYPES
 from app.services.mapping import parse_duration
 
@@ -38,32 +40,70 @@ def _not_found() -> NotFoundError:
     return NotFoundError("Objectif introuvable.")
 
 
-def _check(kind: str, event_type: str | None, target: int) -> None:
-    if kind not in (KIND_TIME, KIND_COUNT) or target <= 0:
+class InvalidRaceGoalError(InvalidGoalError):
+    message = "Épreuve cible incomplète : choisissez une épreuve connue, ou indiquez un nom et une date."
+
+
+class RaceOutsideSeasonError(InvalidGoalError):
+    message = "L'épreuve cible doit tomber dans la saison en cours."
+
+
+class RaceTargetNeedsFormatError(InvalidGoalError):
+    message = "Un temps visé sur une épreuve cible demande une discipline et un format."
+
+
+def _fields(db: Session, data: SeasonGoalWrite) -> dict:
+    """Valide `data` et rend les colonnes à écrire ; celles qui ne concernent pas la sorte sont à `None`."""
+    event_type, target = data.event_type, data.target
+    if data.kind not in (KIND_TIME, KIND_COUNT, KIND_RACE) or (target is not None and target <= 0):
         raise InvalidGoalError()
-    if kind == KIND_TIME and event_type is None:
-        raise InvalidGoalError()
+    if data.kind != KIND_RACE:
+        if target is None or (data.kind == KIND_TIME and event_type is None):
+            raise InvalidGoalError()
+        fields = {"course_id": None, "race_name": None, "race_date": None}
+    else:
+        course_id, race_name, race_date = data.course_id, (data.race_name or "").strip(), data.race_date
+        if course_id is not None:
+            course = course_repository.get(db, course_id)
+            if course is None or course.event_date is None:
+                raise InvalidRaceGoalError()
+            race_name, race_date = course.name, course.event_date
+            event_type = course.event_type or event_type
+        elif not race_name or race_date is None:
+            raise InvalidRaceGoalError()
+        if season_of(race_date) != current_season():
+            raise RaceOutsideSeasonError()
+        if target is not None and event_type is None:
+            raise RaceTargetNeedsFormatError()
+        fields = {"course_id": course_id, "race_name": race_name, "race_date": race_date}
     if event_type is not None and event_type not in CANONICAL_TYPES:
         raise InvalidGoalError()
+    return {"kind": data.kind, "event_type": event_type, "target": target, "major": data.major, **fields}
 
 
-def create(db: Session, user: User, *, season: int, kind: str, event_type: str | None, target: int) -> SeasonGoal:
+def create(db: Session, user: User, data: SeasonGoalWrite) -> SeasonGoal:
     if user.athlete_id is None:
         raise NoClaimedAthleteError()
-    _check(kind, event_type, target)
+    fields = _fields(db, data)
+    season = season_of(fields["race_date"]) if data.kind == KIND_RACE else current_season()
     if season_goal_repository.count_for(db, user.id, season) >= MAX_GOALS_PER_SEASON:
         raise TooManyGoalsError()
-    return season_goal_repository.create(
-        db, user_id=user.id, season=season, kind=kind, event_type=event_type, target=target
-    )
+    goal = season_goal_repository.create(db, user_id=user.id, season=season, **fields)
+    if goal.major:
+        season_goal_repository.clear_major(db, user.id, season, except_id=goal.id)
+    return goal
 
 
-def update(db: Session, user: User, goal_id: int, *, kind: str, event_type: str | None, target: int) -> SeasonGoal:
+def update(db: Session, user: User, goal_id: int, data: SeasonGoalWrite) -> SeasonGoal:
     goal = season_goal_repository.get_for(db, user.id, goal_id)
     if goal is None:
         raise _not_found()
-    _check(kind, event_type, target)
-    goal.kind, goal.event_type, goal.target = kind, event_type, target
+    for name, value in _fields(db, data).items():
+        setattr(goal, name, value)
+    if data.kind == KIND_RACE:
+        goal.season = season_of(goal.race_date)
+    if goal.major:
+        season_goal_repository.clear_major(db, user.id, goal.season, except_id=goal.id)
     db.flush()
     return goal
 
@@ -92,6 +132,8 @@ def list_with_progress(db: Session, user: User, season: int) -> list[GoalProgres
 
 def _progress(db: Session, athlete_id: int | None, goal: SeasonGoal) -> GoalProgress:
     if athlete_id is None:
+        return GoalProgress(goal=goal, best_time=None, count=None, reached=False)
+    if goal.kind == KIND_RACE:
         return GoalProgress(goal=goal, best_time=None, count=None, reached=False)
     if goal.kind == KIND_TIME:
         times = participation_repository.athlete_season_times(db, athlete_id, goal.season, goal.event_type or "")

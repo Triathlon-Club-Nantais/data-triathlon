@@ -1,8 +1,9 @@
 """Private season goals of the claimed athlete (#1373)."""
-from datetime import date
+from datetime import date, datetime
 
 import pytest
 
+from app.core import season
 from app.core.exceptions import NotFoundError
 from app.models.athlete import Athlete
 from app.models.course import Course
@@ -10,10 +11,21 @@ from app.models.participation import Participation
 from app.models.season_goal import SeasonGoal
 from app.models.user import SYSTEM_USER_EMAIL
 from app.repositories import participation_repository, user_repository
+from app.schemas.season_goal import SeasonGoalWrite
 from app.services import season_goals
 from app.services.auth import accounts
 
 SEASON = 2025
+
+
+@pytest.fixture(autouse=True)
+def _clock(monkeypatch):
+    monkeypatch.setattr(season, "utcnow", lambda: datetime(SEASON, 10, 15, 12, 0, 0))
+
+
+def _write(**fields) -> SeasonGoalWrite:
+    return SeasonGoalWrite.model_construct(**{"event_type": None, "course_id": None, "race_name": None,
+                                              "race_date": None, "major": False, **fields})
 
 
 def _athlete(db, nom="Martin") -> Athlete:
@@ -75,8 +87,8 @@ def test_count_includes_relays_and_filters_by_format_when_asked(db_session, lea)
 
 def test_a_time_goal_reports_the_best_time_and_whether_it_is_reached(db_session, lea):
     _result(db_session, db_session.get(Athlete, lea.athlete_id), time="2:35:10")
-    missed = season_goals.create(db_session, lea, season=SEASON, kind="time", event_type="triathlon-m", target=9000)
-    reached = season_goals.create(db_session, lea, season=SEASON, kind="time", event_type="triathlon-m", target=9310)
+    missed = season_goals.create(db_session, lea, _write(kind="time", event_type="triathlon-m", target=9000))
+    reached = season_goals.create(db_session, lea, _write(kind="time", event_type="triathlon-m", target=9310))
 
     progress = {p.goal.id: p for p in season_goals.list_with_progress(db_session, lea, SEASON)}
 
@@ -88,7 +100,7 @@ def test_a_count_goal_reports_the_number_of_races(db_session, lea):
     athlete = db_session.get(Athlete, lea.athlete_id)
     _result(db_session, athlete)
     _result(db_session, athlete, event_type="triathlon-s")
-    goal = season_goals.create(db_session, lea, season=SEASON, kind="count", event_type=None, target=2)
+    goal = season_goals.create(db_session, lea, _write(kind="count", event_type=None, target=2))
 
     (progress,) = season_goals.list_with_progress(db_session, lea, SEASON)
 
@@ -99,7 +111,7 @@ def test_a_goal_needs_a_claimed_athlete(db_session):
     bare = user_repository.create(db_session, email="bare@exemple.fr", display_name="")
 
     with pytest.raises(season_goals.NoClaimedAthleteError):
-        season_goals.create(db_session, bare, season=SEASON, kind="count", event_type=None, target=3)
+        season_goals.create(db_session, bare, _write(kind="count", event_type=None, target=3))
 
 
 @pytest.mark.parametrize(
@@ -108,28 +120,27 @@ def test_a_goal_needs_a_claimed_athlete(db_session):
 )
 def test_an_inconsistent_goal_is_refused(db_session, lea, kind, event_type, target):
     with pytest.raises(season_goals.InvalidGoalError):
-        season_goals.create(db_session, lea, season=SEASON, kind=kind, event_type=event_type, target=target)
+        season_goals.create(db_session, lea, _write(kind=kind, event_type=event_type, target=target))
 
 
 def test_ten_goals_per_season_at_most(db_session, lea):
     for _ in range(season_goals.MAX_GOALS_PER_SEASON):
-        season_goals.create(db_session, lea, season=SEASON, kind="count", event_type=None, target=1)
+        season_goals.create(db_session, lea, _write(kind="count", event_type=None, target=1))
 
     with pytest.raises(season_goals.TooManyGoalsError):
-        season_goals.create(db_session, lea, season=SEASON, kind="count", event_type=None, target=1)
-    season_goals.create(db_session, lea, season=SEASON + 1, kind="count", event_type=None, target=1)
+        season_goals.create(db_session, lea, _write(kind="count", event_type=None, target=1))
 
 
 def test_only_the_owner_updates_or_deletes(db_session, lea):
-    goal = season_goals.create(db_session, lea, season=SEASON, kind="count", event_type=None, target=3)
+    goal = season_goals.create(db_session, lea, _write(kind="count", event_type=None, target=3))
     other = user_repository.create(db_session, email="autre@exemple.fr", display_name="")
 
     with pytest.raises(NotFoundError):
-        season_goals.update(db_session, other, goal.id, kind="count", event_type=None, target=5)
+        season_goals.update(db_session, other, goal.id, _write(kind="count", event_type=None, target=5))
     with pytest.raises(NotFoundError):
         season_goals.delete(db_session, other, goal.id)
 
-    season_goals.update(db_session, lea, goal.id, kind="time", event_type="triathlon-s", target=4000)
+    season_goals.update(db_session, lea, goal.id, _write(kind="time", event_type="triathlon-s", target=4000))
     assert (goal.kind, goal.event_type, goal.target) == ("time", "triathlon-s", 4000)
     season_goals.delete(db_session, lea, goal.id)
     assert db_session.get(SeasonGoal, goal.id) is None
@@ -137,7 +148,7 @@ def test_only_the_owner_updates_or_deletes(db_session, lea):
 
 def test_goals_go_with_the_account(db_session, lea):
     user_repository.create(db_session, email=SYSTEM_USER_EMAIL, display_name="")  # signs the deletion log
-    goal = season_goals.create(db_session, lea, season=SEASON, kind="count", event_type=None, target=3)
+    goal = season_goals.create(db_session, lea, _write(kind="count", event_type=None, target=3))
 
     accounts.delete_account(db_session, lea, origin="request")
 
