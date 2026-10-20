@@ -214,6 +214,10 @@ describe("Politique de confidentialité (#333)", () => {
     expect(rendre()).toMatch(/annuaire Microsoft du club[^.]*le club l.efface dans le mois qui suit la suppression du compte/i);
   });
 
+  it("says a claimed athlete page shows the attachment, never the account (#1693)", () => {
+    expect(rendre()).toContain("la fiche indique alors aux visiteurs qu'elle est rattachée à son athlète, sans montrer le compte ni son adresse");
+  });
+
   it("date la politique du jour de sa dernière modification", () => {
     expect(PRIVACY_POLICY.updatedAt).toBe("2026-10-20");
   });
