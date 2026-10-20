@@ -1,12 +1,11 @@
 "use client";
-import { useState } from "react";
+import Link from "next/link";
 import dynamic from "next/dynamic";
 import { usePathname, useRouter } from "next/navigation";
-import { DangerConfirm } from "@/components/admin/DangerConfirm";
 import { Avatar, Button } from "@/components/tcn";
 import { RETOUR_CONNEXION_KEY } from "@/lib/constants";
 import { nomComplet } from "@/components/layout/AthletePicker";
-import { useCancelAthleteClaim, useDeleteAccount, useDetachAthlete, useLogout, useSession } from "@/lib/queries/auth";
+import { useLogout, useSession } from "@/lib/queries/auth";
 import type { SessionUser } from "@/lib/types";
 
 // Le menu Base UI ne sert qu'à un connecté sur le rail : hors du premier
@@ -43,11 +42,6 @@ export function UserMenu({
 }) {
   const { data: session, isPending, errorUpdateCount, refetch, isFetching } = useSession();
   const logout = useLogout();
-  const suppression = useDeleteAccount();
-  const [suppressionOuverte, setSuppressionOuverte] = useState(false);
-  const detachement = useDetachAthlete();
-  const annulation = useCancelAthleteClaim();
-  const [detachementOuvert, setDetachementOuvert] = useState(false);
   const router = useRouter();
   const chemin = usePathname();
 
@@ -123,61 +117,6 @@ export function UserMenu({
     });
   };
 
-  const ouvrirLaSuppression = () => {
-    suppression.reset();
-    setSuppressionOuverte(true);
-  };
-  // `DangerConfirm` sous sa forme déclarative, qui ne dépend d'aucun provider :
-  // le menu se rend sur tout le site, hors des `DangerConfirmProvider` d'`/admin`.
-  const dialogDeSuppression = (
-    <DangerConfirm
-      open={suppressionOuverte}
-      onOpenChange={setSuppressionOuverte}
-      titre="Supprimer votre compte ?"
-      description={
-        <>
-          Votre compte, vos connexions, rôles et groupes sont effacés. Vos résultats et votre fiche athlète
-          restent publiés. Vous pourrez vous reconnecter plus tard : un compte neuf, sans rôle, sera créé.
-        </>
-      }
-      avertissement={suppression.error?.message}
-      enAttente={suppression.isPending}
-      onConfirm={() =>
-        suppression.mutate(undefined, {
-          onSuccess: () => {
-            setSuppressionOuverte(false);
-            router.push("/");
-            onNavigate?.();
-          },
-        })
-      }
-    />
-  );
-
-  // #1325 : le geste qui suit l'état de la fiche, à côté de « Se déconnecter ».
-  const actionsFiche = session.athlete
-    ? [{ label: "Me détacher de ma fiche", onClick: () => { detachement.reset(); setDetachementOuvert(true); } }]
-    : session.athlete_claim?.status === "pending"
-      ? [{ label: "Annuler la demande", onClick: () => annulation.mutate() }]
-      : [];
-  const dialogDeDetachement = session.athlete && (
-    <DangerConfirm
-      open={detachementOuvert}
-      onOpenChange={setDetachementOuvert}
-      titre="Vous détacher de votre fiche ?"
-      description={
-        <>
-          Votre compte ne sera plus lié à la fiche de {nomComplet(session.athlete)}, qui reste publiée avec ses
-          résultats. Pour la rattacher de nouveau, il faudra une nouvelle demande validée par le club.
-        </>
-      }
-      libelleAction="Me détacher"
-      avertissement={detachement.error?.message}
-      enAttente={detachement.isPending}
-      onConfirm={() => detachement.mutate(undefined, { onSuccess: () => setDetachementOuvert(false) })}
-    />
-  );
-
   // Tiroir mobile : l'état connecté se déplie **à plat**. Un menu déroulant
   // dans un tiroir serait un menu dans un menu, et son popup sortirait du
   // piège de focus du tiroir. Le lien « Administration » a été retiré (revue
@@ -192,35 +131,22 @@ export function UserMenu({
         <Button variant="secondary" disabled={logout.isPending} onClick={seDeconnecter}>
           Se déconnecter
         </Button>
-        {actionsFiche.map((action) => (
-          <Button key={action.label} variant="secondary" onClick={action.onClick}>
-            {action.label}
-          </Button>
-        ))}
-        <Button variant="destructive" onClick={ouvrirLaSuppression}>
-          Supprimer mon compte
-        </Button>
-        {dialogDeSuppression}
-        {dialogDeDetachement}
+        <Link href="/mon-compte" className="tcn-btn tcn-btn--md tcn-btn--secondary" onClick={onNavigate}>
+          Mon compte
+        </Link>
       </div>
     );
   }
 
   return (
-    <>
-      <UserMenuDropdown
+    <UserMenuDropdown
         email={session.email}
         nom={nom}
         deconnexionEnCours={logout.isPending}
         onDeconnexion={seDeconnecter}
-        onSuppression={ouvrirLaSuppression}
-        actions={actionsFiche}
       >
         <Identite session={session} />
       </UserMenuDropdown>
-      {dialogDeSuppression}
-      {dialogDeDetachement}
-    </>
   );
 }
 

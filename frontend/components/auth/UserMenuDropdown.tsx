@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import type { ReactNode } from "react";
 import { Avatar } from "@/components/tcn";
 import {
@@ -15,17 +16,12 @@ export function UserMenuDropdown({
   nom,
   deconnexionEnCours,
   onDeconnexion,
-  onSuppression,
-  actions = [],
   children,
 }: {
   email: string;
   nom: string;
   deconnexionEnCours: boolean;
   onDeconnexion: () => void;
-  onSuppression: () => void;
-  /** Gestes propres à l'état du compte (#1325), après « Se déconnecter ». */
-  actions?: { label: string; onClick: () => void }[];
   children: ReactNode;
 }) {
   return (
@@ -50,29 +46,17 @@ export function UserMenuDropdown({
             catégorie Administration de la nav la porte déjà, et un doublon
             dans le menu compte alourdit l'interface sans rien apporter. */}
         <DropdownMenuItem
+          render={<Link href="/mon-compte" />}
+          className="tcn-cible-tactile px-2 py-2 text-[14px] font-semibold"
+        >
+          Mon compte
+        </DropdownMenuItem>
+        <DropdownMenuItem
           disabled={deconnexionEnCours}
           onClick={onDeconnexion}
           className="tcn-cible-tactile px-2 py-2 text-[14px] font-semibold"
         >
           Se déconnecter
-        </DropdownMenuItem>
-        {actions.map((action) => (
-          <DropdownMenuItem
-            key={action.label}
-            onClick={action.onClick}
-            className="tcn-cible-tactile px-2 py-2 text-[14px] font-semibold"
-          >
-            {action.label}
-          </DropdownMenuItem>
-        ))}
-        {/* La couleur destructive va au seul geste sans retour (#499, #1326) :
-            se déconnecter se refait d'un clic. */}
-        <DropdownMenuItem
-          variant="destructive"
-          onClick={onSuppression}
-          className="tcn-cible-tactile px-2 py-2 text-[14px] font-semibold"
-        >
-          Supprimer mon compte
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
