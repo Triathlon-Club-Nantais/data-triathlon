@@ -360,7 +360,7 @@ def set_teammates(
     """
     participation = _participation_or_404(db, participation_id)
     lock_courses_or_409(db, participation.course_id)
-    if not (participation.is_relay or participation.course.is_relay):
+    if not participation.counts_as_relay:
         raise DomainError("Seul un résultat de relais peut être attribué à des équipiers.")
     if not MIN_RELAY_TEAMMATES <= len(teammates) <= MAX_RELAY_TEAMMATES:
         raise DomainError(

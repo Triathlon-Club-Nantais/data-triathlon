@@ -465,8 +465,13 @@ un résultat rangé sur une autre fiche. Seul point de passage :
 `participations` pour ignorer une ligne orpheline en SQLite). Validée, elle
 disparaît : le déplacement passe par `admin_actions.reassign_participation`
 (résultat figé, fiche vidée purgée, journal `participation.reassign` et
-`result_claim.approve`). Un relais se réclame aussi (#1739) : sans composition,
-la fiche du compte en devient le seul équipier (`participation_teammates`, nom
-d'équipe posé s'il manque) ; avec une composition, la validation est refusée
-(409) tant que l'admin n'y a pas ajouté le membre par `set_teammates`, puis la
-réclamation se clôt sans autre geste.
+`result_claim.approve`). Un relais (`Participation.counts_as_relay`) se réclame
+aussi (#1739) : sans composition, `set_teammates` pose l'équipe porteur puis
+membre, rien n'est purgé ; seul un porteur **sans prénom**, étiquette d'équipe,
+est remplacé par le membre (nom d'équipe posé s'il manque). Avec une
+composition, la validation est refusée (409) tant que l'admin n'y a pas ajouté
+le membre par `set_teammates`, puis la réclamation se clôt sans autre geste. Le
+journal porte `mode` (`joined_with_carrier`, `replaced_team_label`,
+`team_completed`), le couple `carrier.nom`/`carrier.prenom` et l'ancien
+`team_name`, que l'opposition efface. Un résultat en attente ou refusé répond
+comme un id inconnu (404) ; un porteur `Anonyme …` ne se réclame pas.

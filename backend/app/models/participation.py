@@ -143,6 +143,11 @@ class Participation(Base):
     def teammates(self) -> list["Athlete"]:  # noqa: F821
         return [link.athlete for link in self.teammate_links]
 
+    @property
+    def counts_as_relay(self) -> bool:
+        """Un relais pour les gestes (#894, #1739) : marqué sur la ligne ou sur toute l'épreuve."""
+        return self.is_relay or self.course.is_relay
+
 
 class ParticipationTeammate(Base):
     """Un équipier d'un résultat de relais : le résultat reste une seule ligne."""

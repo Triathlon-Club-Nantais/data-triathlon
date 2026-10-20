@@ -8,8 +8,9 @@ d'origine purgée si elle se vide, journal). La file est celle des rattachements
 de fiche (`/admin/rattachements`), en section distincte.
 
 Un relais (#1739) se réclame aussi : la fiche du compte rejoint sa composition
-(#894). Sans composition, elle en devient le seul équipier ; avec, l'admin la
-complète par « Attribuer aux équipiers », et la réclamation se clôt ensuite.
+(#894). Sans composition, elle s'ajoute à côté du porteur, sauf si le porteur
+n'est qu'une étiquette d'équipe (sans prénom) : elle la remplace. Avec une
+composition, l'admin la complète par « Attribuer aux équipiers ».
 """
 import logging
 from dataclasses import dataclass
@@ -32,6 +33,7 @@ from app.repositories import (
     result_claim_repository,
 )
 from app.services import admin_actions, audit
+from app.services.course_locks import lock_courses_or_409
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +48,7 @@ class NoClaimedAthleteError(DomainError):
 
 class UnclaimableResultError(DomainError):
     status_code = 409
-    message = "Ce résultat ne peut pas être réclamé : il est déjà sur votre fiche."
+    message = "Ce résultat ne peut pas être réclamé : il est déjà sur votre fiche, ou vous figurez déjà dans l'équipe."
 
 
 class TeamToCompleteError(DomainError):
@@ -67,11 +69,12 @@ def request_claim(db: Session, user: User, participation_id: int) -> ResultClaim
     if user.athlete_id is None:
         raise NoClaimedAthleteError()
     participation = participation_repository.get(db, participation_id)
-    # En attente, comme une absente : la réponse de `GET /participations/{id}` (#1519, #1615).
+    # Une saisie en attente ou refusée ne se devine pas : même réponse qu'un id inconnu.
     if participation is None or participation.is_pending_validation:
         raise NotFoundError("Résultat introuvable.")
     if (
         participation.athlete_id == user.athlete_id
+        or _is_anonymous(participation.athlete)
         or user.athlete_id in participation_repository.teammate_athlete_ids(db, participation_id)
     ):
         raise UnclaimableResultError()
@@ -83,6 +86,11 @@ def request_claim(db: Session, user: User, participation_id: int) -> ResultClaim
     claim = result_claim_repository.replace_pending(db, user_id=user.id, participation_id=participation_id)
     logger.info("Result claim requested: user=%s participation=%s", user.id, participation_id)
     return claim
+
+
+def _is_anonymous(athlete: Athlete) -> bool:
+    """Fiche d'une personne opposée (#1514) ou masquée par le chronométreur : elle ne se réclame pas."""
+    return not athlete.prenom and athlete.nom.startswith("Anonyme ")
 
 
 def cancel_claim(db: Session, user: User, claim_id: int) -> None:
@@ -100,20 +108,17 @@ def approve(db: Session, claim_id: int, *, actor_id: int) -> None:
     claim = result_claim_repository.get_pending(db, claim_id)
     if claim is None or claim.user.athlete_id is None:
         raise _claim_not_pending()
-    participation_id, user_id, target = claim.participation_id, claim.user_id, claim.user.athlete_id
-    participation = claim.participation
-    team = participation_repository.teammate_athlete_ids(db, participation_id)
-    if participation.is_relay or participation.course.is_relay:
-        if team and target not in team:
-            raise TeamToCompleteError()
-        if not team:
-            _join_empty_relay(db, participation, target, actor_id)
+    participation, target = claim.participation, claim.user.athlete_id
+    lock_courses_or_409(db, participation.course_id)
+    payload = {"user_id": claim.user_id, "athlete_id": target, "claim_id": claim_id}
+    if participation.counts_as_relay:
+        payload |= _join_relay(db, participation, target, actor_id)
     else:
-        _move(db, participation_id, target, actor_id)
+        _move(db, participation.id, target, actor_id)
     result_claim_repository.delete_claim(db, claim)
     audit.record(
-        db, actor_id, action="result_claim.approve", entity_type=_ENTITY, entity_id=participation_id,
-        payload={"user_id": user_id, "athlete_id": target, "claim_id": claim_id},
+        db, actor_id, action="result_claim.approve", entity_type=_ENTITY, entity_id=participation.id,
+        payload=payload,
     )
 
 
@@ -123,13 +128,27 @@ def _move(db: Session, participation_id: int, target: int, actor_id: int) -> Non
     admin_actions.reassign_participation(db, participation_id=participation_id, athlete_id=target, user_id=actor_id)
 
 
-def _join_empty_relay(db: Session, participation: Participation, target: int, actor_id: int) -> None:
-    """Le membre devient le seul équipier : la fiche au nom de l'équipe part, le nom
-    d'équipe reste (même formule que `set_teammates`), qui apparie le relais à l'import."""
+def _join_relay(db: Session, participation: Participation, target: int, actor_id: int) -> dict:
+    """La fiche du membre rejoint l'équipe ; rend ce que le journal doit en garder."""
+    team = participation_repository.teammate_athlete_ids(db, participation.id)
+    if team:
+        if target not in team:
+            raise TeamToCompleteError()
+        return {"mode": "team_completed"}
     carrier = participation.athlete
-    participation.team_name = participation.team_name or " ".join(filter(None, [carrier.nom, carrier.prenom]))
+    # `nom`/`prenom` groupés : l'opposition (`_redact_log`) efface ce couple du journal.
+    trace = {"carrier": {"nom": carrier.nom, "prenom": carrier.prenom}, "former_team_name": participation.team_name}
+    if carrier.prenom:
+        admin_actions.set_teammates(
+            db, participation_id=participation.id, teammates=[carrier.id, target], user_id=actor_id
+        )
+        return {"mode": "joined_with_carrier", **trace}
+    # Sans prénom, le porteur n'est qu'une étiquette d'équipe : le membre la remplace, son
+    # nom reste comme nom d'équipe (même formule que `set_teammates`) pour apparier l'import.
+    participation.team_name = participation.team_name or carrier.nom
     _move(db, participation.id, target, actor_id)
     participation_repository.replace_teammates(db, participation, [target])
+    return {"mode": "replaced_team_label", **trace}
 
 
 def reject(db: Session, claim_id: int, *, actor_id: int) -> None:
