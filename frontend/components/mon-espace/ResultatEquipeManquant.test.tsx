@@ -50,13 +50,17 @@ beforeEach(() => {
 describe("ResultatEquipeManquant (#1739)", () => {
   it("cherche_par_nom_et_affiche_les_lignes", async () => {
     afficher();
-    expect(screen.getByText("Un résultat d'équipe manque ?")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "Un résultat d'équipe manque ?" })).toBeInTheDocument();
     await chercher("mollets");
     expect(await screen.findByText("Les Mollets d'Acier")).toBeInTheDocument();
     expect(searchMyTeamResults).toHaveBeenCalledWith("mollets");
     expect(screen.getByText(/Swimrun de Nantes/)).toBeInTheDocument();
     expect(screen.getByText(/3:12:45/)).toBeInTheDocument();
-    expect(screen.getByText(/Paul Durand, Ana Roy/)).toBeInTheDocument();
+    expect(screen.getByText("Avec : Paul Durand, Ana Roy")).toBeInTheDocument();
+    expect(screen.getByText(/3e au scratch/)).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("1 résultat d'équipe");
+    expect(screen.getByLabelText("Nom de l'équipe")).toHaveAttribute("maxlength", "80");
+    expect(screen.getByLabelText("Nom de l'équipe")).toHaveAccessibleDescription("Au moins 3 caractères.");
   });
 
   it("bouton_chercher_inerte_sous_trois_caracteres", async () => {
@@ -70,7 +74,22 @@ describe("ResultatEquipeManquant (#1739)", () => {
     searchMyTeamResults.mockResolvedValue([]);
     afficher();
     await chercher("zzz");
-    expect(await screen.findByText("Aucun résultat d'équipe ne correspond à « zzz ».")).toBeInTheDocument();
+    expect(await screen.findByText(/Aucun résultat d'équipe ne correspond à « zzz »\./)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "ajoutez l'épreuve" })).toHaveAttribute("href", "/ajouter");
+  });
+
+  it("signale_une_liste_tronquee_a_dix", async () => {
+    searchMyTeamResults.mockResolvedValue(Array.from({ length: 10 }, (_, i) => ({ ...EQUIPE, participation_id: 100 + i })));
+    afficher();
+    await chercher("mollets");
+    expect(await screen.findByText("Les 10 résultats les plus récents : précisez le nom pour trouver un plus ancien.")).toBeInTheDocument();
+  });
+
+  it("ne_signale_pas_une_liste_courte", async () => {
+    afficher();
+    await chercher("mollets");
+    await screen.findByText("Les Mollets d'Acier");
+    expect(screen.queryByText(/plus récents/)).not.toBeInTheDocument();
   });
 
   it("un_clic_envoie_une_demande_d_equipe", async () => {
@@ -80,8 +99,12 @@ describe("ResultatEquipeManquant (#1739)", () => {
     getMyResultClaims.mockResolvedValue([demande("pending")]);
     await userEvent.click(bouton);
     expect(requestResultClaim).toHaveBeenCalledWith(5, "team");
-    expect(await screen.findByText("Demande envoyée, le club va vérifier.")).toBeInTheDocument();
+    const statut = await screen.findByText("Demande envoyée, le club va vérifier.");
     expect(screen.queryByRole("button", { name: /C'était mon équipe/ })).not.toBeInTheDocument();
+    await waitFor(() => expect(statut).toHaveFocus());
+    expect(screen.getAllByRole("status").map((n) => n.textContent)).toContain(
+      "Demande envoyée pour Les Mollets d'Acier, le club va vérifier.",
+    );
   });
 
   it("une_demande_refusee_peut_etre_renvoyee", async () => {
