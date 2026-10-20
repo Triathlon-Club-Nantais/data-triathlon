@@ -16,6 +16,9 @@ from app.core.time import utcnow
 STATUS_PENDING = "pending"
 STATUS_REJECTED = "rejected"
 
+KIND_RESULT = "result"
+KIND_TEAM = "team"
+
 
 class ResultClaim(Base):
     __tablename__ = "result_claims"
@@ -25,6 +28,7 @@ class ResultClaim(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     participation_id: Mapped[int] = mapped_column(ForeignKey("participations.id", ondelete="CASCADE"), index=True)
     status: Mapped[str] = mapped_column(String(16), index=True)
+    kind: Mapped[str] = mapped_column(String(16), default=KIND_RESULT, server_default=KIND_RESULT)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     decided_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 

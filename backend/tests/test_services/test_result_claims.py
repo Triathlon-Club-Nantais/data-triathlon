@@ -8,7 +8,7 @@ from app.models.admin_action_log import AdminActionLog
 from app.models.athlete import Athlete
 from app.models.course import Course
 from app.models.participation import Participation
-from app.models.result_claim import STATUS_PENDING, STATUS_REJECTED, ResultClaim
+from app.models.result_claim import KIND_RESULT, STATUS_PENDING, STATUS_REJECTED, ResultClaim
 from app.models.user import SYSTEM_USER_EMAIL
 from app.repositories import user_repository
 from app.services import athlete_claims, result_claims
@@ -210,3 +210,9 @@ def test_claims_go_with_the_account(db_session, lea, homonym):
     accounts.delete_account(db_session, lea, origin="request")
 
     assert db_session.get(ResultClaim, claim.id) is None
+
+
+def test_a_claim_is_a_result_claim_by_default(db_session, lea, homonym):
+    claim = result_claims.request_claim(db_session, lea, _result(db_session, homonym).id)
+
+    assert claim.kind == KIND_RESULT

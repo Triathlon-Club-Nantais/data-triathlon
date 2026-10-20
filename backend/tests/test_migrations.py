@@ -1614,11 +1614,33 @@ def test_result_claims_table_up_and_down(sqlite_url):
     cfg = _alembic_config()
     command.upgrade(cfg, "head")
     assert _columns(sqlite_url, "result_claims") == {
-        "id", "user_id", "participation_id", "status", "created_at", "decided_at",
+        "id", "user_id", "participation_id", "status", "created_at", "decided_at", "kind",
     }
 
     command.downgrade(cfg, "325c308cab2d")
     assert "result_claims" not in _tables(sqlite_url)
+
+
+def test_result_claim_kind_up_and_down(sqlite_url):
+    """#1739: existing claims become result claims; downgrade drops the column."""
+    cfg = _alembic_config()
+    command.upgrade(cfg, "23e9124847d5")
+    engine = sa.create_engine(sqlite_url)
+    try:
+        with engine.begin() as connection:
+            connection.execute(sa.text(
+                "INSERT INTO result_claims (user_id, participation_id, status, created_at)"
+                " VALUES (1, 1, 'pending', '2026-10-19 10:00:00')"
+            ))
+    finally:
+        engine.dispose()
+
+    command.upgrade(cfg, "head")
+    assert "kind" in _columns(sqlite_url, "result_claims")
+    assert _lignes(sqlite_url, "SELECT kind FROM result_claims") == [("result",)]
+
+    command.downgrade(cfg, "23e9124847d5")
+    assert "kind" not in _columns(sqlite_url, "result_claims")
 
 
 CLUB_ROLES = {

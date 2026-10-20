@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.core.time import utcnow
 from app.models.participation import Participation
-from app.models.result_claim import STATUS_PENDING, STATUS_REJECTED, ResultClaim
+from app.models.result_claim import KIND_RESULT, STATUS_PENDING, STATUS_REJECTED, ResultClaim
 from app.repositories.dialect import dialect_insert
 
 
@@ -40,9 +40,9 @@ def count_pending_for_user(db: Session, user_id: int) -> int:
     ) or 0
 
 
-def replace_pending(db: Session, *, user_id: int, participation_id: int) -> ResultClaim:
+def replace_pending(db: Session, *, user_id: int, participation_id: int, kind: str = KIND_RESULT) -> ResultClaim:
     """La réclamation en attente de ce compte sur ce résultat, remise en attente si refusée."""
-    values = {"status": STATUS_PENDING, "created_at": utcnow(), "decided_at": None}
+    values = {"status": STATUS_PENDING, "kind": kind, "created_at": utcnow(), "decided_at": None}
     db.flush()
     db.execute(
         dialect_insert(db)(ResultClaim)
