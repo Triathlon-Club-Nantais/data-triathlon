@@ -1,6 +1,8 @@
 """Séances récurrentes (#1291), contrat de contracts/api.md section Récurrences."""
 from datetime import date, timedelta
 
+import pytest
+
 from app.core.permissions import P
 from tests.test_api.test_admin_training_sessions import _session_avec
 
@@ -60,6 +62,7 @@ def test_full_cycle(client):
     assert client.get(SESSIONS).json() == []
 
 
+@pytest.mark.own_database
 def test_the_list_query_count_does_not_grow_with_recurrences(client, db_session):
     """#1558: never two queries per recurrence."""
     from sqlalchemy import event

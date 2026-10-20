@@ -5,6 +5,8 @@ Ajout **additif** : aucun champ existant ne change. La docstring de
 Principe IV, qui vise le champ retiré, la sémantique inversée et le code de
 retour modifié.
 """
+import pytest
+
 from app.core.permissions import P
 
 CHAMPS_114 = {"id", "email", "display_name", "created_at"}
@@ -90,6 +92,7 @@ def test_me_n_expose_toujours_ni_jeton_ni_identifiant_de_session(client, ouvrir_
     assert "session" not in corps
 
 
+@pytest.mark.own_database
 def test_me_tient_en_un_nombre_de_requetes_fixe_quel_que_soit_le_nombre_de_roles_et_de_groupes(
     client, db_session, ouvrir_session, organisation
 ):

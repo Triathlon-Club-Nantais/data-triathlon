@@ -3,6 +3,8 @@
 Seule couche qui touche la `Session` (Principe II) : ce que ces tests éprouvent
 est du SQL, pas de la règle métier — celle-ci vit dans `services/auth/`.
 """
+import pytest
+
 from app.models.organisation import Organisation
 from app.models.role_permission import RolePermission
 from app.repositories import role_repository, user_repository, user_role_repository
@@ -303,6 +305,7 @@ def _requetes(db_session, appel):
     return requetes
 
 
+@pytest.mark.own_database
 def test_count_holders_by_role_est_une_seule_requete_agregee(db_session):
     """#625 — un `count_holders` par rôle listé coûtait une requête par rôle."""
     organisation = _organisation(db_session)
@@ -343,6 +346,7 @@ def test_count_holders_by_role_sans_role_n_interroge_pas_la_base(db_session):
     assert requetes == []
 
 
+@pytest.mark.own_database
 def test_list_all_charge_les_permissions_sans_requete_par_role(db_session):
     """#625 — `role.permissions` en lazy-loading coûtait une requête par rôle,
     sans `selectinload` : `Role` puis `RolePermission`, chacun en un seul lot

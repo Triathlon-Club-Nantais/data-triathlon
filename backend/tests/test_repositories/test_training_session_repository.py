@@ -69,6 +69,7 @@ def test_count_participants_by_training_session_is_exact(db_session):
     assert comptes == {pleine.id: 2}
 
 
+@pytest.mark.own_database
 def test_count_participants_by_training_session_is_a_single_query(db_session):
     seances = [_create(db_session, date=date(2026, 9, 20 + i)) for i in range(3)]
     for seance in seances:

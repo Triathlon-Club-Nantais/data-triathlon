@@ -3,6 +3,8 @@
 Ce fichier tient le **parcours nominal** (FR-004) et les refus (FR-006 à FR-012).
 La non-amplification a son propre fichier ; les pouvoirs périmés aussi.
 """
+import pytest
+
 from app.core.permissions import P
 from app.models.organisation import Organisation
 from app.models.role import Role
@@ -435,6 +437,7 @@ def test_lister_les_roles_rend_le_bon_nombre_de_porteurs_par_role(
     assert porteurs_par_slug["orphelin"] == 0
 
 
+@pytest.mark.own_database
 def test_lister_les_roles_tient_en_un_nombre_de_requetes_fixe_quel_que_soit_le_nombre_de_roles(
     client, ouvrir_session, db_session
 ):
@@ -473,6 +476,7 @@ def test_lister_les_roles_tient_en_un_nombre_de_requetes_fixe_quel_que_soit_le_n
     assert len(requetes) == 7, requetes
 
 
+@pytest.mark.own_database
 def test_listing_users_issues_a_constant_number_of_queries(
     client, ouvrir_session, db_session
 ):
