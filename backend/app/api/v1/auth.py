@@ -15,7 +15,12 @@ from fastapi import APIRouter, Depends, Query, Request, Response
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
-from app.api.deps import authorize_rate_limit, current_user, require_site_access
+from app.api.deps import (
+    InsufficientPermissionError,
+    authorize_rate_limit,
+    current_user,
+    require_site_access,
+)
 from app.core import permissions
 from app.core.analytics import capture_event, set_person_properties
 from app.core.config import Settings, get_settings
@@ -41,12 +46,14 @@ from app.schemas.auth import (
     SessionUserRead,
 )
 from app.schemas.ids import DbId
+from app.schemas.opposition import OppositionPreviewRead
 from app.schemas.season_goal import SeasonGoalRead, SeasonGoalWrite
 from app.schemas.teammate import Teammate
 from app.schemas.volunteer_action import MyVolunteerActionOut
 from app.services import (
     athlete_claims,
     membership,
+    opposition_service,
     result_claims,
     season_goals,
     teammate_service,
@@ -426,6 +433,24 @@ def detach_athlete(user: User = Depends(current_user), db: Session = Depends(get
     """Se détache de sa fiche ; la fiche et ses résultats restent (#1325)."""
     athlete_claims.detach(db, user)
     db.commit()
+    return Response(status_code=204, headers=NO_STORE_HEADERS)
+
+
+def _linked_member(user: User = Depends(current_user)) -> User:
+    if user.athlete_id is None:
+        raise InsufficientPermissionError("Rattachez-vous d'abord à votre fiche pour exercer votre droit d'opposition.")
+    return user
+
+
+# Sans `require_site_access` : un droit RGPD ne dépend pas du code du site (#1673).
+@router.post("/auth/me/opposition/preview", response_model=OppositionPreviewRead)
+def preview_my_opposition(user: User = Depends(_linked_member), db: Session = Depends(get_db)):
+    return opposition_service.preview(db, athlete_id=user.athlete_id)
+
+
+@router.post("/auth/me/opposition", status_code=204)
+def apply_my_opposition(user: User = Depends(_linked_member), db: Session = Depends(get_db)):
+    opposition_service.apply_for_member(db, user)
     return Response(status_code=204, headers=NO_STORE_HEADERS)
 
 

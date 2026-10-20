@@ -16,7 +16,7 @@ from zoneinfo import ZoneInfo
 
 from sqlalchemy.orm import Session
 
-from app.core.exceptions import DomainError, NotFoundError
+from app.core.exceptions import DomainError, DuplicateError, NotFoundError
 from app.core.identity import identity_hash, opposition_key
 from app.core.time import utcnow
 from app.models.athlete import Athlete
@@ -293,6 +293,16 @@ def apply(
     )
     db.commit()
     return opposition, created
+
+
+def apply_for_member(db: Session, user: User) -> AthleteOpposition:
+    """Un adhérent rattaché s'oppose pour lui-même (#1673) ; ses homonymes passent par le club."""
+    if preview(db, athlete_id=user.athlete_id).athletes != 1:
+        raise DuplicateError(
+            "Votre nom correspond à plusieurs fiches. Écrivez au club pour exercer votre droit d'opposition."
+        )
+    opposition, _ = apply(db, user, athlete_id=user.athlete_id, requested_on=club_today())
+    return opposition
 
 
 def opposition_view(opposition: AthleteOpposition) -> dict:
