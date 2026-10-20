@@ -54,6 +54,7 @@ def test_list_training_session_views_reports_participant_count(db_session, actor
     assert vue["date"] == date(2026, 9, 20)
 
 
+@pytest.mark.own_database
 def test_list_training_session_views_query_count_does_not_grow_with_sessions(
     db_session, actor, profile
 ):

@@ -193,6 +193,7 @@ def test_resolving_twice_the_same_day_writes_nothing(db_session, monkeypatch, us
     assert user_updates == []
 
 
+@pytest.mark.own_database
 def test_resolving_the_next_day_bumps_last_seen_at_once_and_commits(db_session, monkeypatch, user_updates):
     _clock(monkeypatch, DAY_ONE)
     user = _user(db_session)
@@ -210,6 +211,7 @@ def test_resolving_the_next_day_bumps_last_seen_at_once_and_commits(db_session, 
     assert db_session.get(type(user), user.id).last_seen_at == next_day
 
 
+@pytest.mark.own_database
 def test_the_bump_never_commits_the_request_session(db_session, monkeypatch):
     """The once-a-day write goes through its own session: pending request state stays pending."""
     from app.models.user_feedback import UserFeedback

@@ -1,19 +1,21 @@
 """
 Fixtures partagées des tests.
 
-Base SQLite en mémoire isolée par test + TestClient FastAPI avec la dépendance
-`get_db` surchargée pour pointer sur cette base.
+Base SQLite en mémoire, schéma posé une fois par worker et chaque test dans une
+transaction annulée (#1706) + TestClient FastAPI avec la dépendance `get_db`
+surchargée pour pointer sur cette base.
 """
 import atexit
 import os
 import shutil
 import tempfile
+from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import create_engine, event
+from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.core import config as _config
@@ -191,17 +193,83 @@ def _postgres_engine():
     engine.dispose()
 
 
+def _sqlite_engine_with_schema(*, savepoints: bool, foreign_keys: bool = False):
+    """Moteur SQLite mémoire, schéma posé par `create_all`."""
+    import app.models  # noqa: F401 — enregistre toutes les tables sur Base.metadata
+    from app.core.database import Base
+
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+
+    @event.listens_for(engine, "connect")
+    def _connect(dbapi_connection, _record):
+        if savepoints:
+            # Contournement pysqlite de la documentation SQLAlchemy 2.0 (avec
+            # l'événement `begin`) : sans lui, le pilote émet ses propres
+            # BEGIN/COMMIT et les SAVEPOINT ne tiennent pas.
+            dbapi_connection.isolation_level = None
+        if foreign_keys:
+            # Avant toute transaction : SQLite ignore ce PRAGMA à l'intérieur d'une.
+            dbapi_connection.execute("PRAGMA foreign_keys=ON")
+
+    if savepoints:
+        @event.listens_for(engine, "begin")
+        def _begin(connection):
+            connection.exec_driver_sql("BEGIN")
+
+    Base.metadata.create_all(bind=engine)
+    return engine
+
+
+@pytest.fixture(scope="session")
+def _sqlite_engine():
+    """Schéma posé une fois par worker xdist (#1706)."""
+    engine = _sqlite_engine_with_schema(savepoints=True)
+    yield engine
+    engine.dispose()
+
+
+@pytest.fixture(scope="session")
+def _sqlite_engine_fk():
+    engine = _sqlite_engine_with_schema(savepoints=True, foreign_keys=True)
+    yield engine
+    engine.dispose()
+
+
+@contextmanager
+def _rolled_back_session(engine):
+    """Une `Session` vierge dans une transaction annulée en fin de test : ses
+    `commit()` et `rollback()` ne portent que sur des SAVEPOINT (recette SQLAlchemy
+    « Joining a Session into an External Transaction »)."""
+    with engine.connect() as connection:
+        transaction = connection.begin()
+        session = Session(
+            bind=connection, autoflush=False, join_transaction_mode="create_savepoint"
+        )
+        try:
+            yield session
+        finally:
+            session.close()
+            transaction.rollback()
+
+
 @pytest.fixture
-def db_session(_postgres_engine):
+def db_session(request, _postgres_engine, _sqlite_engine):
     """Session SQLAlchemy sur une base jetable, schéma créé via les modèles.
 
-    SQLite en mémoire par défaut. Sous `TEST_POSTGRES_URL`, la base de la session,
-    vidée en fin de test et ses séquences remises à 1 : les tests de concurrence
-    commitent depuis plusieurs connexions, un rollback englobant ne les
-    isolerait pas. `DELETE` plutôt que `TRUNCATE`, quatre fois plus lent sur des
-    tables presque vides.
+    SQLite en mémoire par défaut, partagée par le worker : le test tourne dans
+    une transaction annulée à la fin, ses `commit()` deviennent des SAVEPOINT.
+    Un test qui observe ces frontières (il compte les instructions SQL, ou du
+    code commite par une session à part) porte le marqueur `own_database` et
+    reçoit sa propre base, comme avant #1706. Sous `TEST_POSTGRES_URL`, la base de la
+    session, vidée en fin de test et ses séquences remises à 1 : les tests de
+    concurrence commitent depuis plusieurs connexions, un rollback englobant ne
+    les isolerait pas. `DELETE` plutôt que `TRUNCATE`, quatre fois plus lent sur
+    des tables presque vides.
     """
-    import app.models  # noqa: F401 — enregistre toutes les tables sur Base.metadata
     from app.core.database import Base
 
     if _postgres_engine is not None:
@@ -218,48 +286,26 @@ def db_session(_postgres_engine):
                 )
         return
 
-    engine = create_engine(
-        "sqlite://",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-    Base.metadata.create_all(bind=engine)
-    session_factory = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-    session = session_factory()
-    try:
+    if request.node.get_closest_marker("own_database"):
+        engine = _sqlite_engine_with_schema(savepoints=False)
+        session = Session(bind=engine, autoflush=False)
+        try:
+            yield session
+        finally:
+            session.close()
+            engine.dispose()
+        return
+
+    with _rolled_back_session(_sqlite_engine) as session:
         yield session
-    finally:
-        session.close()
-        Base.metadata.drop_all(bind=engine)
-        engine.dispose()
 
 
 @pytest.fixture
-def db_session_fk():
+def db_session_fk(_sqlite_engine_fk):
     """Comme `db_session`, mais avec `PRAGMA foreign_keys=ON` : les FK s'y
     vérifient comme en PostgreSQL, là où `database.py` les laisse inertes."""
-    from sqlalchemy import event
-
-    import app.models  # noqa: F401
-    from app.core.database import Base
-
-    engine = create_engine(
-        "sqlite://",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-
-    @event.listens_for(engine, "connect")
-    def _foreign_keys_on(dbapi_connection, _record):
-        dbapi_connection.execute("PRAGMA foreign_keys=ON")
-
-    Base.metadata.create_all(bind=engine)
-    session = sessionmaker(autocommit=False, autoflush=False, bind=engine)()
-    try:
+    with _rolled_back_session(_sqlite_engine_fk) as session:
         yield session
-    finally:
-        session.close()
-        engine.dispose()
 
 
 @pytest.fixture

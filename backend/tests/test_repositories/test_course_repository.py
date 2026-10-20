@@ -386,8 +386,7 @@ def test_le_filtre_scope_club_utilise_l_index_fonctionnel(db_session):
     count_stmt = select(func.count()).select_from(qobj.statement.subquery())
     compiled = count_stmt.compile(db_session.bind, compile_kwargs={"literal_binds": True})
 
-    with db_session.bind.connect() as conn:
-        plan = [tuple(row) for row in conn.execute(text(f"EXPLAIN QUERY PLAN {compiled}"))]
+    plan = [tuple(row) for row in db_session.execute(text(f"EXPLAIN QUERY PLAN {compiled}"))]
 
     plan_text = " | ".join(str(row) for row in plan)
     assert "ix_participations_counts_for_tcn" in plan_text, plan_text
@@ -643,8 +642,7 @@ def test_active_source_url_lookup_uses_the_url_index(db_session):
     query = course_repository._by_active_source(db_session, CourseSource.url == "https://x")
     compiled = query.statement.compile(db_session.bind, compile_kwargs={"literal_binds": True})
 
-    with db_session.bind.connect() as conn:
-        plan = [tuple(row) for row in conn.execute(text(f"EXPLAIN QUERY PLAN {compiled}"))]
+    plan = [tuple(row) for row in db_session.execute(text(f"EXPLAIN QUERY PLAN {compiled}"))]
 
     plan_text = " | ".join(str(row) for row in plan)
     assert "ix_course_sources_url_active" in plan_text, plan_text

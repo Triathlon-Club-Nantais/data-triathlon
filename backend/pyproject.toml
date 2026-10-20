@@ -71,6 +71,7 @@ faulthandler_timeout = 120
 markers = [
     "integration: tests nécessitant un accès réseau réel (pytest -m integration)",
     "migrations: tests Alembic lents, désélectionnés sauf avec --migrations",
+    "own_database: db_session sur sa propre base SQLite plutôt que dans la transaction annulée du worker (le test compte les instructions SQL ou observe un commit d'une autre session)",
 ]
 
 [tool.ruff]
