@@ -82,3 +82,9 @@ backend/.claude/
 graphify-out/
 
 .testmondata*
+
+# Mutation (mutmut, Stryker)
+mutants/
+.mutmut-cache
+frontend/reports/
+frontend/.stryker-tmp/
