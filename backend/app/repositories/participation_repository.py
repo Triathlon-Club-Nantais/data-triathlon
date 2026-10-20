@@ -2022,6 +2022,33 @@ def athlete_season_times(db: Session, athlete_id: int, season: int, event_type: 
     ))
 
 
+def athlete_race_times(
+    db: Session, athlete_id: int, *, course_id: int | None, event_date: date | None, event_type: str | None
+) -> list[str | None]:
+    """Résultats exploitables d'une fiche sur une épreuve cible (#1694), `total_time`
+    compris quand il est vide : même exclusions que `athlete_season_times`. L'épreuve
+    se désigne par `course_id`, sinon par sa date (et son format s'il est fixé)."""
+    query = (
+        select(Participation.total_time)
+        .join(Course, Participation.course_id == Course.id)
+        .where(
+            Participation.athlete_id == athlete_id,
+            validated_clause(Participation.is_pending_validation),
+            Participation.is_relay.is_(False),
+            func.coalesce(Course.is_relay, False).is_(False),
+            func.coalesce(Course.is_reliable, True).is_(True),
+            func.upper(func.coalesce(Participation.status, "")).notin_((STATUS_DNF, STATUS_DNS, STATUS_DSQ)),
+        )
+    )
+    if course_id is not None:
+        query = query.where(Participation.course_id == course_id)
+    else:
+        query = query.where(Course.event_date == event_date)
+        if event_type is not None:
+            query = query.where(Course.event_type == event_type)
+    return list(db.scalars(query))
+
+
 def athlete_season_count(db: Session, athlete_id: int, season: int, event_type: str | None) -> int:
     """Épreuves courues par une fiche sur une saison, relais compris (`carried_by`,
     #1373) : résultats validés, hors non-partants (un abandon ou une

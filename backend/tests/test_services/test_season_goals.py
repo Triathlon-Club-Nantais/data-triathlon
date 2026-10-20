@@ -173,3 +173,74 @@ def test_goals_go_with_the_account(db_session, lea):
     accounts.delete_account(db_session, lea, origin="request")
 
     assert db_session.get(SeasonGoal, goal.id) is None
+
+
+RACE_DAY = date(2026, 6, 7)
+
+
+def _race_goal(db, user, **fields):
+    return season_goals.create(db, user, _write(kind="race", race_name="Ma course", race_date=RACE_DAY, **fields))
+
+
+def _progress_of(db, user):
+    (progress,) = season_goals.list_with_progress(db, user, SEASON)
+    return progress
+
+
+def test_race_goal_upcoming_then_awaiting(db_session, lea, monkeypatch):
+    _race_goal(db_session, lea)
+    assert _progress_of(db_session, lea).outcome == "upcoming"
+    monkeypatch.setattr(season, "utcnow", lambda: datetime(2026, 6, 8, 12, 0, 0))
+    progress = _progress_of(db_session, lea)
+    assert (progress.outcome, progress.reached) == ("awaiting_results", False)
+
+
+def test_race_goal_on_race_day_is_upcoming(db_session, lea, monkeypatch):
+    _race_goal(db_session, lea)
+    monkeypatch.setattr(season, "utcnow", lambda: datetime(2026, 6, 7, 23, 0, 0))
+    assert _progress_of(db_session, lea).outcome == "upcoming"
+
+
+def test_known_course_goal_closes_on_result(db_session, lea):
+    row = _result(db_session, db_session.get(Athlete, lea.athlete_id), day=RACE_DAY)
+    season_goals.create(db_session, lea, _write(kind="race", course_id=row.course_id))
+    assert _progress_of(db_session, lea).outcome == "reached"
+
+
+def test_free_race_goal_closes_by_date(db_session, lea):
+    athlete = db_session.get(Athlete, lea.athlete_id)
+    _result(db_session, athlete, day=RACE_DAY, time="2:35:10")
+    _result(db_session, athlete, day=RACE_DAY, time="2:50:00")
+    base = {"event_type": "triathlon-m"}
+    season_goals.create(db_session, lea, _write(kind="race", race_name="A", race_date=RACE_DAY, target=9310, **base))
+    season_goals.create(db_session, lea, _write(kind="race", race_name="B", race_date=RACE_DAY, target=9000, **base))
+    got = {p.goal.race_name: p for p in season_goals.list_with_progress(db_session, lea, SEASON)}
+    assert (got["A"].outcome, got["A"].best_time) == ("reached", "2:35:10")
+    assert (got["B"].outcome, got["B"].best_time) == ("missed", "2:35:10")
+
+
+def test_dnf_or_pending_does_not_close(db_session, lea, monkeypatch):
+    athlete = db_session.get(Athlete, lea.athlete_id)
+    _result(db_session, athlete, day=RACE_DAY, status="DNF", time=None)
+    _result(db_session, athlete, day=RACE_DAY, is_pending_validation=True)
+    _race_goal(db_session, lea, event_type="triathlon-m")
+    monkeypatch.setattr(season, "utcnow", lambda: datetime(2026, 6, 8, 12, 0, 0))
+    progress = _progress_of(db_session, lea)
+    assert (progress.reached, progress.outcome) == (False, "awaiting_results")
+
+
+def test_result_without_time_with_target_is_awaiting(db_session, lea):
+    _result(db_session, db_session.get(Athlete, lea.athlete_id), day=RACE_DAY, time=None)
+    _race_goal(db_session, lea, event_type="triathlon-m", target=9000)
+    assert _progress_of(db_session, lea).outcome == "awaiting_results"
+
+
+def test_past_season_time_goal_is_missed(db_session, lea, monkeypatch):
+    season_goals.create(db_session, lea, _write(kind="time", event_type="triathlon-m", target=9000))
+    monkeypatch.setattr(season, "utcnow", lambda: datetime(SEASON + 1, 10, 15, 12, 0, 0))
+    assert _progress_of(db_session, lea).outcome == "missed"
+
+
+def test_current_season_unreached_goal_is_upcoming(db_session, lea):
+    season_goals.create(db_session, lea, _write(kind="time", event_type="triathlon-m", target=9000))
+    assert _progress_of(db_session, lea).outcome == "upcoming"
