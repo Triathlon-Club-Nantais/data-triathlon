@@ -57,8 +57,15 @@ describe("MesChiffres", () => {
   it("shows a labelled dash instead of 0 when no race has a distance", () => {
     render(<MesChiffres courant={{ ...COURANT, km: 0, sansDistance: 8 }} precedent={null} />);
 
-    expect(screen.getByLabelText("Distance inconnue")).toHaveTextContent("—");
+    expect(screen.getByText("Distance inconnue")).toBeInTheDocument();
+    expect(screen.getByText("Kilomètres").nextSibling).toHaveTextContent("—");
     expect(screen.getByText("8 épreuves sans distance")).toBeVisible();
+  });
+
+  it("shows a dash when every race is a relay (no personal distance)", () => {
+    render(<MesChiffres courant={{ ...COURANT, km: 0, sansDistance: 0 }} precedent={null} />);
+
+    expect(screen.getByText("Distance inconnue")).toBeInTheDocument();
   });
 
   it("keeps 0 km when there is no race", () => {
