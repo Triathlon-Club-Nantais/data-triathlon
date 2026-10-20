@@ -66,9 +66,10 @@ Design complet : `specs/20260825-103900-tables-liees/`.
 écrans rendent **deux arbres**, la grille et une liste de cartes, que deux
 classes Tailwind font alterner en CSS pure : `hidden min-[Npx]:block`/
 `min-[Npx]:hidden` pour le classement (plancher 1 080 px, seuil 1 237 px), la
-fiche athlète et Mon espace (988 px, mesurés sur le conteneur
-`@container` du composant par `@min-[988px]:`, pas sur le viewport, #1720) et `/resultats` (948 px, seuil
-1 105 px) ; `sm` pour `/ajouter` (480 px, tient déjà sous 640 px une fois le
+fiche athlète et Mon espace (988 px = `MIN_WIDTH`, mesurés par
+`@min-[988px]:` sur un `@container` posé dans la carte, pas sur le viewport,
+#1720) et `/resultats` (948 px,
+seuil 1 105 px) ; `sm` pour `/ajouter` (480 px, tient déjà sous 640 px une fois le
 chrome ajouté). Le dessin de la carte vit une seule fois, dans
 `components/tcn/LigneCarte.tsx` — **sans état, donc sans `"use client"`**, ce
 qui laisse `/ajouter` en Server Component. Cinq points qui se re-cassent :
