@@ -10,7 +10,7 @@ export const GUIDE_MEMBRE: GuideSection[] = [
       "Voir les dernières épreuves du club sur « Accueil », puis ouvrir « Mon espace » pour votre saison et choisir la ou les saisons à afficher avec le sélecteur de saison.",
       "Filtrer par discipline dans « Mon espace » si besoin.",
     ],
-    captures: [{ src: "/guide/membre/dashboard.jpg", alt: "Tableau de bord du club avec classement et épreuves récentes" }],
+    captures: [{ src: "/guide/membre/accueil.jpg", alt: "Accueil du club : la dernière sortie et les raccourcis vers chaque espace" }],
   },
   {
     id: "club",
