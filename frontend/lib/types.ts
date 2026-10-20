@@ -994,6 +994,7 @@ export interface ParticipationFilters {
 export interface AuthMethod {
   slug: string;
   label: string;
+  audience: "member" | "admin";
 }
 
 /** Identité de la session courante, rendue par `GET /auth/me`. */
