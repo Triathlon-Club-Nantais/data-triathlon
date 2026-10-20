@@ -49,7 +49,7 @@ class InvalidRaceGoalError(InvalidGoalError):
 
 
 class RaceWithoutDateError(InvalidGoalError):
-    message = "Cette épreuve n'a pas de date : indiquez le nom et la date vous même."
+    message = "Cette épreuve n'a pas de date : indiquez le nom et la date vous-même."
 
 
 class RaceOutsideSeasonError(InvalidGoalError):

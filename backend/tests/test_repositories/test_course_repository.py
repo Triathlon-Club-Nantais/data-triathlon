@@ -308,6 +308,41 @@ def test_delete_emporte_les_participations_de_l_epreuve(db_session):
     assert restantes == 0
 
 
+def _objectif_sur(db_session, course):
+    from app.models.season_goal import SeasonGoal
+    from app.models.user import User
+
+    user = User(email="objectif@exemple.fr")
+    db_session.add(user)
+    db_session.flush()
+    goal = SeasonGoal(user_id=user.id, season=2026, kind="race", course_id=course.id, race_name="X")
+    db_session.add(goal)
+    db_session.flush()
+    return goal
+
+
+def test_delete_detache_les_objectifs_de_saison(db_session):
+    """`ON DELETE SET NULL` est inerte en SQLite : le détachement est explicite."""
+    course = _epreuve_peuplee(db_session, "Cible", 1)
+    goal = _objectif_sur(db_session, course)
+
+    course_repository.delete(db_session, course)
+    db_session.flush()
+    db_session.refresh(goal)
+
+    assert goal.course_id is None
+
+
+def test_delete_all_detache_les_objectifs_de_saison(db_session):
+    course = _epreuve_peuplee(db_session, "Cible", 1)
+    goal = _objectif_sur(db_session, course)
+
+    course_repository.delete_all(db_session)
+    db_session.refresh(goal)
+
+    assert goal.course_id is None
+
+
 def test_delete_ne_touche_pas_les_epreuves_voisines(db_session):
     from app.models.participation import Participation
 

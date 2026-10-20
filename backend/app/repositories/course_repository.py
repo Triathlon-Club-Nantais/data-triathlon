@@ -4,7 +4,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
-from sqlalchemy import case, func, or_, select
+from sqlalchemy import case, func, or_, select, update
 from sqlalchemy.orm import Session, load_only, selectinload
 from sqlalchemy.sql.elements import ColumnElement
 
@@ -15,6 +15,7 @@ from app.models.absorbed_course import AbsorbedCourse
 from app.models.course import Course
 from app.models.course_source import CourseSource
 from app.models.participation import Participation
+from app.models.season_goal import SeasonGoal
 from app.repositories import ignored_course_duplicate_repository
 from app.repositories.athlete_repository import escape_like, unaccent_like
 from app.repositories.dialect import is_postgres
@@ -457,8 +458,13 @@ def delete(db: Session, course: Course) -> None:
     `db.delete(course)` qui suit, invisible en SQLite mais un
     `ForeignKeyViolation` en PostgreSQL. Ce même appel couvre la fusion (#287),
     qui supprime l'absorbée par ce chemin.
+
+    **`season_goals.course_id` mis à NULL explicitement** (#1694) : son
+    `ON DELETE SET NULL` est inerte en SQLite, l'objectif y garderait un id
+    pendant. L'objectif survit, il a recopié le nom et la date.
     """
     ignored_course_duplicate_repository.delete_for_course(db, course.id)
+    db.execute(update(SeasonGoal).where(SeasonGoal.course_id == course.id).values(course_id=None))
     db.delete(course)
 
 
@@ -501,6 +507,8 @@ def delete_all(db: Session) -> int:
     # Sans `ondelete` vers `courses.id` non plus (#983).
     db.query(AbsorbedCourse).delete(synchronize_session=False)
     ignored_course_duplicate_repository.delete_all(db)
+    # `ON DELETE SET NULL` inerte en SQLite : détachement explicite (#1694).
+    db.execute(update(SeasonGoal).where(SeasonGoal.course_id.is_not(None)).values(course_id=None))
     deleted = db.query(Course).delete(synchronize_session=False)
     db.flush()
     return deleted

@@ -192,7 +192,7 @@ function GoalForm({ goal, onDone }: { goal: SeasonGoal | null; onDone: () => voi
         />
       )}
       <label htmlFor={`${ids}-type`} style={{ fontWeight: 600 }}>Discipline</label>
-      <select id={`${ids}-type`} className="tcn-input" value={eventType} onChange={(e) => setEventType(e.target.value)}>
+      <select id={`${ids}-type`} className="tcn-input" value={eventType} disabled={kind === "race" && connue !== null && !libre} onChange={(e) => setEventType(e.target.value)}>
         <option value="">{kind === "time" ? "Choisir…" : "Toutes disciplines"}</option>
         {EVENT_TYPE_OPTIONS.map((option) => (
           <option key={option.value} value={option.value}>{option.label}</option>
@@ -287,10 +287,10 @@ function ChoixEpreuve(props: {
         <p role="alert" style={{ margin: 0, color: "var(--tcn-danger)", fontSize: 13 }}>{resultats.error.message}</p>
       )}
       <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "grid", gap: 6 }}>
-        {resultats.data?.map((course) => (
+        {resultats.data?.filter((course) => !course.is_relay && course.is_reliable !== false).map((course) => (
           <li key={course.id}>
             <Button type="button" variant="secondary" size="sm" onClick={() => { setFocuser(true); props.onChoisir(course); }}>
-              {course.name}{course.event_date ? `, ${formatDate(course.event_date)}` : ""}
+              {course.name}{course.event_date ? `, ${formatDate(course.event_date)}` : ""} ({eventTypeLabel(course.event_type)})
             </Button>
           </li>
         ))}
