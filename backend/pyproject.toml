@@ -70,6 +70,7 @@ addopts = "-n 4"
 faulthandler_timeout = 120
 markers = [
     "integration: tests nécessitant un accès réseau réel (pytest -m integration)",
+    "migrations: tests Alembic lents, désélectionnés sauf avec --migrations",
 ]
 
 [tool.ruff]

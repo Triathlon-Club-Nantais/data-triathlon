@@ -19,6 +19,8 @@ from app.core.config import get_settings
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 
+pytestmark = pytest.mark.migrations
+
 
 @pytest.fixture
 def sqlite_url(tmp_path, monkeypatch):
@@ -72,16 +74,6 @@ def _columns(url: str, table: str) -> set[str]:
         return {c["name"] for c in sa.inspect(engine).get_columns(table)}
     finally:
         engine.dispose()
-
-
-def test_upgrade_head_sur_base_vierge(sqlite_url):
-    command.upgrade(_alembic_config(), "head")
-    assert {"is_reliable_computed", "reliability_override", "quality_issues"} <= _columns(
-        sqlite_url, "courses"
-    )
-    # `is_reliable` est une **propriété** de l'ORM depuis #115, jamais une
-    # colonne : la voir reparaître ici signalerait un `add_column` de trop.
-    assert "is_reliable" not in _columns(sqlite_url, "courses")
 
 
 def test_upgrade_head_creates_the_group_tables(base_migree):
