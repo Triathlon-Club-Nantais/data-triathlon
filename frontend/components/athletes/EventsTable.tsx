@@ -33,7 +33,7 @@ const TRACKS: Track[] = [120, { flexMin: 200 }, 150, 90, 120, 120, 28];
 const GAP = 18;
 const PADDING_X = 26;
 const COLS = gridColumns(TRACKS);
-const MIN_WIDTH = gridMinWidth(TRACKS, { gap: GAP, paddingX: PADDING_X });
+export const MIN_WIDTH = gridMinWidth(TRACKS, { gap: GAP, paddingX: PADDING_X });
 
 /** Paramètres d'URL des deux filtres. Absents = tout afficher. */
 const SEASON_PARAM = "season";
@@ -240,8 +240,8 @@ export function EventsTable({
   }
 
   return (
-    <div className="@container">
     <Card padding={0} style={{ overflow: "hidden" }}>
+    <div className="@container">
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 26px 16px", flexWrap: "wrap", gap: 8 }}>
         <h2 style={{ fontFamily: "var(--tcn-font-display)", fontSize: 22, fontWeight: 400, color: "var(--tcn-ink)", margin: 0 }}>Toutes les épreuves</h2>
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
@@ -345,9 +345,9 @@ export function EventsTable({
         <div
           data-testid="epreuves-grille"
           data-affichage="grille"
-          // `@min-[988px]` = MIN_WIDTH, mesuré sur le conteneur `@container` du
-          // composant et non sur le viewport : la colonne centrale de Mon
-          // espace est plus étroite que la fiche athlète à viewport égal (#1720).
+          // `@min-[988px]` = MIN_WIDTH, mesuré sur le `@container` posé dans la
+          // carte (bordure exclue) et non sur le viewport : la colonne centrale
+          // de Mon espace est plus étroite que la fiche athlète (#1720).
           className="hidden @min-[988px]:block overflow-x-auto"
           role="region"
           aria-label="Épreuves, défilement horizontal"
@@ -517,7 +517,7 @@ export function EventsTable({
         </div>
         </>
       )}
-    </Card>
     </div>
+    </Card>
   );
 }

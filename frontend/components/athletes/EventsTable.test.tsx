@@ -40,7 +40,7 @@ vi.mock("@/lib/queries/admin", () => ({
   useAdminAthleteSearch: () => ({ data: undefined, isFetching: false }),
 }));
 
-import { EventsTable } from "./EventsTable";
+import { EventsTable, MIN_WIDTH } from "./EventsTable";
 
 const ATHLETE = { id: 7, nom: "DUPONT", prenom: "Jean", gender: "M", club: "TCN" };
 
@@ -465,8 +465,8 @@ describe("rendu carte sous md", () => {
       />,
     );
 
-    expect(screen.getByTestId("epreuves-grille").className).toContain("hidden @min-[988px]:block");
-    expect(screen.getByTestId("epreuves-cartes").className).toContain("@min-[988px]:hidden");
+    expect(screen.getByTestId("epreuves-grille").className).toContain(`hidden @min-[${MIN_WIDTH}px]:block`);
+    expect(screen.getByTestId("epreuves-cartes").className).toContain(`@min-[${MIN_WIDTH}px]:hidden`);
   });
 
   it("mesure la largeur de la carte et non celle du viewport (#1720)", () => {
@@ -474,7 +474,9 @@ describe("rendu carte sous md", () => {
       <EventsTable participations={[participation(1, { name: "Triathlon de Nantes" })]} athleteId={7} athleteName="Jean DUPONT" />,
     );
 
-    expect(screen.getByTestId("epreuves-grille").closest(".\\@container")).not.toBeNull();
+    const conteneur = screen.getByTestId("epreuves-grille").closest(".\\@container");
+    // Dans la carte : sa bordure ne doit pas rogner la largeur mesurée.
+    expect((conteneur?.parentElement as HTMLElement).style.overflow).toBe("hidden");
   });
 
   it.each([

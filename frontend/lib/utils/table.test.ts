@@ -30,7 +30,7 @@ describe("gridMinWidth", () => {
 });
 
 /**
- * Garde-fou du plancher de bascule grille/cartes des quatre écrans de #461
+ * Garde-fou du plancher de bascule grille/cartes des écrans de #461 à seuil viewport
  * (revue UI/UX). Tailwind ne scanne que du texte littéral : le cran
  * `min-[Npx]:` posé dans chaque JSX ne peut pas référencer `CHROME_RAIL_REPLIE`
  * par le code, donc rien ne l'alerte si un écran gagne une colonne sans que
