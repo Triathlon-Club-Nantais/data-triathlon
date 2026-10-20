@@ -6,7 +6,7 @@ import { BestTimesCard } from "@/components/athletes/BestTimesCard";
 import { Card, Eyebrow } from "@/components/tcn";
 import { apiClient } from "@/lib/api/client";
 import { RecapObjectifs } from "@/components/dashboard/RecapObjectifs";
-import { useHydratedSession } from "@/lib/queries/auth";
+import { useHydratedSession, useSeasonGoals } from "@/lib/queries/auth";
 import { isPodium } from "@/lib/utils/club-aggregate";
 import { formatDate } from "@/lib/utils/date";
 import { motCompte, ordinalFr } from "@/lib/utils/format";
@@ -26,6 +26,8 @@ export function SeasonRecap({ season, lastClosed }: { season: number; lastClosed
     enabled: athlete !== null,
     retry: false,
   });
+  // Lancée avec le récap, pas après lui : « Mes objectifs » arrive avec les autres cartes.
+  useSeasonGoals(athlete !== null, season);
 
   if (session.data === undefined) return null;
   if (athlete === null) {
