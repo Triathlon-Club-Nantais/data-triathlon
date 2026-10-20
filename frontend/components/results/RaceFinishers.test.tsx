@@ -150,34 +150,27 @@ describe("RaceFinishers", () => {
     expect(screen.getByText("TRIATHLON CLUB NANTAIS").style.color).toBe("var(--tcn-orange-deeper)");
   });
 
-  it("ventile le pied de tableau : participants · arrivants · abandons (pas « X arrivants au total »)", () => {
-    afficher();
-    expect(screen.getByText("3 participants · 1 arrivant · 2 abandons")).toBeInTheDocument();
-  });
-
-  it("ajoute les « indéterminés » au pied de tableau pour réconcilier avec le total", () => {
-    afficher({ summary: synthese({ total: 4, finishers: 1, non_finishers: 1, dnf: 1, unknown: 2 }) });
-    expect(
-      screen.getByText("4 participants · 1 arrivant · 1 abandon · 2 indéterminés"),
-    ).toBeInTheDocument();
-  });
-
-  it("prend son décompte dans la synthèse, pas dans la page affichée", () => {
-    // Une page de 3 lignes sur une épreuve de 1811 : le pied annonce l'épreuve.
-    afficher({
-      summary: synthese({ total: 1811, finishers: 1768, non_finishers: 43, dnf: 43 }),
-      total: 1811,
-    });
-    expect(screen.getByText(/1811 participants/)).toBeInTheDocument();
-  });
-
-  it("distingue abandons, non-partants et disqualifiés au pied de tableau (#331)", () => {
-    afficher({
-      summary: synthese({ total: 11, finishers: 3, non_finishers: 8, dnf: 5, dns: 2, dsq: 1 }),
-    });
-    expect(
-      screen.getByText("11 participants · 3 arrivants · 5 abandons · 2 non-partants · 1 disqualifié"),
-    ).toBeInTheDocument();
+  // Une page de 3 lignes sur une épreuve de 1811 : le pied annonce l'épreuve.
+  it.each([
+    ["participants · arrivants · abandons, pas « X arrivants au total »", {}, "3 participants · 1 arrivant · 2 abandons"],
+    [
+      "les « indéterminés », pour réconcilier avec le total",
+      { total: 4, finishers: 1, non_finishers: 1, dnf: 1, unknown: 2 },
+      "4 participants · 1 arrivant · 1 abandon · 2 indéterminés",
+    ],
+    [
+      "le décompte de la synthèse, pas celui de la page affichée",
+      { total: 1811, finishers: 1768, non_finishers: 43, dnf: 43 },
+      "1811 participants · 1768 arrivants · 43 abandons",
+    ],
+    [
+      "abandons, non-partants et disqualifiés distingués (#331)",
+      { total: 11, finishers: 3, non_finishers: 8, dnf: 5, dns: 2, dsq: 1 },
+      "11 participants · 3 arrivants · 5 abandons · 2 non-partants · 1 disqualifié",
+    ],
+  ])("ventile le pied de tableau : %s", (_cas, decompte: Partial<CourseSummary>, pied) => {
+    afficher({ summary: synthese(decompte), total: decompte.total ?? 3 });
+    expect(screen.getByText(pied)).toBeInTheDocument();
   });
 
   it("ne mentionne ni non-partants ni disqualifiés quand ils sont nuls (#331)", () => {
@@ -193,19 +186,16 @@ describe("RaceFinishers", () => {
     expect(screen.queryByRole("navigation", { name: /pagination/i })).not.toBeInTheDocument();
   });
 
-  it("rend des liens « Précédent » / « Suivant » portant le numéro de page", () => {
-    afficher({ total: 100, pageSize: 20, page: 3 });
-
-    expect(screen.getByLabelText("Aller à la page")).toHaveValue(3);
-    expect(screen.getByText("sur 5")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Précédent/ })).toHaveAttribute("href", "/courses/1?page=2");
-    expect(screen.getByRole("link", { name: /Suivant/ })).toHaveAttribute("href", "/courses/1?page=4");
-  });
-
-  it("relie « sur N » au champ de saut par aria-describedby, pas seulement par proximité visuelle (#485)", () => {
+  it("rend des liens « Précédent » / « Suivant » portant le numéro de page, et relie « sur N » au champ de saut (#485)", () => {
     afficher({ total: 100, pageSize: 20, page: 3 });
 
     const champ = screen.getByLabelText("Aller à la page");
+    expect(champ).toHaveValue(3);
+    expect(screen.getByText("sur 5")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Précédent/ })).toHaveAttribute("href", "/courses/1?page=2");
+    expect(screen.getByRole("link", { name: /Suivant/ })).toHaveAttribute("href", "/courses/1?page=4");
+
+    // Par aria-describedby, pas seulement par proximité visuelle.
     const idDescription = champ.getAttribute("aria-describedby");
     expect(idDescription).toBeTruthy();
     expect(document.getElementById(idDescription!)).toHaveTextContent("sur 5");
@@ -259,27 +249,20 @@ describe("RaceFinishers", () => {
     expect(url).toContain("page=22");
   });
 
-  it("ramène une saisie hors bornes dans le classement plutôt que de la refuser", async () => {
-    // « 99 » sur 43 pages veut dire « la fin ».
-    afficher({ total: 860, pageSize: 20, page: 1 });
+  // « 99 » sur 43 pages veut dire « la fin » : ramenée dans le classement
+  // plutôt que refusée.
+  it.each([
+    ["ramène une saisie hors bornes à la dernière page", 1, "99", "/courses/1?page=43"],
+    ["omet le paramètre page quand on saute à la première", 5, "1", "/courses/1"],
+  ])("%s", async (_cas, page, saisie, url) => {
+    afficher({ total: 860, pageSize: 20, page });
 
     const champ = screen.getByLabelText("Aller à la page");
     await userEvent.clear(champ);
-    await userEvent.type(champ, "99");
+    await userEvent.type(champ, saisie);
     await userEvent.click(screen.getByRole("button", { name: "Aller" }));
 
-    expect(push).toHaveBeenCalledWith("/courses/1?page=43");
-  });
-
-  it("omet le paramètre page quand on saute à la première", async () => {
-    afficher({ total: 860, pageSize: 20, page: 5 });
-
-    const champ = screen.getByLabelText("Aller à la page");
-    await userEvent.clear(champ);
-    await userEvent.type(champ, "1");
-    await userEvent.click(screen.getByRole("button", { name: "Aller" }));
-
-    expect(push).toHaveBeenCalledWith("/courses/1");
+    expect(push).toHaveBeenCalledWith(url);
   });
 
   it("porte les autres paramètres en champs cachés, pour un saut sans JavaScript", () => {
@@ -317,22 +300,16 @@ describe("RaceFinishers", () => {
     expect(screen.getByText("Au-delà de 500 résultats dans l'épreuve, le classement s'affiche par pages de 200 au plus.")).toBeInTheDocument();
   });
 
-  it("pousse la taille choisie dans l'URL et revient à la première page", async () => {
-    searchParams = new URLSearchParams("page=7");
-    afficher({ total: 900, pageSize: 20, page: 7 });
+  it.each([
+    ["pousse la taille choisie dans l'URL et revient à la première page", "page=7", 20, 7, "200", "/courses/1?page_size=200"],
+    ["retire le paramètre quand on revient à la taille par défaut", "page_size=200", 200, 1, "20", "/courses/1"],
+  ])("%s", async (_cas, parametres, pageSize, page, taille, url) => {
+    searchParams = new URLSearchParams(parametres);
+    afficher({ total: 900, pageSize, page });
 
-    await userEvent.selectOptions(screen.getByLabelText("Lignes par page"), "200");
+    await userEvent.selectOptions(screen.getByLabelText("Lignes par page"), taille);
 
-    expect(push).toHaveBeenCalledWith("/courses/1?page_size=200");
-  });
-
-  it("retire le paramètre quand on revient à la taille par défaut", async () => {
-    searchParams = new URLSearchParams("page_size=200");
-    afficher({ total: 900, pageSize: 200, page: 1 });
-
-    await userEvent.selectOptions(screen.getByLabelText("Lignes par page"), "20");
-
-    expect(push).toHaveBeenCalledWith("/courses/1");
+    expect(push).toHaveBeenCalledWith(url);
   });
 
   it("garde le sélecteur mais retire la navigation de pages quand tout est demandé", () => {
@@ -419,12 +396,6 @@ describe("RaceFinishers", () => {
     erreurs.mockRestore();
   });
 
-  it("annonce l'absence de résultat de recherche distinctement d'une épreuve vide", () => {
-    searchParams = new URLSearchParams("q=zzz");
-    afficher({ participations: [], total: 0 });
-    expect(screen.getByText("Aucun athlète ne correspond à cette recherche")).toBeInTheDocument();
-  });
-
   it("n'affirme pas « Cette page n'existe pas » quand la vraie cause est une recherche sans résultat (#M4)", () => {
     // `?q=zzz&page=5` : total=0 fait tomber nbPages à 1, donc page(5) > nbPages(1) —
     // mais la cause réelle est la recherche vide, pas une page hors bornes.
@@ -444,7 +415,7 @@ describe("RaceFinishers", () => {
     expect(push).toHaveBeenCalledWith(`/courses/1?${SCOPE_PARAM}=${SCOPE_CLUB}`);
   });
 
-  it("ne parle pas de recherche quand seul le filtre club est actif", () => {
+  it("ne parle pas de recherche quand seul le filtre club est actif, et offre d'en sortir", async () => {
     // Course sans athlète TCN : « Aucun athlète ne correspond à cette recherche »
     // alors qu'aucune recherche n'a été faite.
     searchParams = new URLSearchParams(`${SCOPE_PARAM}=${SCOPE_CLUB}`);
@@ -454,20 +425,10 @@ describe("RaceFinishers", () => {
       screen.getByText(`Aucun athlète du ${CLUB_NAME} sur cette épreuve`),
     ).toBeInTheDocument();
     expect(screen.queryByText(/correspond à cette recherche/)).not.toBeInTheDocument();
-  });
-
-  it("offre la sortie du filtre club depuis son message d'absence", async () => {
-    searchParams = new URLSearchParams(`${SCOPE_PARAM}=${SCOPE_CLUB}`);
-    afficher({ participations: [], total: 0, summary: synthese({ total: 498, tcn_count: 0 }) });
 
     await userEvent.click(screen.getByRole("button", { name: "Voir tous les participants" }));
 
     expect(push).toHaveBeenCalledWith("/courses/1");
-  });
-
-  it("annonce une épreuve sans aucun participant (ETAT-3)", () => {
-    afficher({ participations: [], total: 0 });
-    expect(screen.getByText("Aucun participant à afficher")).toBeInTheDocument();
   });
 
   // ── Colonnes de splits ─────────────────────────────────────────────────────
@@ -515,11 +476,6 @@ describe("RaceFinishers", () => {
     });
   }
 
-  it("ne rend pas un inter impossible comme s'il s'agissait d'un temps", () => {
-    afficherInter();
-    expect(screen.queryByText(ILLISIBLE)).not.toBeInTheDocument();
-  });
-
   it("garde le marqueur d'inter illisible au-dessus du voile de la ligne (revue de code #481)", () => {
     // Le `::after` de `.tcn-rowlink__cible` couvre la ligne entière et gagne le
     // survol sur le contenu en flux des cellules voisines : sans `position`, le
@@ -534,9 +490,10 @@ describe("RaceFinishers", () => {
     ).toBe("relative");
   });
 
-  it("signale l'inter illisible au lieu de le taire, et rappelle la valeur reçue", () => {
+  it("ne rend pas un inter impossible comme un temps, mais le signale en rappelant la valeur reçue", () => {
     // Masquer sans rien dire ferait croire que le chronométreur n'a rien publié.
     afficherInter();
+    expect(screen.queryByText(ILLISIBLE)).not.toBeInTheDocument();
     // Scopé à la grille (#461) : le même ⚠ existe dans le dépliant de la carte.
     expect(
       within(screen.getByTestId("classement-grille")).getByRole("img", { name: /illisible/i }),
@@ -573,69 +530,46 @@ describe("RaceFinishers", () => {
       .map((el) => el.textContent);
   }
 
-  it("garde l'ordre transmis par le backend tant qu'aucun en-tête de split n'a été cliqué", () => {
+  it("garde l'ordre du backend, puis trie sur le split cliqué en croissant et, recliqué, en décroissant", async () => {
     afficher({
       participations: dataAvecSplits,
       summary: synthese({ split_keys: ["swim"] }),
       eventType: "triathlon-m",
     });
 
+    // Tant qu'aucun en-tête de split n'a été cliqué.
     expect(nomsAffiches()).toEqual(["LENT T", "RAPIDE T", "SANSNATATION T"]);
-  });
 
-  it("trie en ordre croissant sur le split cliqué", async () => {
-    afficher({
-      participations: dataAvecSplits,
-      summary: synthese({ split_keys: ["swim"] }),
-      eventType: "triathlon-m",
-    });
+    // Activable au clavier, avec libellé français explicite.
+    const bouton = screen.getByRole("button", { name: /Trier par temps.*Natation/i });
+    expect(bouton.tagName).toBe("BUTTON");
 
-    await userEvent.click(screen.getByRole("button", { name: /Trier par temps.*Natation/i }));
-
+    await userEvent.click(bouton);
     // RAPIDE (20 min) avant LENT (25 min) ; SANSNATATION (aucun temps) en dernier.
     expect(nomsAffiches()).toEqual(["RAPIDE T", "LENT T", "SANSNATATION T"]);
-  });
 
-  it("recliquer sur le même en-tête inverse l'ordre en décroissant", async () => {
-    afficher({
-      participations: dataAvecSplits,
-      summary: synthese({ split_keys: ["swim"] }),
-      eventType: "triathlon-m",
-    });
-
-    const bouton = screen.getByRole("button", { name: /Trier par temps.*Natation/i });
-    await userEvent.click(bouton); // croissant : RAPIDE, LENT, SANSNATATION
-    await userEvent.click(bouton); // décroissant
-
+    await userEvent.click(bouton);
     // SANSNATATION (aucun temps) reste en dernier même décroissant : ce n'est
     // pas un temps nul, il n'y a simplement rien à comparer.
     expect(nomsAffiches()).toEqual(["LENT T", "RAPIDE T", "SANSNATATION T"]);
   });
 
-  it("en-tête de split activable au clavier, avec libellé français explicite", () => {
-    afficher({
-      participations: dataAvecSplits,
-      summary: synthese({ split_keys: ["swim"] }),
-      eventType: "triathlon-m",
-    });
-
-    const bouton = screen.getByRole("button", { name: /Trier par temps.*Natation/i });
-    expect(bouton.tagName).toBe("BUTTON");
-  });
-
   // ── Tri par temps total ─────────────────────────────────────────────────────
 
-  it("trie en ordre croissant sur le temps total", async () => {
+  it("trie sur le temps total en croissant et, recliqué, en décroissant", async () => {
     afficher({
       participations: dataAvecSplits,
       summary: synthese({ split_keys: ["swim"] }),
       eventType: "triathlon-m",
     });
 
-    await userEvent.click(screen.getByRole("button", { name: /Trier par temps total/i }));
-
+    const bouton = screen.getByRole("button", { name: /Trier par temps total/i });
+    await userEvent.click(bouton);
     // RAPIDE (00:58:00) < LENT (01:00:00) < SANSNATATION (01:05:00).
     expect(nomsAffiches()).toEqual(["RAPIDE T", "LENT T", "SANSNATATION T"]);
+
+    await userEvent.click(bouton);
+    expect(nomsAffiches()).toEqual(["SANSNATATION T", "LENT T", "RAPIDE T"]);
   });
 
   it("sends a 00:00:00 total time last in both directions, like a missing time (#1480)", async () => {
@@ -655,20 +589,6 @@ describe("RaceFinishers", () => {
 
     await userEvent.click(bouton);
     expect(noms()).toEqual(["LENT T", "RAPIDE T", "ZERO T"]);
-  });
-
-  it("recliquer sur l'en-tête « Temps total » inverse l'ordre en décroissant", async () => {
-    afficher({
-      participations: dataAvecSplits,
-      summary: synthese({ split_keys: ["swim"] }),
-      eventType: "triathlon-m",
-    });
-
-    const bouton = screen.getByRole("button", { name: /Trier par temps total/i });
-    await userEvent.click(bouton);
-    await userEvent.click(bouton);
-
-    expect(nomsAffiches()).toEqual(["SANSNATATION T", "LENT T", "RAPIDE T"]);
   });
 
   it("cliquer sur un autre en-tête repart en croissant, sans garder la direction précédente", async () => {
@@ -695,18 +615,14 @@ describe("RaceFinishers", () => {
   // gestionnaire de clic est précisément ce qui avait laissé passer le défaut —
   // il passait au vert sur une ligne qu'on ne pouvait ni partager ni ouvrir
   // dans un onglet (FR-010).
-  it("ouvre le détail de la participation, et non plus le profil de l'athlète", () => {
+  it("ouvre le détail de la participation, une adresse par ligne affichée, sans exécuter de script", () => {
+    // Le détail, et non plus le profil de l'athlète.
     afficher();
 
     expect(screen.getByRole("link", { name: /Voir le détail du résultat de FINISHER/ })).toHaveAttribute(
       "href",
       "/courses/1/participations/1",
     );
-  });
-
-  it("porte une adresse de détail par ligne affichée, sans exécuter de script", () => {
-    afficher();
-
     const adresses = screen
       .getAllByRole("row")
       .slice(1)
@@ -727,53 +643,36 @@ describe("RaceFinishers", () => {
     expect(screen.queryByRole("button", { name: /Voir le détail/i })).not.toBeInTheDocument();
   });
 
-  it("n'offre qu'un arrêt clavier par ligne", () => {
-    // FR-011, compté par `<tr>` : un `href` par cellule multiplierait les
-    // tabulations par sept sans qu'aucune autre assertion ne bronche.
+  it("donne à chaque ligne un seul arrêt clavier, sans prefetch, et une marque d'attente immobile en pied de ligne", () => {
     afficher();
 
     for (const ligne of screen.getAllByRole("row").slice(1)) {
+      // FR-011, compté par `<tr>` : un `href` par cellule multiplierait les
+      // tabulations par sept sans qu'aucune autre assertion ne bronche.
       expect(ligne.querySelectorAll("a[href], button, input, select, textarea")).toHaveLength(1);
-    }
-  });
 
-  it("désactive le prefetch des lignes, sans quoi l'attente ne s'afficherait jamais", () => {
-    // `useLinkStatus` saute la phase d'attente sur une route déjà préchargée
-    // (doc de Next 16.3.1). Sans `prefetch={false}`, l'indicateur de FR-005
-    // serait mort en production — et 20 routes dynamiques seraient préchargées
-    // par page, le coût que #425 a déjà refusé sur `RecentCourses`.
-    afficher();
-
-    for (const ligne of screen.getAllByRole("row").slice(1)) {
+      // `useLinkStatus` saute la phase d'attente sur une route déjà préchargée
+      // (doc de Next 16.3.1). Sans `prefetch={false}`, l'indicateur de FR-005
+      // serait mort en production — et 20 routes dynamiques seraient préchargées
+      // par page, le coût que #425 a déjà refusé sur `RecentCourses`.
       expect(ligne.querySelector("a[href]")).toHaveAttribute("data-prefetch", "false");
-    }
-  });
 
-  it("porte une marque d'attente sur la ligne, toujours montée et sans mouvement", () => {
-    // Toujours rendue, seule son opacité change : un indicateur monté au clic
-    // déplacerait la mise en page (doc de Next), et une animation serait figée
-    // sous `prefers-reduced-motion`.
-    afficher();
-
-    for (const ligne of screen.getAllByRole("row").slice(1)) {
+      // Toujours rendue, seule son opacité change : un indicateur monté au clic
+      // déplacerait la mise en page (doc de Next), et une animation serait figée
+      // sous `prefers-reduced-motion`.
       const marque = ligne.querySelector<HTMLElement>("[data-attente]");
       expect(marque).not.toBeNull();
       expect(marque).toHaveAttribute("aria-hidden", "true");
       expect(marque).toHaveAttribute("data-attente", "false");
+
+      // Régression bloquante relevée en revue UI/UX : une nappe couvrant la ligne
+      // passe au-dessus du contenu en flux de **toutes** les cellules et faisait
+      // tomber le texte à 2,50:1 (`--tcn-ink`) et 1,74:1 (colonne Club), sous le
+      // plancher WCAG 1.4.3. Le filet ne recouvre aucun texte.
+      expect(marque!.style.top).toBe("");
+      expect(marque!.style.bottom).toBe("0px");
+      expect(marque!.style.height).toBe("3px");
     }
-  });
-
-  it("marque l'attente en pied de ligne, jamais en nappe par-dessus le texte", () => {
-    // Régression bloquante relevée en revue UI/UX : une nappe couvrant la ligne
-    // passe au-dessus du contenu en flux de **toutes** les cellules et faisait
-    // tomber le texte à 2,50:1 (`--tcn-ink`) et 1,74:1 (colonne Club), sous le
-    // plancher WCAG 1.4.3. Le filet ne recouvre aucun texte.
-    afficher();
-
-    const marque = screen.getAllByRole("row")[1].querySelector<HTMLElement>("[data-attente]")!;
-    expect(marque.style.top).toBe("");
-    expect(marque.style.bottom).toBe("0px");
-    expect(marque.style.height).toBe("3px");
   });
 
   // ── Annonce du décompte / tri (WCAG 4.1.3, #477) ───────────────────────────
@@ -796,8 +695,12 @@ describe("RaceFinishers", () => {
     expect(screen.getByRole("status")).toHaveTextContent(/temps total.*croissant/i);
   });
 
-  it("annonce le périmètre du tri : la tranche affichée, pas le classement", async () => {
+  it("annonce le périmètre du tri, la tranche affichée et pas le classement, jusque dans l'aria-label des en-têtes", async () => {
     afficher({ total: 860, pageSize: 20 });
+
+    expect(
+      screen.getByRole("button", { name: "Trier par temps total, croissant, sur les 3 lignes affichées" }),
+    ).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: /Trier par temps total/ }));
 
@@ -815,14 +718,6 @@ describe("RaceFinishers", () => {
     expect(screen.getByRole("status").textContent).not.toContain("lignes affichées");
   });
 
-  it("porte le périmètre jusque dans l'aria-label des en-têtes", () => {
-    afficher({ total: 860, pageSize: 20 });
-
-    expect(
-      screen.getByRole("button", { name: "Trier par temps total, croissant, sur les 3 lignes affichées" }),
-    ).toBeInTheDocument();
-  });
-
   it("accorde le périmètre au singulier quand une seule ligne est affichée", async () => {
     afficher({ participations: [data[0]], total: 860, pageSize: 20 });
 
@@ -835,9 +730,12 @@ describe("RaceFinishers", () => {
     expect(screen.getByRole("status").textContent).toContain("sur la ligne affichée");
   });
 
-  it("ne mentionne aucun périmètre quand le tri porte sur zéro ligne affichée (#M3)", async () => {
+  it("annonce une recherche sans résultat, sans périmètre de tri sur zéro ligne affichée (#M3)", async () => {
     searchParams = new URLSearchParams("q=zzz");
     afficher({ participations: [], total: 0 });
+
+    // Distinct de l'état d'une épreuve vide.
+    expect(screen.getByText("Aucun athlète ne correspond à cette recherche")).toBeInTheDocument();
 
     // Le périmètre de tri se lit dans l'aria-label avant même de cliquer :
     // il décrit la prochaine direction, « 0 lignes affichées » n'a rien à dire.
@@ -875,13 +773,15 @@ describe("RaceFinishers", () => {
 
   // ── Cadre de la vue filtrée (RES-9) ────────────────────────────────────────
 
-  it("oppose le total de la sélection à celui de l'épreuve après une recherche", () => {
+  it("oppose le total de la sélection à celui de l'épreuve après une recherche, pied de carte compris", () => {
     searchParams = new URLSearchParams("q=kermarrec");
     afficher({ summary: synthese({ total: 498 }), total: 2 });
 
     expect(screen.getByText(/2 résultats/)).toBeInTheDocument();
     expect(screen.getByText(/sur 498/)).toBeInTheDocument();
     expect(screen.getByText(/kermarrec/)).toBeInTheDocument();
+    // Le pied de carte, lui, reste situé sur l'épreuve entière.
+    expect(screen.getByText(/Sur l'ensemble de l'épreuve/)).toBeInTheDocument();
   });
 
   it("sépare recherche et filtre club par un espace, pas une virgule (#485 re-revue)", () => {
@@ -920,13 +820,6 @@ describe("RaceFinishers", () => {
     await userEvent.click(screen.getByRole("button", { name: "Tout effacer" }));
 
     expect(push).toHaveBeenCalledWith("/courses/1");
-  });
-
-  it("situe le pied de carte sur l'épreuve entière, pas sur la sélection", () => {
-    searchParams = new URLSearchParams("q=kermarrec");
-    afficher({ total: 2 });
-
-    expect(screen.getByText(/Sur l'ensemble de l'épreuve/)).toBeInTheDocument();
   });
 
   it("grise l'onglet club quand l'épreuve ne compte aucun athlète TCN", () => {
@@ -1026,7 +919,7 @@ describe("RaceFinishers", () => {
     }
   });
 
-  it("garde son en-tête sur une épreuve vide, et laisse l'état vide hors du tableau", () => {
+  it("garde son en-tête sur une épreuve vide, et annonce l'état vide hors du tableau (ETAT-3)", () => {
     // FR-007 : l'en-tête est rendue aujourd'hui sur une liste vide, elle doit
     // continuer de l'être. L'`EmptyState` reste un frère du tableau — le poser
     // en ligne le ferait annoncer comme une donnée du classement.
@@ -1078,12 +971,13 @@ describe("RaceFinishers — ma ligne dans le classement (NAV-10, #503)", () => {
     expect(cellule.style.color).toBe("var(--tcn-text-body)");
   });
 
-  it("ne marque aucune ligne quand aucun athlète n'est retenu", () => {
+  it("ne marque aucune ligne et n'offre pas le saut quand aucun athlète n'est retenu", () => {
     afficher();
     expect(screen.queryByText("Vous")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Aller à ma ligne/ })).not.toBeInTheDocument();
   });
 
-  it("marque la seule ligne de l'athlète retenu, d'un chip et non de la couleur seule", () => {
+  it("marque la seule ligne de l'athlète retenu d'un chip et non de la couleur seule, arbre carte compris", () => {
     // `p({ id, nom })` donne `athlete.id === id` : l'athlète retenu est donc
     // celui de la ligne 3 (DNFGUY) — un abandon reste ma ligne.
     writeAthlete({ id: 3, prenom: "T", nom: "DNFGUY" });
@@ -1095,6 +989,11 @@ describe("RaceFinishers — ma ligne dans le classement (NAV-10, #503)", () => {
     expect(marques).toHaveLength(1);
     // WCAG 1.4.1 : le chip est le signifiant, le fond ne fait que l'appuyer.
     expect(marques[0].closest("tr")).toHaveTextContent("DNFGUY");
+
+    // Régression relevée en revue finale #461 : la boucle des cartes ne lisait
+    // jamais `moi`, donc sur téléphone rien ne distinguait ma ligne — alors
+    // que « Aller à ma ligne » y reste offert.
+    expect(dansLesCartes("classement-cartes").texte("Vous")).toBeInTheDocument();
   });
 
   it("marque la ligne d'un relais dont je suis équipier sans en être le porteur (revue UI/UX #1001)", () => {
@@ -1114,17 +1013,7 @@ describe("RaceFinishers — ma ligne dans le classement (NAV-10, #503)", () => {
     expect(dansLesCartes("classement-cartes").texte("Vous")).toBeInTheDocument();
   });
 
-  it("marque aussi ma ligne d'un chip « Vous » dans l'arbre carte (revue finale #461)", () => {
-    // Régression relevée en revue finale : la boucle des cartes ne lisait
-    // jamais `moi`, donc sur téléphone rien ne distinguait ma ligne — alors
-    // que « Aller à ma ligne » y reste offert.
-    writeAthlete({ id: 3, prenom: "T", nom: "DNFGUY" });
-    afficher();
-
-    expect(dansLesCartes("classement-cartes").texte("Vous")).toBeInTheDocument();
-  });
-
-  it("peint le fond de ma ligne, y compris sur un non-finisher — par une classe, pas un style en ligne", () => {
+  it("peint le fond de ma ligne seule, y compris sur un non-finisher — par une classe, pas un style en ligne", () => {
     // Le fond vit en CSS (`.tcn-rowlink--moi`, globals.css) : un style en
     // ligne battrait `.tcn-rowlink:hover` et couperait le retour au survol
     // (#439, correctif de revue #503).
@@ -1134,6 +1023,15 @@ describe("RaceFinishers — ma ligne dans le classement (NAV-10, #503)", () => {
     const ligne = screen.getByText("Vous").closest("tr") as HTMLElement;
     expect(ligne.className).toMatch(/(^|\s)tcn-rowlink--moi(\s|$)/);
     expect(ligne.style.background).toBe("");
+
+    const autres = screen
+      .getAllByRole("link", { name: /Voir le détail du résultat de/ })
+      .map((lien) => lien.closest("tr") as HTMLElement)
+      .filter((autre) => !autre.textContent?.includes("DNFGUY"));
+    expect(autres.length).toBeGreaterThan(0);
+    for (const autre of autres) {
+      expect(autre.className).not.toMatch(/(^|\s)tcn-rowlink--moi(\s|$)/);
+    }
   });
 
   it("grise un non-finisher par une classe, que le survol peut battre (#1382)", () => {
@@ -1159,20 +1057,6 @@ describe("RaceFinishers — ma ligne dans le classement (NAV-10, #503)", () => {
     expect(rang.className).toContain("tcn-classement-rang-categorie");
   });
 
-  it("ne porte la classe modificatrice que sur ma ligne, pas sur les autres", () => {
-    writeAthlete({ id: 3, prenom: "T", nom: "DNFGUY" });
-    afficher();
-
-    const lignes = screen
-      .getAllByRole("link", { name: /Voir le détail du résultat de/ })
-      .map((lien) => lien.closest("tr") as HTMLElement);
-    const autres = lignes.filter((ligne) => !ligne.textContent?.includes("DNFGUY"));
-    expect(autres.length).toBeGreaterThan(0);
-    for (const ligne of autres) {
-      expect(ligne.className).not.toMatch(/(^|\s)tcn-rowlink--moi(\s|$)/);
-    }
-  });
-
   it("gives every ranking control a 44px touch target on mobile, with no inline min height to beat it (#1539)", () => {
     writeAthlete({ id: 3, prenom: "Thomas", nom: "DNFGUY" });
     afficher({ total: 100, pageSize: 20, page: 3 });
@@ -1195,25 +1079,28 @@ describe("RaceFinishers — ma ligne dans le classement (NAV-10, #503)", () => {
     }
   });
 
-  it("n'offre pas le saut quand aucun athlète n'est retenu", () => {
-    afficher();
-    expect(screen.queryByRole("button", { name: /Aller à ma ligne/ })).not.toBeInTheDocument();
-  });
-
-  it("cherche mon nom complet dans le classement, page courante indifférente", async () => {
+  // La recherche remet à la page 1 : `naviguer` retire `page`. La portée club
+  // part avec, sinon le saut peut ne pas mener à ma ligne.
+  it.each([
+    ["page courante indifférente", "page=4", 4],
+    ["portée club retirée", `${SCOPE_PARAM}=${SCOPE_CLUB}`, 1],
+  ])("cherche mon nom complet dans le classement, %s", async (_cas, parametres, page) => {
     writeAthlete({ id: 3, prenom: "Thomas", nom: "DNFGUY" });
-    searchParams = new URLSearchParams("page=4");
-    afficher({ page: 4 });
+    searchParams = new URLSearchParams(parametres);
+    afficher({ page });
 
     await userEvent.click(screen.getByRole("button", { name: "Aller à ma ligne — Thomas DNFGUY" }));
 
-    // La recherche remet à la page 1 : `naviguer` retire `page`.
     expect(push).toHaveBeenCalledWith("/courses/1?q=Thomas+DNFGUY");
   });
 
-  it("nomme l'athlète quand il ne figure pas sur l'épreuve, plutôt qu'un échec de recherche", async () => {
+  // « Voir tous les participants » ramène à l'épreuve nue, portée club retirée.
+  it.each([
+    ["seule", "q=Marie GAUDIN"],
+    ["avec la portée club", `q=Marie GAUDIN&${SCOPE_PARAM}=${SCOPE_CLUB}`],
+  ])("nomme l'athlète absent de l'épreuve plutôt qu'un échec de recherche, recherche %s", async (_cas, parametres) => {
     writeAthlete({ id: 99, prenom: "Marie", nom: "GAUDIN" });
-    searchParams = new URLSearchParams("q=Marie GAUDIN");
+    searchParams = new URLSearchParams(parametres);
     afficher({ participations: [], total: 0 });
 
     expect(screen.getByText("Marie GAUDIN ne figure pas sur cette épreuve")).toBeInTheDocument();
@@ -1229,28 +1116,6 @@ describe("RaceFinishers — ma ligne dans le classement (NAV-10, #503)", () => {
     expect(screen.getByText("Aucun athlète ne correspond à cette recherche")).toBeInTheDocument();
   });
 
-  it("retire la portée club en même temps qu'il pose la recherche, sinon le saut peut ne pas mener à ma ligne", async () => {
-    writeAthlete({ id: 3, prenom: "Thomas", nom: "DNFGUY" });
-    searchParams = new URLSearchParams(SCOPE_PARAM + "=" + SCOPE_CLUB);
-    afficher();
-
-    await userEvent.click(screen.getByRole("button", { name: "Aller à ma ligne — Thomas DNFGUY" }));
-
-    const url = push.mock.calls.at(-1)?.[0] ?? "";
-    expect(url).not.toContain(SCOPE_PARAM);
-    expect(url).toContain("q=Thomas+DNFGUY");
-  });
-
-  it("« Voir tous les participants » de l'état « ne figure pas » ramène à l'épreuve nue, portée club retirée", async () => {
-    writeAthlete({ id: 99, prenom: "Marie", nom: "GAUDIN" });
-    searchParams = new URLSearchParams(`q=Marie GAUDIN&${SCOPE_PARAM}=${SCOPE_CLUB}`);
-    afficher({ participations: [], total: 0 });
-
-    expect(screen.getByText("Marie GAUDIN ne figure pas sur cette épreuve")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Voir tous les participants" }));
-
-    expect(push).toHaveBeenCalledWith("/courses/1");
-  });
 });
 
 // ── Marqueur d'écart des inters (#486, RES-10) ──────────────────────────────
@@ -1291,30 +1156,17 @@ describe("RaceFinishers — marqueur d'écart", () => {
     expect(screen.getByRole("img", MARQUEUR)).toBeInTheDocument();
   });
 
-  it("ne marque pas une ligne alignée sur ses pairs, même à fort écart absolu", () => {
-    // Course 66 : 100 % des lignes à +7,44 %. Ce n'est pas la ligne qui est
-    // fausse, c'est la transition que le chronométreur ne publie pas.
-    afficherEcart([ligne(0.0744)], { split_gap_median: 0.0744, split_gap_rows: 13 });
-
-    expect(screen.queryByRole("img", MARQUEUR)).not.toBeInTheDocument();
-  });
-
-  it("ne marque rien sous dix lignes évaluables — la médiane n'y est pas une référence", () => {
-    afficherEcart([ligne(0.2)], { split_gap_median: 0, split_gap_rows: 9 });
-
-    expect(screen.queryByRole("img", MARQUEUR)).not.toBeInTheDocument();
-  });
-
-  it("ne marque rien sous soixante secondes d'écart, quel que soit le pourcentage", () => {
-    // 10 % d'un total de 5 minutes = 30 s : au-dessus du seuil relatif, sous le
-    // plancher absolu. Sans lui, un petit dénominateur suffit à franchir 5 %.
-    afficherEcart([ligne(0.1, "00:05:00")], { split_gap_median: 0, split_gap_rows: 50 });
-
-    expect(screen.queryByRole("img", MARQUEUR)).not.toBeInTheDocument();
-  });
-
-  it("ne marque rien quand l'épreuve n'a pas de médiane", () => {
-    afficherEcart([ligne(0.5)], { split_gap_median: null, split_gap_rows: 0 });
+  // Course 66 : 100 % des lignes à +7,44 %. Ce n'est pas la ligne qui est
+  // fausse, c'est la transition que le chronométreur ne publie pas.
+  // 10 % d'un total de 5 minutes = 30 s : au-dessus du seuil relatif, sous le
+  // plancher absolu. Sans lui, un petit dénominateur suffit à franchir 5 %.
+  it.each([
+    ["une ligne alignée sur ses pairs, même à fort écart absolu", ligne(0.0744), 0.0744, 13],
+    ["sous dix lignes évaluables, la médiane n'y est pas une référence", ligne(0.2), 0, 9],
+    ["sous soixante secondes d'écart, quel que soit le pourcentage", ligne(0.1, "00:05:00"), 0, 50],
+    ["quand l'épreuve n'a pas de médiane", ligne(0.5), null, 0],
+  ])("ne marque pas %s", (_cas, participation, mediane, lignes) => {
+    afficherEcart([participation], { split_gap_median: mediane, split_gap_rows: lignes });
 
     expect(screen.queryByRole("img", MARQUEUR)).not.toBeInTheDocument();
   });
@@ -1387,7 +1239,7 @@ describe("RaceFinishers — filtres club et catégorie", () => {
     expect(absence.textContent).not.toMatch(/recherche/i);
   });
 
-  it("nomme le filtre de carte même quand une recherche est active", () => {
+  it("nomme le filtre de carte même quand une recherche est active, et efface les deux ensemble", async () => {
     // Sinon la branche « recherche » gagne, l'écran dit « Aucun athlète ne
     // correspond à cette recherche », et « Effacer la recherche » laisse le
     // visiteur sur un écran toujours vide sans jamais nommer ce qui le vidait.
@@ -1398,11 +1250,6 @@ describe("RaceFinishers — filtres club et catégorie", () => {
     expect(
       screen.queryByText("Aucun athlète ne correspond à cette recherche"),
     ).not.toBeInTheDocument();
-  });
-
-  it("efface la recherche en même temps que le filtre de carte", async () => {
-    searchParams = new URLSearchParams("q=dupont&club=CLUB+INEXISTANT");
-    afficher({ participations: [], total: 0 });
 
     await userEvent.click(screen.getByRole("button", { name: "Voir tous les participants" }));
 
@@ -1439,21 +1286,7 @@ describe("rendu carte sous lg", () => {
   const cartes = () => dansLesCartes("classement-cartes");
   const grille = () => screen.getByTestId("classement-grille");
 
-  it("bascule la grille et les cartes aux seuils annoncés", () => {
-    render(
-      <RaceFinishers
-        participations={[p({ id: 1, nom: "DUPONT", rank_overall: 1, total_time: "01:04:12" })]}
-        summary={synthese()}
-        total={1}
-        page={1}
-        pageSize={20}
-      />,
-    );
-    expect(grille().className).toContain("hidden min-[1237px]:block");
-    expect(screen.getByTestId("classement-cartes").className).toContain("min-[1237px]:hidden");
-  });
-
-  it("porte place, nom, temps et méta dans la carte", () => {
+  it("bascule la grille et les cartes aux seuils annoncés, la carte portant place, nom, temps et méta", () => {
     render(
       <RaceFinishers
         participations={[
@@ -1465,6 +1298,9 @@ describe("rendu carte sous lg", () => {
         pageSize={20}
       />,
     );
+    expect(grille().className).toContain("hidden min-[1237px]:block");
+    expect(screen.getByTestId("classement-cartes").className).toContain("min-[1237px]:hidden");
+
     const carte = cartes();
     expect(carte.texte("DUPONT T")).toBeInTheDocument();
     expect(carte.texte("01:04:12")).toBeInTheDocument();
@@ -1668,7 +1504,7 @@ describe("RaceFinishers — résultats en attente de validation (#1273)", () => 
     return within(grille).getAllByRole("row").slice(1);
   }
 
-  it("ajoute la ligne en attente après le classement, sur la dernière page", () => {
+  it("ajoute la ligne en attente après le classement, sur la dernière page, grille et cartes", () => {
     afficher({ pending: [EN_ATTENTE] });
 
     const lignes = lignesDeLaGrille();
@@ -1680,6 +1516,7 @@ describe("RaceFinishers — résultats en attente de validation (#1273)", () => 
         name: "Voir le détail du résultat de ATTENTE T, en attente de validation",
       }),
     ).toHaveAttribute("href", "/courses/1/participations/50");
+    expect(dansLesCartes("classement-cartes").texte("En attente de validation")).toBeInTheDocument();
   });
 
   it("garde le badge de statut d'un non-finisher en attente : un statut n'est pas un rang", () => {
@@ -1748,12 +1585,6 @@ describe("RaceFinishers — résultats en attente de validation (#1273)", () => 
     await userEvent.click(screen.getByRole("button", { name: /Trier par temps total/i }));
 
     expect(lignesDeLaGrille().at(-1)).toHaveTextContent("ATTENTE T");
-  });
-
-  it("marque aussi la ligne en attente dans l'arbre cartes", () => {
-    afficher({ pending: [EN_ATTENTE] });
-
-    expect(dansLesCartes("classement-cartes").texte("En attente de validation")).toBeInTheDocument();
   });
 });
 
