@@ -321,6 +321,12 @@ describe("ClubDashboard — smoke", () => {
     expect(screen.getByRole("tab", { name: "Performance" })).toHaveAttribute("aria-selected", "true");
   });
 
+  it("clips the tab list vertically so overflow-x does not add a vertical scrollbar", () => {
+    render(<ClubDashboard stats={STATS} summary={EMPTY_SUMMARY} recent={[]} seasons={[currentSeason()]} />);
+
+    expect(screen.getByRole("tablist").parentElement).toHaveClass("overflow-x-auto", "overflow-y-hidden");
+  });
+
   it("names the sex and offers to drop it when the filter leaves no result", () => {
     render(
       <ClubDashboard stats={{ ...STATS, total: 0 }} summary={EMPTY_SUMMARY} recent={[]} seasons={[2025]} gender="F" />,
