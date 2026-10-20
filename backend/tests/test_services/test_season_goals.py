@@ -131,6 +131,26 @@ def test_ten_goals_per_season_at_most(db_session, lea):
         season_goals.create(db_session, lea, _write(kind="count", event_type=None, target=1))
 
 
+def test_the_cap_is_per_season(db_session, lea, monkeypatch):
+    for _ in range(season_goals.MAX_GOALS_PER_SEASON):
+        season_goals.create(db_session, lea, _write(kind="count", event_type=None, target=1))
+
+    monkeypatch.setattr(season, "utcnow", lambda: datetime(SEASON + 1, 10, 15, 12, 0, 0))
+    season_goals.create(db_session, lea, _write(kind="count", event_type=None, target=1))
+
+
+def test_converting_a_past_goal_to_a_race_respects_the_cap(db_session, lea, monkeypatch):
+    old = season_goals.create(db_session, lea, _write(kind="count", event_type=None, target=1))
+    monkeypatch.setattr(season, "utcnow", lambda: datetime(SEASON + 1, 10, 15, 12, 0, 0))
+    for _ in range(season_goals.MAX_GOALS_PER_SEASON):
+        season_goals.create(db_session, lea, _write(kind="count", event_type=None, target=1))
+
+    with pytest.raises(season_goals.TooManyGoalsError):
+        season_goals.update(
+            db_session, lea, old.id, _write(kind="race", race_name="Lac", race_date=date(SEASON + 2, 5, 1))
+        )
+
+
 def test_only_the_owner_updates_or_deletes(db_session, lea):
     goal = season_goals.create(db_session, lea, _write(kind="count", event_type=None, target=3))
     other = user_repository.create(db_session, email="autre@exemple.fr", display_name="")
