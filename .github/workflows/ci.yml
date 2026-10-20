@@ -23,7 +23,39 @@ permissions:
   contents: read
 
 jobs:
+  # Filtre de chemins (#1705) : sur `pull_request` seulement, une PR ne rejoue que
+  # les jobs de l'application touchée (`.github/**` déclenche les deux). Tout autre
+  # événement (merge_group, workflow_dispatch, workflow_call de deploy.yml sur tag)
+  # force les deux sorties à vrai : la merge queue et les déploiements exécutent
+  # tout. Le filtre vit dans les jobs, pas dans `on.paths`, pour que `ci-ok`
+  # existe toujours. Le step ne tourne que sur `pull_request`, donc `changes`
+  # ne peut échouer que par accident, et `ci-ok` rougit alors (voir ci-ok.sh).
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # L'API des fichiers de PR demande `pull-requests: read` (aucun checkout).
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      backend: ${{ github.event_name != 'pull_request' || steps.filter.outputs.backend == 'true' }}
+      frontend: ${{ github.event_name != 'pull_request' || steps.filter.outputs.frontend == 'true' }}
+    steps:
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d  # v4.0.3
+        id: filter
+        if: github.event_name == 'pull_request'
+        with:
+          filters: |
+            backend:
+              - 'backend/**'
+              - '.github/**'
+            frontend:
+              - 'frontend/**'
+              - '.github/**'
+
   backend:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
@@ -59,6 +91,8 @@ jobs:
   # Dependabot qui la corrigent, et bloquait la merge queue. Le job reste rouge
   # et visible sur la PR (constat A06-1 de l'audit OWASP, #397), sans rien bloquer.
   backend-audit:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     continue-on-error: true
@@ -81,6 +115,8 @@ jobs:
   # chaîne Alembic complète sur PostgreSQL 16 (`pg_trgm` et `unaccent` sont dans
   # l'image officielle), puis les repositories, seule couche qui construit du SQL.
   backend-postgres:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     services:
@@ -133,6 +169,8 @@ jobs:
           uv run pytest tests/test_repositories tests/test_services/test_concurrent_imports_postgres.py -m "not integration" -n 0
 
   frontend:
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
@@ -182,6 +220,8 @@ jobs:
   # `--shard=N/M` de vitest répartit les fichiers de test sur des runners séparés,
   # donc réellement parallèles plutôt qu'en contention sur les mêmes cœurs.
   frontend-test:
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
@@ -212,15 +252,20 @@ jobs:
   # sauter, et un check sauté compte comme réussi pour la merge queue.
   ci-ok:
     if: always()
-    needs: [backend, backend-postgres, frontend, frontend-test]
+    needs: [changes, backend, backend-postgres, frontend, frontend-test]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Tous les jobs requis ont réussi
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Décision (.github/scripts/ci-ok.sh)
         env:
-          RESULTS: ${{ join(needs.*.result, ' ') }}
-        run: |
-          echo "Résultats : $RESULTS"
-          for result in $RESULTS; do
-            [ "$result" = "success" ] || exit 1
-          done
+          EVENT_NAME: ${{ github.event_name }}
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          RESULTS: >-
+            backend=${{ needs.backend.result }}
+            backend-postgres=${{ needs.backend-postgres.result }}
+            frontend=${{ needs.frontend.result }}
+            frontend-test=${{ needs.frontend-test.result }}
+          FILTERED_JOBS: backend backend-postgres frontend frontend-test
+        run: bash .github/scripts/ci-ok.sh
