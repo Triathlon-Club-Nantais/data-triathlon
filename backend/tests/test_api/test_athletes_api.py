@@ -496,3 +496,16 @@ def test_athlete_detail_says_whether_a_member_account_claims_it(client, db_sessi
 
     assert response.json()["claimed"] is True
     assert "lea@exemple.fr" not in response.text
+
+
+def test_a_pending_claim_does_not_mark_the_athlete_page_as_claimed(client, db_session):
+    """#1693: only a validated attachment (`users.athlete_id`) counts."""
+    from app.models.athlete_claim import STATUS_PENDING, AthleteClaim
+    from app.repositories import athlete_repository, user_repository
+
+    athlete = athlete_repository.get_or_create(db_session, nom="ATTENTE", prenom="Paul")
+    user = user_repository.create(db_session, email="paul@exemple.fr", display_name="Paul")
+    db_session.add(AthleteClaim(user_id=user.id, athlete_id=athlete.id, status=STATUS_PENDING))
+    db_session.commit()
+
+    assert client.get(f"/api/v1/athletes/{athlete.id}").json()["claimed"] is False

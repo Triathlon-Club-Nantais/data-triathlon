@@ -748,18 +748,18 @@ describe("AthletePage: claimed athlete badge (#1693)", () => {
     renderPage(await AthletePage({ params: Promise.resolve({ id: "7" }) }));
   }
 
-  it("shows a focusable badge with an accessible explanation when a member account claims the page", async () => {
+  it("shows a plain badge, outside the tab order, when a member account claims the page", async () => {
     await renderClaimed(true);
 
-    const badge = screen.getByText("Fiche tenue par l'athlète").closest("[tabindex]") as HTMLElement;
-    expect(badge).toHaveAttribute("tabindex", "0");
-    expect(badge).toHaveAccessibleDescription(/rattaché cette fiche à son compte de membre/);
+    const badge = screen.getByText("Fiche rattachée à l'athlète");
+    expect(badge.closest("[tabindex]")).toBeNull();
+    expect(badge).toHaveStyle({ fontWeight: "600" });
   });
 
   it("shows no badge on an unclaimed page", async () => {
     await renderClaimed(false);
 
-    expect(screen.queryByText("Fiche tenue par l'athlète")).not.toBeInTheDocument();
+    expect(screen.queryByText("Fiche rattachée à l'athlète")).not.toBeInTheDocument();
   });
 });
 

@@ -82,7 +82,7 @@ export const PRIVACY_POLICY: LegalDocument = {
             Microsoft du club ; le club l&apos;efface dans le mois qui suit la suppression du compte, à l&apos;aide de
             l&apos;identifiant Microsoft que le journal d&apos;administration garde 12 mois à cette seule fin. Un compte n&apos;a, par
             lui-même, aucun droit d&apos;administration. Un compte peut être rattaché à la fiche athlète de
-            la personne, à la demande de son titulaire, après vérification par le club ; le compte rattaché est
+            la personne, à la demande de son titulaire, après vérification par le club ; la fiche indique alors aux visiteurs qu&apos;elle est rattachée à son athlète, sans montrer le compte ni son adresse ; le compte rattaché est
             reconnu adhérent tant que la fiche est licenciée au club pour la saison, et son titulaire s&apos;en détache quand il le souhaite depuis la page Mon compte
             (« Me détacher de ma fiche »). Un compte rattaché peut se fixer des objectifs de saison, que lui seul voit, et qui sont supprimés avec le compte. Il peut aussi réclamer un résultat rangé sur une autre fiche ; le club vérifie la demande avant de le déplacer, et la demande part avec le compte. Le site garde la trace des actions d&apos;administration. Vous pouvez supprimer votre compte
             vous-même, depuis la page Mon compte (« Supprimer mon compte ») : vos résultats et votre fiche athlète

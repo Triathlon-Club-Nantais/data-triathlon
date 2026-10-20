@@ -17,7 +17,6 @@ import {
   AthleteVariantsPanel,
 } from "@/components/athletes/AdminGates";
 import { BestTimesCard } from "@/components/athletes/BestTimesCard";
-import { ClaimedAthleteBadge } from "@/components/athletes/ClaimedAthleteBadge";
 import { formatToken, disciplineBreakdownBySeason, genderShort, ordinalFr, formatCount, pctFr } from "@/lib/utils/format";
 import { BarList } from "@/components/charts/BarList";
 import { CAT_COLORS } from "@/components/charts/CategoryBars";
@@ -134,7 +133,7 @@ export default async function AthletePage({
                 </MetaPill>
               )}
               {athlete.gender && <MetaPill label="Genre">{genderShort(athlete.gender)}</MetaPill>}
-              {claimed && <ClaimedAthleteBadge />}
+              {claimed && <MetaPill>Fiche rattachée à l&apos;athlète</MetaPill>}
             </div>
           )}
         </PageHeader>

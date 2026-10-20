@@ -63,8 +63,8 @@ export function LinkedAthleteMark({ athlete, linked }: { athlete: ClaimedAthlete
         <MetaPill accent dot>
           Votre fiche
         </MetaPill>
-        <Link href="/mon-espace" style={texteDiscret} className="underline underline-offset-2">
-          Gérer dans Mon espace
+        <Link href="/mon-compte" style={texteDiscret} className="inline-flex min-h-11 items-center underline underline-offset-2">
+          Gérer ma fiche
         </Link>
       </div>
     );
