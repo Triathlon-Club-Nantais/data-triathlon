@@ -53,6 +53,14 @@ describe("GUIDE_MEMBRE", () => {
   });
 });
 
+describe("GUIDE_MEMBRE home capture (#1626)", () => {
+  it("shows the club home, not the old dashboard", () => {
+    const [capture] = GUIDE_MEMBRE.find((s) => s.id === "dashboard")!.captures;
+    expect(capture.src).toBe("/guide/membre/accueil.jpg");
+    expect(capture.alt).toMatch(/dernière sortie/);
+  });
+});
+
 describe("GUIDE_MEMBRE athlete page (#1041)", () => {
   it("covers the athlete search shortcut and the athlete choice", () => {
     const texte = GUIDE_MEMBRE.find((s) => s.id === "fiche-athlete")!.etapes.join(" ");
