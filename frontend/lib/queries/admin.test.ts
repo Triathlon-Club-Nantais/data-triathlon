@@ -144,6 +144,15 @@ describe("invalidations des gestes d'administration", () => {
       expect(invalider).toHaveBeenCalledWith({ queryKey: ["admin-course-detail"] }),
     );
   });
+
+  it("attribuer un relais à ses équipiers périme la file des réclamations (#1739)", async () => {
+    const invalider = vi.spyOn(client, "invalidateQueries");
+    const { result } = renderHook(() => useSetParticipationTeammates(), { wrapper });
+
+    result.current.mutate({ participationId: 7, equipiers: [2, 3] } as never);
+
+    await waitFor(() => expect(invalider).toHaveBeenCalledWith({ queryKey: ["result-claims"] }));
+  });
 });
 
 describe("lecture de la composition des rôles (#240)", () => {

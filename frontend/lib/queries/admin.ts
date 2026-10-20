@@ -429,6 +429,8 @@ export function useSetParticipationTeammates() {
       qc.invalidateQueries({ queryKey: CACHES_ADMIN.resultatsPublics });
       qc.invalidateQueries({ queryKey: CACHES_ADMIN.detailEpreuve });
       qc.invalidateQueries({ queryKey: CACHES_ADMIN.coureurs });
+      // La file des réclamations affiche la composition d'une demande d'équipe (#1739).
+      qc.invalidateQueries({ queryKey: queryKeys.resultClaims() });
     },
   });
 }
