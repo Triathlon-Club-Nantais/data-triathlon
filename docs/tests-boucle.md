@@ -129,3 +129,51 @@ Cette règle du projet prime sur les consignes de suite complète des skills pou
 La CI et la merge queue exécutent tout : suite complète backend et frontend,
 `ci-ok` étant le seul check requis. La boucle locale allège l'itération, jamais
 la porte.
+
+## Mutation
+
+Outillage de mesure, jamais dans la boucle ni en CI : il prouve qu'une
+consolidation de tests n'abaisse pas la capacité à détecter une régression
+(mutmut côté backend, StrykerJS côté frontend). Budget : 30 min de mutation par
+lot, donc toujours restreindre à un chemin.
+
+```bash
+# Backend (depuis backend/) : motif de nom de mutant, glob fnmatch
+uv run mutmut run "app.core.gender*"       # un module
+uv run mutmut run "app.core.*"             # un paquet
+uv run mutmut results --all true | grep "app.core.gender"
+
+# Frontend (depuis frontend/)
+npx stryker run --force --mutate "lib/rank.ts"
+```
+
+Score = tués / (tués + survivants), timeouts exclus.
+
+- **mutmut** : `results` liste les mutants non tués de **tout** `app/` (les
+  autres modules apparaissent « not checked »), donc filtrer par `grep` sur le
+  préfixe du module. Pour compter : `mutmut results --all true | grep <préfixe>
+  | awk -F': ' '{print $2}' | sort | uniq -c`. Le premier `run` d'une session
+  exécute toute la suite unitaire en séquentiel (`-n 0`, 4 min à 5 min) pour
+  cartographier quel test couvre quelle fonction, puis chaque mutant ne rejoue
+  que ses tests ; modifier un test ou un fichier source invalide ce qu'il faut,
+  un `run` suivant dure ~1 min sur `app.core.gender*` (36 mutants). Il ne lit
+  pas `--migrations` et n'en a pas besoin.
+- **Stryker** : le tableau affiche « total » qui compte les timeouts comme
+  détectés ; recalculer avec la formule ci-dessus. `--force` est indispensable
+  pour comparer avant et après une modification de **test** : le mode
+  incrémental (`reports/stryker-incremental.json`) a réutilisé tel quel le
+  verdict d'avant la suppression d'un test.
+- **Où vivent les résultats** : backend dans `backend/mutants/` (copie de `app/`
+  et `tests/`, base de résultats `mutmut-stats.json` et `*.meta`) ; frontend dans
+  `frontend/reports/` (JSON et fichier incrémental) et `frontend/.stryker-tmp/`.
+  Tous gitignorés.
+- **Réinitialiser** : `rm -rf backend/mutants` (backend) ; `rm -rf
+  frontend/reports frontend/.stryker-tmp` (frontend).
+- **Pièges backend** : mutmut copie les sources sous `mutants/`, un niveau plus
+  bas. Les tests qui lisent le dépôt hors de `backend/` via `parents[N]` (front,
+  workflows, licence) y échouent et feraient avorter la cartographie : ils sont
+  désélectionnés dans `[tool.mutmut] pytest_add_cli_args` (aucun ne couvre
+  `app/`). Un nouveau test de ce genre doit y être ajouté. `scripts/`, `alembic/`
+  et `alembic.ini` sont copiés via `also_copy`.
+- **Mesures de référence** (machine chargée, load 3 à 10) : `app.core.gender*`
+  34 tués, 2 survivants (94,4 %) ; `lib/rank.ts` 7 tués, 3 survivants (70 %).
