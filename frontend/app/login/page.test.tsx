@@ -114,7 +114,11 @@ describe("Page de connexion — méthodes", () => {
     afficher([]);
 
     await waitFor(() =>
-      expect(screen.getByText(/aucun moyen de connexion/i)).toBeInTheDocument(),
+      expect(
+        screen.getByText(
+          "Aucun moyen de connexion n'est disponible sur ce site pour le moment. Les résultats du club se consultent avec le code d'accès.",
+        ),
+      ).toBeInTheDocument(),
     );
     expect(screen.queryByRole("link", { name: /GitHub/ })).not.toBeInTheDocument();
   });
@@ -123,7 +127,7 @@ describe("Page de connexion — méthodes", () => {
 const ENTRA: AuthMethod = { slug: "entra", label: "Google ou code par e-mail", audience: "member" };
 const GITHUB: AuthMethod = { slug: "github", label: "GitHub", audience: "admin" };
 const INDISPONIBLE =
-  "La connexion adhérent n'est pas encore disponible sur ce site. Les résultats du club se consultent avec le code d'accès.";
+  "La connexion adhérent n'est pas disponible sur ce site. Les résultats du club se consultent avec le code d'accès.";
 
 function region(nom: string) {
   return screen.getByRole("region", { name: nom });
@@ -152,6 +156,15 @@ describe("Page de connexion — deux parcours (#1666)", () => {
     expect(screen.queryByRole("region", { name: "Espace adhérent" })).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Administration" })).toBeInTheDocument();
     expect(screen.getByText(INDISPONIBLE)).toBeInTheDocument();
+    expect(screen.queryByText(/ouvre votre espace personnel/)).not.toBeInTheDocument();
+  });
+
+  // Frontend livré avant le backend : une méthode sans `audience` suit le défaut du backend.
+  it("range une méthode sans audience dans l'espace adhérent", async () => {
+    afficher([{ slug: "ancienne", label: "Ancienne" } as AuthMethod]);
+
+    const lien = await screen.findByRole("link", { name: "Continuer avec Ancienne" });
+    expect(region("Espace adhérent")).toContainElement(lien);
   });
 
   it("sans méthode admin, ne rend pas le bloc administration", async () => {

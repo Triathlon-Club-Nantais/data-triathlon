@@ -17,5 +17,6 @@ export async function connexionAdherent(): Promise<ConnexionAdherent> {
     apiServer.getSession().catch(() => null),
   ]);
   if (session) return session.is_member ? null : "non-adherent";
-  return methodes.length > 0 ? "proposee" : null;
+  // Une méthode d'administration seule ne connecte aucun adhérent (#1666).
+  return methodes.some((methode) => methode.audience !== "admin") ? "proposee" : null;
 }

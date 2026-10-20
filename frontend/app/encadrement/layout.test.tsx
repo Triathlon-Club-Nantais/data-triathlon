@@ -32,7 +32,7 @@ const SESSION = {
   groups: [],
 };
 const ADMIN_SEUL = { ...SESSION, permissions: ["quality:override"], can_administer: true, can_supervise: false };
-const GITHUB = [{ slug: "github", label: "GitHub" }];
+const GITHUB = [{ slug: "github", label: "GitHub", audience: "admin" }];
 
 describe("Supervision space guard", () => {
   let journal: ReturnType<typeof vi.spyOn>;

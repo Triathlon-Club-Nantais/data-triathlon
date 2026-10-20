@@ -189,7 +189,7 @@ def list_methods():
         AuthMethodRead(
             slug=method.slug,
             label=method.label,
-            # shortcut: la doublure du conftest de test_auth ne déclare pas d'audience (conftest gelé cette semaine), retirer le défaut quand elle en porte une.
+            # shortcut: la doublure du conftest de test_auth ne déclare pas d'audience (conftest gelé le 2026-10-20 (epic #1704)), retirer le défaut quand elle en porte une.
             audience=getattr(method, "audience", "member"),
         )
         for method in registry.enabled_methods()
