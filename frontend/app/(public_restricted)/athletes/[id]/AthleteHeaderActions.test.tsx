@@ -132,7 +132,9 @@ describe("AthleteHeaderActions, rattachement de la fiche (#1325)", () => {
     requestAthleteClaim.mockResolvedValue({});
     afficher();
 
-    await userEvent.click(await screen.findByRole("button", { name: /c'est moi/i }));
+    await screen.findByRole("button", { name: /c'est moi/i });
+    expect(screen.queryByRole("link", { name: /me comparer/i })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /c'est moi/i }));
 
     expect(requestAthleteClaim).toHaveBeenCalledWith(12);
     expect(screen.getByText(/le club valide/i)).toBeInTheDocument();
@@ -153,6 +155,7 @@ describe("AthleteHeaderActions, rattachement de la fiche (#1325)", () => {
     afficher();
 
     expect(await screen.findByText(/votre fiche/i)).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /me comparer/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /choisir cet athlète/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /c'est moi/i })).not.toBeInTheDocument();
   });
@@ -163,6 +166,11 @@ describe("AthleteHeaderActions, rattachement de la fiche (#1325)", () => {
 
     await screen.findByText((_, el) => el?.tagName === "P" && el.textContent === "Fiche de votre compte : Marie Gaudin");
     expect(screen.getByRole("link", { name: "Marie Gaudin" })).toHaveAttribute("href", "/athletes/99");
+    // #1675 : sa propre fiche s'ouvre avec ce coéquipier déjà choisi (`?comparer=`, #1701).
+    expect(screen.getByRole("link", { name: "Me comparer à Jean Dupont" })).toHaveAttribute(
+      "href",
+      "/athletes/99?comparer=12",
+    );
     expect(screen.queryByRole("button", { name: /choisir cet athlète/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /c'est moi/i })).not.toBeInTheDocument();
   });
