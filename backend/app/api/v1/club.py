@@ -96,10 +96,15 @@ def get_club_roster_rank(
         description="Exclut les disciplines hors fédération triathlon (trail, course à pied, cyclisme).",
     ),
     seasons: str | None = Query(None, description="Saisons (années de début, CSV) ; absentes, toutes saisons."),
+    gender: Literal["M", "F"] | None = Query(
+        None, description="Sexe de l'athlète ; absent, classement sur les deux sexes."
+    ),
     db: Session = Depends(get_db),
 ):
     """Rang exact de l'athlète dans le roster club, au-delà de l'aperçu de 12 (#504, #641)."""
-    result = athlete_repository.club_rank(db, athlete_id, federal_only=federal_only, seasons=parse_seasons(seasons))
+    result = athlete_repository.club_rank(
+        db, athlete_id, federal_only=federal_only, seasons=parse_seasons(seasons), gender=gender
+    )
     if result is None:
         raise NotFoundError("Athlète hors du roster club")
     rank, total = result

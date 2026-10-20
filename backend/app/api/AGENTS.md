@@ -303,7 +303,7 @@ les agrégats au sexe demandé : `_stats_filters` et `club_podiums` par
 `_gender_clause` (sous-requête sur `Athlete`, sans jointure), le roster et la
 composition sur `Athlete.gender` qu'ils joignent déjà, `licensees` sur
 `ClubMember.gender` (un licencié sans athlète lié reste compté). `/club/best-times`
-(déjà un résultat par sexe) ne bouge pas.
+(déjà un résultat par sexe) ne bouge pas. `gender` filtre aussi `GET /club/roster/rank/{id}` (rang parmi ce sexe). Sur `/stats`, le compte Athlètes suit le sexe du titulaire du résultat (`_gender_clause` sur `Participation.athlete_id`) : un relais mixte attribué à un sexe compte sous ce sexe, contrairement au roster qui crédite chaque équipier.
 `gender` (#1647) est aussi facultatif sur `GET /challenges/{id}` : mêmes règles de place
 (`status == finisher` et `rank_overall` non nul, officielle si toutes ont `rank_gender`),
 calculées dans `challenge_service.detail`, et `unknown_gender_count` (nul hors filtre).
