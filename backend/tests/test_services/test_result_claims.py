@@ -295,6 +295,18 @@ def test_the_approve_log_forgets_a_carrier_who_opposes(db_session, lea, reviewer
     assert "durand" not in str(_approve_log(db_session)).lower()
 
 
+def test_approve_refuses_a_result_anonymised_after_the_claim(db_session, lea, homonym, reviewer):
+    result = _result(db_session, homonym)
+    claim = result_claims.request_claim(db_session, lea, result.id)
+    homonym.nom, homonym.prenom = "Anonyme 12-34", ""  # an opposition applied meanwhile
+    db_session.flush()
+
+    with pytest.raises(result_claims.UnclaimableResultError):
+        result_claims.approve(db_session, claim.id, actor_id=reviewer.id)
+
+    assert (result.athlete_id, claim.status) == (homonym.id, STATUS_PENDING)
+
+
 def test_approve_waits_for_the_race_lock_before_reading_the_team(db_session, lea, team, reviewer, monkeypatch):
     relay = _result(db_session, team, is_relay=True)
     claim = result_claims.request_claim(db_session, lea, relay.id)
