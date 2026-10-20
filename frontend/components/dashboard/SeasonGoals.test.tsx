@@ -19,7 +19,6 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
   };
 });
 
-import { localToday } from "@/lib/utils/date";
 import { currentSeason, seasonLabel } from "@/lib/utils/season";
 import { SeasonGoals, libelle, progression } from "./SeasonGoals";
 
@@ -234,11 +233,11 @@ describe("SeasonGoals, épreuve cible (#1694)", () => {
     };
     expect(libelle(course)).toBe("Triathlon de Nantes, 14/06/2026");
     expect(progression(course)).toBe("En attente des résultats");
-    expect(progression({ ...course, outcome: "reached", best_time: "2:25:00" })).toBe("Objectif atteint, temps 2:25:00");
-    expect(progression({ ...course, outcome: "missed", best_time: null })).toBe("Objectif manqué");
+    expect(progression({ ...course, outcome: "reached", best_time: "2:25:00" })).toBe("Temps : 2:25:00");
+    expect(progression({ ...course, outcome: "reached", best_time: null })).toBe("Résultat validé");
+    expect(progression({ ...course, outcome: "missed", best_time: null })).toBe("Aucun résultat validé");
     expect(progression({ ...course, outcome: "upcoming", race_date: jourDecale(12) })).toBe("Dans 12 jours");
     expect(progression({ ...course, outcome: "upcoming", race_date: jourDecale(0) })).toBe("Aujourd'hui");
-    expect(localToday()).toBe(jourDecale(0));
   });
 
   it("flags the major goal", async () => {
@@ -248,5 +247,84 @@ describe("SeasonGoals, épreuve cible (#1694)", () => {
     const ligne = (await screen.findByText("6 épreuves")).closest("li") as HTMLElement;
     expect(within(ligne).getByText("Majeur")).toBeInTheDocument();
     expect(within((await screen.findByText("Triathlon M en moins de 2:30:00")).closest("li") as HTMLElement).queryByText("Majeur")).toBeNull();
+  });
+
+  it("shows a neutral pill on a missed goal", async () => {
+    getSeasonGoals.mockResolvedValue([{ ...TEMPS, outcome: "missed" }, NOMBRE]);
+    afficher();
+
+    const ligne = (await screen.findByText("Triathlon M en moins de 2:30:00")).closest("li") as HTMLElement;
+    expect(within(ligne).getByText("Non atteint")).toBeInTheDocument();
+    expect(within(screen.getByText("6 épreuves").closest("li") as HTMLElement).queryByText("Non atteint")).toBeNull();
+  });
+
+  it("shows the search error", async () => {
+    listCourses.mockRejectedValue(new Error("Recherche indisponible"));
+    afficher();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Ajouter un objectif" }));
+    await userEvent.click(screen.getByRole("radio", { name: "Une épreuve cible" }));
+    await userEvent.type(screen.getByLabelText("Rechercher votre épreuve"), "Nantes");
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Recherche indisponible");
+  });
+
+  it("announces an empty search and does not search a blank query", async () => {
+    listCourses.mockResolvedValue([]);
+    afficher();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Ajouter un objectif" }));
+    await userEvent.click(screen.getByRole("radio", { name: "Une épreuve cible" }));
+    await userEvent.type(screen.getByLabelText("Rechercher votre épreuve"), "   ");
+    await new Promise((r) => setTimeout(r, 400));
+    expect(listCourses).not.toHaveBeenCalled();
+
+    await userEvent.type(screen.getByLabelText("Rechercher votre épreuve"), "zzz");
+    expect(await screen.findByText("Aucune épreuve de la saison ne correspond.")).toBeInTheDocument();
+  });
+
+  it("drops the other mode's fields when switching between a known and a free race", async () => {
+    listCourses.mockResolvedValue([COURSE]);
+    createSeasonGoal.mockResolvedValue(TEMPS);
+    afficher();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Ajouter un objectif" }));
+    await userEvent.click(screen.getByRole("radio", { name: "Une épreuve cible" }));
+    await userEvent.type(screen.getByLabelText("Rechercher votre épreuve"), "Nantes");
+    await userEvent.click(await screen.findByRole("button", { name: /Triathlon de Nantes/ }));
+    expect(screen.getByRole("button", { name: "Changer d'épreuve" })).toHaveFocus();
+
+    await userEvent.click(screen.getByRole("button", { name: "Changer d'épreuve" }));
+    expect(screen.getByLabelText("Rechercher votre épreuve")).toHaveFocus();
+    await userEvent.click(screen.getByRole("button", { name: "Mon épreuve n'est pas dans la liste" }));
+    expect(screen.getByLabelText("Nom de l'épreuve")).toHaveFocus();
+    await userEvent.type(screen.getByLabelText("Nom de l'épreuve"), "Run du coin");
+    await userEvent.type(screen.getByLabelText("Date de l'épreuve"), `${currentSeason() + 1}-05-02`);
+    await userEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
+
+    await waitFor(() => expect(createSeasonGoal).toHaveBeenCalled());
+    expect(createSeasonGoal.mock.calls[0][0]).not.toHaveProperty("course_id");
+  });
+
+  it("sends no free entry fields once a known race is chosen after typing one", async () => {
+    listCourses.mockResolvedValue([COURSE]);
+    createSeasonGoal.mockResolvedValue(TEMPS);
+    afficher();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Ajouter un objectif" }));
+    await userEvent.click(screen.getByRole("radio", { name: "Une épreuve cible" }));
+    await userEvent.click(screen.getByRole("button", { name: "Mon épreuve n'est pas dans la liste" }));
+    await userEvent.type(screen.getByLabelText("Nom de l'épreuve"), "Run du coin");
+    await userEvent.click(screen.getByRole("button", { name: "Chercher parmi les épreuves du club" }));
+    expect(screen.getByLabelText("Rechercher votre épreuve")).toHaveFocus();
+    await userEvent.type(screen.getByLabelText("Rechercher votre épreuve"), "Nantes");
+    await userEvent.click(await screen.findByRole("button", { name: /Triathlon de Nantes/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
+
+    await waitFor(() => expect(createSeasonGoal).toHaveBeenCalled());
+    const body = createSeasonGoal.mock.calls[0][0];
+    expect(body).toMatchObject({ course_id: 7 });
+    expect(body).not.toHaveProperty("race_name");
+    expect(body).not.toHaveProperty("race_date");
   });
 });

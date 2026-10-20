@@ -70,6 +70,7 @@ function CarteObjectifs({ saison, plusieurs }: { saison: number; plusieurs: bool
                 </div>
                 {goal.major && <MetaPill accent>Majeur</MetaPill>}
                 {goal.reached && <MetaPill accent dot>Atteint</MetaPill>}
+                {goal.outcome === "missed" && <MetaPill>Non atteint</MetaPill>}
                 {modifiable && (
                   <>
                     <Button variant="secondary" size="sm" onClick={() => setEdition(goal)}
@@ -238,6 +239,8 @@ function ChoixEpreuve(props: {
   const [saisie, setSaisie] = useState("");
   const recherche = useDebounce(saisie.trim(), 300);
   const debut = currentSeason();
+  // Le focus ne suit qu'un geste : à l'ouverture de la sorte, il reste sur la case radio.
+  const [focuser, setFocuser] = useState(false);
   const resultats = useQuery({
     queryKey: ["season-goal-course-search", recherche, debut],
     queryFn: () =>
@@ -254,12 +257,12 @@ function ChoixEpreuve(props: {
     return (
       <>
         <label htmlFor={`${ids}-nom`} style={{ fontWeight: 600 }}>Nom de l&apos;épreuve</label>
-        <input id={`${ids}-nom`} className="tcn-input" maxLength={200} value={props.nom}
+        <input key="nom" id={`${ids}-nom`} className="tcn-input" maxLength={200} autoFocus={focuser} value={props.nom}
           onChange={(e) => props.onNom(e.target.value)} />
         <label htmlFor={`${ids}-date`} style={{ fontWeight: 600 }}>Date de l&apos;épreuve</label>
         <input id={`${ids}-date`} className="tcn-input" type="date" value={props.date}
           min={`${debut}-09-01`} max={`${debut + 1}-08-31`} onChange={(e) => props.onDate(e.target.value)} />
-        <Button type="button" variant="secondary" size="sm" onClick={() => props.onLibre(false)}>
+        <Button type="button" variant="secondary" size="sm" onClick={() => { setFocuser(true); props.onLibre(false); }}>
           Chercher parmi les épreuves du club
         </Button>
       </>
@@ -269,27 +272,30 @@ function ChoixEpreuve(props: {
     return (
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10 }}>
         <strong>{props.connue.name}</strong>
-        <Button type="button" variant="secondary" size="sm" onClick={props.onChanger}>Changer d&apos;épreuve</Button>
+        <Button type="button" variant="secondary" size="sm" autoFocus={focuser} onClick={() => { setFocuser(true); props.onChanger(); }}>Changer d&apos;épreuve</Button>
       </div>
     );
   }
   return (
     <>
       <label htmlFor={`${ids}-recherche`} style={{ fontWeight: 600 }}>Rechercher votre épreuve</label>
-      <input id={`${ids}-recherche`} className="tcn-input" value={saisie} onChange={(e) => setSaisie(e.target.value)} />
-      {resultats.data?.length === 0 && (
-        <p style={{ margin: 0, fontSize: 13, color: "var(--tcn-text-muted)" }}>Aucune épreuve de la saison ne correspond.</p>
+      <input key="recherche" id={`${ids}-recherche`} className="tcn-input" autoFocus={focuser} value={saisie} onChange={(e) => setSaisie(e.target.value)} />
+      <p aria-live="polite" style={{ margin: 0, fontSize: 13, color: "var(--tcn-text-muted)" }}>
+        {resultats.data?.length === 0 ? "Aucune épreuve de la saison ne correspond." : ""}
+      </p>
+      {resultats.error && (
+        <p role="alert" style={{ margin: 0, color: "var(--tcn-danger)", fontSize: 13 }}>{resultats.error.message}</p>
       )}
       <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "grid", gap: 6 }}>
         {resultats.data?.map((course) => (
           <li key={course.id}>
-            <Button type="button" variant="secondary" size="sm" onClick={() => props.onChoisir(course)}>
+            <Button type="button" variant="secondary" size="sm" onClick={() => { setFocuser(true); props.onChoisir(course); }}>
               {course.name}{course.event_date ? `, ${formatDate(course.event_date)}` : ""}
             </Button>
           </li>
         ))}
       </ul>
-      <Button type="button" variant="secondary" size="sm" onClick={() => props.onLibre(true)}>
+      <Button type="button" variant="secondary" size="sm" onClick={() => { setFocuser(true); props.onLibre(true); }}>
         Mon épreuve n&apos;est pas dans la liste
       </Button>
     </>
@@ -312,15 +318,14 @@ export function progression(goal: SeasonGoal): string {
 }
 
 function progressionEpreuve(goal: SeasonGoal): string {
-  const temps = goal.best_time ? `, temps ${goal.best_time}` : "";
   switch (goal.outcome) {
     case "upcoming": {
       const jours = Math.round((Date.parse(goal.race_date ?? "") - Date.parse(localToday())) / 86_400_000);
       return jours <= 0 ? "Aujourd'hui" : `Dans ${jours} ${jours > 1 ? "jours" : "jour"}`;
     }
     case "awaiting_results": return "En attente des résultats";
-    case "reached": return `Objectif atteint${temps}`;
-    case "missed": return `Objectif manqué${temps}`;
+    case "reached": return goal.best_time ? `Temps : ${goal.best_time}` : "Résultat validé";
+    case "missed": return goal.best_time ? `Temps : ${goal.best_time}` : "Aucun résultat validé";
   }
 }
 
