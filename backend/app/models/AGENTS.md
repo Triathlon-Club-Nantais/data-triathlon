@@ -458,12 +458,14 @@ lecture (`participation_repository.athlete_season_times` et
 ## Réclamations de résultat (#1637)
 
 `result_claims` (`id`, `user_id`, `participation_id`, `status`, `kind`,
-`created_at`, `decided_at`), `UNIQUE(user_id, participation_id)` : un compte rattaché réclame
-un résultat rangé sur une autre fiche. `kind` : `result` (défaut) ou `team` (#1739,
-rejoindre un relais). Seul point de passage :
+`created_at`, `decided_at`), `UNIQUE(user_id, participation_id)` : un compte
+rattaché réclame un résultat rangé sur une autre fiche. `kind` : `result`
+(défaut) ou `team` (#1739, rejoindre un relais). Seul point de passage :
 `result_claim_repository`. **Possédée** par le compte (`User.result_claims`,
 `_OWNED_TABLES`), **suit son résultat** (`ON DELETE CASCADE` ; la file joint
 `participations` pour ignorer une ligne orpheline en SQLite). Validée, elle
-disparaît : le déplacement passe par `admin_actions.reassign_participation`
-(résultat figé, fiche vidée purgée, journal `participation.reassign` et
-`result_claim.approve`).
+disparaît : pour `result`, le déplacement passe par
+`admin_actions.reassign_participation` (résultat figé, fiche vidée purgée,
+journal `participation.reassign` et `result_claim.approve`) ; pour `team`, le
+compte rejoint la composition du relais par `admin_actions.set_teammates`,
+journal `result_claim.approve_team`.
