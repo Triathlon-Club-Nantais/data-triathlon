@@ -299,7 +299,7 @@ def test_iter_list_specs_ne_filtre_pas_sur_live():
     (raceresult._iter_list_specs, {"lists": [{"Name": "X", "Contest": "0"}]},
      "TabConfig.Lists de forme inattendue"),
     (raceresult._iter_hidden_list_specs, {"lists": []}, "TabConfig.Lists"),
-])
+], ids=["publiees", "hidden"])
 def test_iter_specs_leve_sur_une_forme_inattendue(iter_specs, config, message):
     """Une config sans `TabConfig.Lists` exploitable lève bruyamment : c'est le
     symptôme exact d'une interrogation de la route héritée, qui doit se voir
@@ -1609,8 +1609,8 @@ def test_build_result_purge_temps_et_rangs_dun_non_finisher(statut, attendu):
     """M15 : la purge finale, sur une ligne qui porte **vraiment** temps et rangs.
 
     Les lignes « Abandons » de la capture Rumilly ont déjà une cellule de temps
-    vide : les tests qui s'en servent passeraient à l'identique sans la purge —
-    ils constatent une absence, ils n'exercent pas le nettoyage. L'invariant
+    vide : un test qui s'en servirait passerait à l'identique sans la purge, il
+    constaterait une absence sans exercer le nettoyage. L'invariant
     n'était couvert que par `test_scrape_event_all_status_jamais_incoherent`
     (`tests/test_integration_scrapers.py`), marqué `integration`, donc jamais
     joué par la CI (`-m "not integration"`).
@@ -1628,7 +1628,7 @@ def test_build_result_purge_temps_et_rangs_dun_non_finisher(statut, attendu):
     # Double rôle, à ne pas retirer comme un simple échafaudage : ce bloc est la
     # prémisse du cas polluant (la ligne est bien renseignée, la purge a donc de
     # quoi mordre — sans quoi les assertions du bas seraient vertes par accident
-    # d'absence, exactement le travers des tests DNF existants), ET le **sens
+    # d'absence, comme sur une ligne « Abandons » déjà vide), ET le **sens
     # légitime** de la garde : hors statut non-finisher, temps et rangs doivent
     # survivre intacts. Une purge inconditionnelle passerait le bas de ce test.
     finisher = _construire(ligne)
@@ -2877,8 +2877,9 @@ def test_scrape_event_all_410891_hidden_recupere_les_splits_intermediaires(monke
 
 # ── scrape_event_fanout — fan-out par contest, cache_probe et failures (issue #217)
 #
-# Répliquent les 5 scénarios de test_klikego.py, plus un cas spécifique #217 :
-# Contest="0" est **réservé** et ne doit pas être fan-outé.
+# Couvrent les scénarios de test_klikego.py (cache_probe et on_heat_start dans un
+# même test, le cas nominal via le fournisseur du registre), plus un cas propre
+# à #217 : Contest="0" est **réservé** et ne doit pas être fan-outé.
 
 
 _TROIS_CONTESTS = {"1": "Distance S", "2": "Distance M", "3": "Distance L"}
