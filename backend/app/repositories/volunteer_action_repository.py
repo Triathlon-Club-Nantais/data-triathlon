@@ -138,13 +138,10 @@ def list_declared_by(db: Session, *, user_id: int) -> list[VolunteerAction]:
 
 def list_for_account(db: Session, *, user_id: int, athlete_id: int | None) -> list[VolunteerAction]:
     """Export du compte (#1674) : ses déclarations, et celles qui créditent sa fiche, tous statuts."""
-    return list(
-        db.scalars(
-            select(VolunteerAction)
-            .where(or_(VolunteerAction.declared_by_user_id == user_id, VolunteerAction.athlete_id == athlete_id))
-            .order_by(VolunteerAction.created_at.desc())
-        )
-    )
+    mine = VolunteerAction.declared_by_user_id == user_id
+    if athlete_id is not None:
+        mine = or_(mine, VolunteerAction.athlete_id == athlete_id)
+    return list(db.scalars(select(VolunteerAction).where(mine).order_by(VolunteerAction.created_at.desc())))
 
 
 def delete(db: Session, action: VolunteerAction) -> None:
