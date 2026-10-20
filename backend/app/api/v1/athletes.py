@@ -72,6 +72,7 @@ def list_athletes_season_activity(
             id=a.id,
             nom=a.nom,
             prenom=a.prenom,
+            gender=a.gender,
             participation_count=club_affiliated,
             total_count=total,
             validated_count=validated,

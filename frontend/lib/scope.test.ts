@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SCOPE_CLUB, federalOnlyFromParam, scopeFromParam } from "./scope";
+import { SCOPE_CLUB, federalOnlyFromParam, genderFromSexeParam, scopeFromParam } from "./scope";
 
 describe("scopeFromParam", () => {
   it("rend la portée club quand le paramètre la demande", () => {
@@ -21,5 +21,14 @@ describe("federalOnlyFromParam", () => {
 
   it("rend undefined quand l'utilisateur demande tout, pour ne rien envoyer à l'API", () => {
     expect(federalOnlyFromParam("all")).toBeUndefined();
+  });
+});
+
+describe("genderFromSexeParam", () => {
+  it("maps sexe URL values to API gender", () => {
+    expect(genderFromSexeParam("H")).toBe("M");
+    expect(genderFromSexeParam("F")).toBe("F");
+    expect(genderFromSexeParam("x")).toBeUndefined();
+    expect(genderFromSexeParam(undefined)).toBeUndefined();
   });
 });

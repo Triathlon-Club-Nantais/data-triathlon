@@ -14,26 +14,41 @@ import { ClubPodiumKpi } from "./ClubPodiumKpi";
 import { RosterApercu } from "./RosterApercu";
 import { LienDestination } from "@/components/layout/LienDestination";
 import { DisciplinePerformance } from "./DisciplinePerformance";
+import { EmptyState } from "@/components/ui/empty-state";
+import { RetirerFiltreSexe } from "@/components/layout/RetirerFiltreSexe";
+import { chezLesSexe, sexeQuerySuffix, type Gender } from "@/lib/scope";
 import { ClubComposition } from "./ClubComposition";
 import { formatCount } from "@/lib/utils/format";
-import { seasonLabel, serializeSeasons, seasonSelectionLabel } from "@/lib/utils/season";
+import { seasonAbsenceLabel, seasonLabel, serializeSeasons, seasonSelectionLabel } from "@/lib/utils/season";
 
 export function ClubDashboard({
   stats,
   summary,
   recent,
   seasons,
+  gender,
 }: {
   stats: Stats;
   summary: ClubSummary;
   recent: Participation[];
   /** Sélection de saisons que `stats` et `summary` portent déjà. */
   seasons: number[];
+  /** Filtre `?sexe=` : la composition par genre n'a plus de sens. */
+  gender?: Gender;
 }) {
   const roster = summary.roster;
   const licensees = summary.licensees;
 
   if (stats.total === 0) {
+    if (gender) {
+      return (
+        <EmptyState
+          title={`Aucun résultat enregistré ${chezLesSexe(gender)} pour ${seasonAbsenceLabel(seasons)}.`}
+          description="Retirez le filtre par sexe ou changez de saison."
+          action={<RetirerFiltreSexe />}
+        />
+      );
+    }
     return (
       <SeasonEmptyState seasons={seasons} currentSeasonHref="/club" />
     );
@@ -67,7 +82,7 @@ export function ClubDashboard({
             <CardTitle>Podiums & performances</CardTitle>
           </CardHeader>
           <CardContent>
-            <PodiumsList podiums={summary.podiums} totals={summary.podiums_totals} />
+            <PodiumsList podiums={summary.podiums} totals={summary.podiums_totals} gender={gender} />
           </CardContent>
         </Card>
 
@@ -77,13 +92,14 @@ export function ClubDashboard({
             <CardTitle>Répartition & tendances</CardTitle>
           </CardHeader>
           <CardContent>
-            <Tabs defaultValue="type">
+            {/* `key` : sans Composition, l'onglet ouvert ne doit pas rester actif. */}
+            <Tabs key={gender ?? "tous"} defaultValue="type">
               <div className="overflow-x-auto">
                 <TabsList className="w-full">
                   <TabsTrigger value="type">Par discipline</TabsTrigger>
                   <TabsTrigger value="performance">Performance</TabsTrigger>
                   <TabsTrigger value="month">Par mois</TabsTrigger>
-                  <TabsTrigger value="composition">Composition</TabsTrigger>
+                  {!gender && <TabsTrigger value="composition">Composition</TabsTrigger>}
                 </TabsList>
               </div>
               <TabsContent value="type" className="pt-4">
@@ -112,9 +128,11 @@ export function ClubDashboard({
                   plus structurant du jeu de données selon l'audit UX). Un
                   athlète compte une fois, pas une fois par épreuve : la
                   composition porte sur des personnes. */}
-              <TabsContent value="composition" className="pt-4">
-                <ClubComposition composition={summary.composition} />
-              </TabsContent>
+              {!gender && (
+                <TabsContent value="composition" className="pt-4">
+                  <ClubComposition composition={summary.composition} />
+                </TabsContent>
+              )}
             </Tabs>
           </CardContent>
         </Card>
@@ -130,7 +148,7 @@ export function ClubDashboard({
               réservé à `pages:preview` (#811). Indépendant du nombre
               d'athlètes. */}
           <LienDestination
-            href={`/club/athletes?seasons=${serializeSeasons(seasons)}`}
+            href={`/club/athletes?seasons=${serializeSeasons(seasons)}${sexeQuerySuffix(gender)}`}
             className="shrink-0 text-sm font-medium text-accent-ink hover:underline"
           >
             Voir saison par saison →

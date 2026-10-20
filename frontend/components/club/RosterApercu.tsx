@@ -6,7 +6,7 @@ import { useSelectedAthlete } from "@/components/layout/AthletePicker";
 import { useDestinationVisible } from "@/components/layout/LienDestination";
 import { useClubRosterRank } from "@/lib/queries/club";
 import { selectedSeasonsOrCurrent, serializeSeasons } from "@/lib/utils/season";
-import { SPORTS_PARAM, federalOnlyFromParam } from "@/lib/scope";
+import { SEXE_PARAM, SPORTS_PARAM, federalOnlyFromParam, genderFromSexeParam, sexeQuerySuffix } from "@/lib/scope";
 import { PODIUM_SCOPE_META } from "@/lib/podium-scope";
 import type { PodiumScope } from "@/lib/podium-scope";
 import type { ClubRosterEntry } from "@/lib/types";
@@ -32,8 +32,10 @@ export function RosterApercu({ roster }: { roster: ClubRosterEntry[] }) {
   const sp = useSearchParams();
   const seasons = selectedSeasonsOrCurrent(sp.get("seasons"));
   const federalOnly = federalOnlyFromParam(sp.get(SPORTS_PARAM)) ?? false;
+  const gender = genderFromSexeParam(sp.get(SEXE_PARAM));
   const { data: classement } = useClubRosterRank(athleteRetenu?.id ?? 0, {
     federalOnly,
+    gender,
     seasons,
     enabled: horsApercu,
   });
@@ -46,16 +48,19 @@ export function RosterApercu({ roster }: { roster: ClubRosterEntry[] }) {
     color: "var(--tcn-orange-deeper)",
   };
   const rappel = classement
-    ? `Vous : ${classement.rank}ᵉ des ${classement.total} athlètes du club`
+    ? `Vous : ${classement.rank}ᵉ des ${classement.total} ${gender ? (gender === "M" ? "hommes" : "femmes") : "athlètes"} du club`
     : `Vous n'êtes pas parmi les ${roster.length} athlètes les plus actifs`;
 
   return (
     <>
       <div className="min-h-11">
+        {/* Sous filtre, un rang nul veut dire « pas parmi ce sexe » : le rappel
+            générique mentirait pour un athlète de l'autre sexe. */}
         {horsApercu &&
+          (!gender || classement) &&
           (listeVisible ? (
             <Link
-              href={`/club/athletes?seasons=${serializeSeasons(seasons)}#athlete-${athleteRetenu.id}`}
+              href={`/club/athletes?seasons=${serializeSeasons(seasons)}${sexeQuerySuffix(gender)}#athlete-${athleteRetenu.id}`}
               className={rappelClassName}
               style={rappelStyle}
             >

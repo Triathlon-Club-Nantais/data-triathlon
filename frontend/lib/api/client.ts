@@ -1,3 +1,4 @@
+import type { Gender } from "@/lib/scope";
 import { toQuery } from "@/lib/api/query";
 import type {
   AdminActionLogPage,
@@ -302,7 +303,7 @@ export const apiClient = {
 
   // Liste complète des podiums, chargée au dépliage de `PodiumsList` : `/club`
   // n'en transporte que l'aperçu (#1354).
-  getClubPodiums: (opts: { federal_only?: boolean; seasons?: number[] } = {}) =>
+  getClubPodiums: (opts: { federal_only?: boolean; seasons?: number[]; gender?: Gender } = {}) =>
     request<ClubPodiums>(`/club/podiums${toQuery(opts as Record<string, unknown>)}`),
   getClubSplitMedians: (opts: { event_type: string; federal_only?: boolean; seasons?: number[] }) =>
     request<ClubSplitMedians>(`/club/split-medians${toQuery(opts as Record<string, unknown>)}`),
@@ -312,7 +313,7 @@ export const apiClient = {
   // sort). `null` sur 404 : hors roster est un état normal, pas une panne.
   getClubRosterRank: async (
     athleteId: number,
-    opts: { federal_only?: boolean; seasons?: number[] } = {},
+    opts: { federal_only?: boolean; seasons?: number[]; gender?: "M" | "F" } = {},
   ): Promise<ClubRosterRank | null> => {
     try {
       return await request<ClubRosterRank>(

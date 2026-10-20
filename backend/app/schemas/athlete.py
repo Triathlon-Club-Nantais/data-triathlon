@@ -42,6 +42,7 @@ class AthleteSeasonActivity(BaseModel):
     id: int
     nom: str
     prenom: str = ""
+    gender: str = ""
     participation_count: int
     total_count: int
     validated_count: int

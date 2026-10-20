@@ -43,3 +43,35 @@ export const SPORTS_ALL = "all";
 export function federalOnlyFromParam(sports?: string | null): true | undefined {
   return sports === SPORTS_ALL ? undefined : true;
 }
+
+/** Nom du paramètre d'URL filtrant par sexe (`?sexe=H|F`, absent = Tous). */
+export const SEXE_PARAM = "sexe";
+
+/** Valeur de `gender` attendue par l'API. */
+export type Gender = "M" | "F";
+
+/** `?sexe=H` → `"M"`, `?sexe=F` → `"F"` ; toute autre valeur = aucun filtre. */
+export function genderFromSexeParam(sexe?: string | null): Gender | undefined {
+  if (sexe === "H") return "M";
+  if (sexe === "F") return "F";
+  return undefined;
+}
+
+/** Inverse de `genderFromSexeParam` : suffixe `&sexe=H|F` à accoler à une query, vide sans filtre. */
+export function sexeQuerySuffix(gender?: Gender): string {
+  return gender ? `&${SEXE_PARAM}=${gender === "M" ? "H" : "F"}` : "";
+}
+
+/** « chez les hommes » / « chez les femmes » : le sexe filtré, dit dans les états vides. */
+export function chezLesSexe(gender: Gender): string {
+  return gender === "M" ? "chez les hommes" : "chez les femmes";
+}
+
+/** `pathname` + query sans `sexe` (ni pagination) : l'action « Voir tous » des états vides filtrés par sexe. */
+export function hrefSansSexe(pathname: string, params: URLSearchParams): string {
+  const next = new URLSearchParams(params.toString());
+  next.delete(SEXE_PARAM);
+  next.delete("page");
+  const qs = next.toString();
+  return qs ? `${pathname}?${qs}` : pathname;
+}

@@ -9,6 +9,10 @@ import { trouverRang } from "@/lib/utils/rang";
 import { foldAccents } from "@/lib/utils/text";
 import { motCompte, plural } from "@/lib/utils/format";
 import { SEUIL_RAPPEL_POSITION } from "@/lib/club";
+import { SEXE_PARAM, chezLesSexe, genderFromSexeParam } from "@/lib/scope";
+import { FieldLabel } from "@/components/layout/FieldLabel";
+import { RetirerFiltreSexe } from "@/components/layout/RetirerFiltreSexe";
+import { SexeToggle } from "@/components/layout/SexeToggle";
 import { AthleteSortToggle, SORT_DEFAULT, SORT_PARAM, sortTypeFromParam } from "./AthleteSortToggle";
 import { RappelPosition } from "./RappelPosition";
 
@@ -72,6 +76,7 @@ function sortAthletes(
 export function AthleteSeasonList({ athletes }: { athletes: AthleteSeasonActivity[] }) {
   const sp = useSearchParams();
   const sort = sortTypeFromParam(sp.get(SORT_PARAM) ?? undefined);
+  const gender = genderFromSexeParam(sp.get(SEXE_PARAM));
   const [query, setQuery] = useState("");
   // #709 — le statut de validation n'est significatif que sur une saison
   // unique (research.md D9) : l'API rend `season_validated` uniforme (`null`
@@ -92,11 +97,13 @@ export function AthleteSeasonList({ athletes }: { athletes: AthleteSeasonActivit
     );
   }
 
-  const parNom = filterAthletes(athletes, query);
+  const duSexe = gender ? athletes.filter((a) => a.gender === gender) : athletes;
+  const parNom = filterAthletes(duSexe, query);
   const filtered = filterByValidation(parNom, singleSeason ? filtreValidation : "tous");
   const sorted = sortAthletes(filtered, sort);
+  const voirTous = <RetirerFiltreSexe label="Voir tous les athlètes" />;
 
-  // Rang calculé sur la liste **complète**, triée par volume et non filtrée
+  // Rang calculé sur la liste **complète** du sexe filtré, triée par volume et non filtrée
   // par la recherche — jamais sur `sort` : « 41ᵉ du club » promet un rang de
   // club, cohérent avec l'ordre de `club_roster` (backend, #581), toujours
   // trié par volume ; le laisser suivre le tri d'affichage ferait mentir le
@@ -104,7 +111,7 @@ export function AthleteSeasonList({ athletes }: { athletes: AthleteSeasonActivit
   // #504). Le rappel de `/club` lui-même reste générique, sans numéro de
   // rang : son roster arrive déjà plafonné côté SQL, `RosterApercu` n'a donc
   // pas de liste complète où chercher un rang au-delà de l'aperçu.
-  const rangComplet = sortAthletes(athletes, SORT_DEFAULT);
+  const rangComplet = sortAthletes(duSexe, SORT_DEFAULT);
   const rang = athleteRetenu
     ? trouverRang(athleteRetenu.id, rangComplet.map((a) => a.id))
     : null;
@@ -123,6 +130,10 @@ export function AthleteSeasonList({ athletes }: { athletes: AthleteSeasonActivit
           containerStyle={{ maxWidth: 320, flex: 1 }}
         />
         <AthleteSortToggle />
+        <div>
+          <FieldLabel>Sexe</FieldLabel>
+          <SexeToggle />
+        </div>
         {singleSeason && (
           <div role="radiogroup" aria-label="Statut de validation" style={{ display: "inline-flex", flexWrap: "wrap", gap: 8 }}>
             {(
@@ -155,6 +166,7 @@ export function AthleteSeasonList({ athletes }: { athletes: AthleteSeasonActivit
         visible={rappelVisible}
         epreuves={rang ? rangComplet[rang - 1].total_count : 0}
         rang={rang ?? 0}
+        gender={gender}
         hrefAncre={athleteRetenu ? `#athlete-${athleteRetenu.id}` : "#"}
       />
       {/* WCAG 4.1.3 — la recherche change le contenu de la liste sans déplacer
@@ -166,8 +178,20 @@ export function AthleteSeasonList({ athletes }: { athletes: AthleteSeasonActivit
       {sorted.length === 0 ? (
         <Card padding={0} style={{ overflow: "hidden" }}>
           <div style={{ padding: 40, textAlign: "center", color: "var(--tcn-text-faint)", fontSize: 14 }}>
-            {parNom.length === 0 ? (
-              <>Aucun athlète ne correspond à « {query.trim()} ». Essayez un autre nom.</>
+            {duSexe.length === 0 && gender ? (
+              <>
+                <p>Aucun athlète actif {chezLesSexe(gender)} sur cette saison.</p>
+                {voirTous}
+              </>
+            ) : parNom.length === 0 ? (
+              gender && filterAthletes(athletes, query).length > 0 ? (
+                <>
+                  <p>Aucun athlète ne correspond à « {query.trim()} » {chezLesSexe(gender)}.</p>
+                  {voirTous}
+                </>
+              ) : (
+                <>Aucun athlète ne correspond à « {query.trim()} ». Essayez un autre nom.</>
+              )
             ) : (
               // #1542, #1562 : le nom trouve, c'est le filtre de statut qui a vidé
               // la liste. « Afficher tous » garde la recherche.

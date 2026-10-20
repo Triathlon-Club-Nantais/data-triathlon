@@ -30,7 +30,7 @@ def count_to_settle(db: Session, season: int) -> int:
     )
 
 
-def licensee_activity(db: Session, season: int) -> tuple[int, int] | None:
+def licensee_activity(db: Session, season: int, gender: str | None = None) -> tuple[int, int] | None:
     """`(total, raced)` des licenciés de la saison (#1441), `None` sans licencié.
 
     `raced` : lignes rattachées dont la fiche a, en titulaire ou en équipier de
@@ -61,11 +61,12 @@ def licensee_activity(db: Session, season: int) -> tuple[int, int] | None:
         .exists()
     )
     raced = and_(ClubMember.link_status.in_(LINKED), season_result)
-    total, raced_count = db.execute(
-        select(func.count(), func.coalesce(func.sum(case((raced, 1), else_=0)), 0)).where(
-            ClubMember.season == season
-        )
-    ).one()
+    query = select(func.count(), func.coalesce(func.sum(case((raced, 1), else_=0)), 0)).where(
+        ClubMember.season == season
+    )
+    if gender:
+        query = query.where(ClubMember.gender == gender)
+    total, raced_count = db.execute(query).one()
     return (total, raced_count) if total else None
 
 

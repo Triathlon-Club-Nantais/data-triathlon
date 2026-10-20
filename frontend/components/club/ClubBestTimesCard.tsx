@@ -1,6 +1,7 @@
 import { Card, FormatChip, LigneCarte } from "@/components/tcn";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { eventTypeLabel } from "@/lib/constants";
+import { chezLesSexe, type Gender } from "@/lib/scope";
 import type { ClubBestTime } from "@/lib/types";
 import { formatDate } from "@/lib/utils/date";
 import { disciplineOf, formatToken } from "@/lib/utils/format";
@@ -16,12 +17,24 @@ export function ClubBestTimesCard({
   seasonLines,
   allLines,
   seasonLabel,
+  gender,
 }: {
   seasonLines: ClubBestTime[];
   allLines: ClubBestTime[];
   seasonLabel: string;
+  gender?: Gender;
 }) {
-  if (allLines.length === 0 && seasonLines.length === 0) return null;
+  // `/club/best-times` renvoie une ligne par genre : le filtre se fait ici.
+  if (gender) {
+    seasonLines = seasonLines.filter((l) => l.gender === gender);
+    allLines = allLines.filter((l) => l.gender === gender);
+  }
+  if (allLines.length === 0 && seasonLines.length === 0) {
+    if (!gender) return null;
+    return (
+      <p style={{ margin: 0, fontSize: 14, color: "var(--tcn-text-faint)" }}>Aucun record {chezLesSexe(gender)}.</p>
+    );
+  }
 
   return (
     <Card padding={0} style={{ overflow: "hidden" }}>

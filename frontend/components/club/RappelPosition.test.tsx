@@ -14,6 +14,11 @@ describe("RappelPosition", () => {
     expect(lien).toHaveAttribute("href", "/club/athletes#athlete-1");
   });
 
+  it("qualifie le rang du sexe filtré", () => {
+    render(<RappelPosition visible epreuves={3} rang={12} hrefAncre="#athlete-1" gender="F" />);
+    expect(screen.getByRole("link", { name: /Vous : 3 épreuves — 12ᵉ chez les femmes du club/ })).toBeInTheDocument();
+  });
+
   it("accorde « épreuve » au singulier", () => {
     render(<RappelPosition visible epreuves={1} rang={41} hrefAncre="#athlete-1" />);
     expect(screen.getByRole("link", { name: /Vous : 1 épreuve — 41ᵉ du club/ })).toBeInTheDocument();

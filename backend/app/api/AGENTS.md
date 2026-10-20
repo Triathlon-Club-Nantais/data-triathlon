@@ -284,6 +284,34 @@ une page vide.
 
 Spec, plan et tâches : `specs/20260803-195212-course-pagination/`.
 
+### Filtre par sexe et place par sexe (#1645)
+
+`gender` sur `GET /courses/{id}` est **facultatif** ; absent, la réponse est
+identique à avant (Principe IV). Il filtre sur `Athlete.gender` (lignes
+validées comme lignes en attente) et toute autre valeur que `M` ou `F` rend
+un 422 (`Literal`). Une ligne sans sexe connu n'apparaît sous aucun des deux.
+
+La **population classée** est celle des finishers validés, non relais, à
+`rank_overall` non nul, du sexe demandé (`_GENDER_RANKED`). Elle passe en tête,
+chaque ligne portant `gender_place` : le `rank_gender` officiel si **toutes**
+ses lignes en ont un, sinon la position recalculée dans `_display_order`
+(`gender_place_official` dit lequel). Les autres lignes du sexe (relais, non
+finishers, non classés) suivent dans l'ordre actuel, `gender_place` nul.
+`participation_repository.gender_places` calcule les places sur l'épreuve
+entière : ni `q`, ni `club`, ni la page ne les décalent. Les deux champs sont
+nuls hors de ce filtre et sur les lignes en attente.
+`gender` (#1646) est aussi facultatif sur `GET /stats`, `/club/summary`,
+`/club/podiums` et `/participations`, avec le même 422 hors `M`/`F`. Il restreint
+les agrégats au sexe demandé : `_stats_filters` et `club_podiums` par
+`_gender_clause` (sous-requête sur `Athlete`, sans jointure), le roster et la
+composition sur `Athlete.gender` qu'ils joignent déjà, `licensees` sur
+`ClubMember.gender` (un licencié sans athlète lié reste compté). `/club/best-times`
+(déjà un résultat par sexe) ne bouge pas. `gender` filtre aussi `GET /club/roster/rank/{id}` (rang parmi ce sexe). Sur `/stats`, le compte Athlètes suit le sexe du titulaire du résultat (`_gender_clause` sur `Participation.athlete_id`) : un relais mixte attribué à un sexe compte sous ce sexe, contrairement au roster qui crédite chaque équipier.
+`gender` (#1647) est aussi facultatif sur `GET /challenges/{id}` : mêmes règles de place
+(`status == finisher` et `rank_overall` non nul, officielle si toutes ont `rank_gender`),
+calculées dans `challenge_service.detail`, et `unknown_gender_count` (nul hors filtre).
+Design : `docs/superpowers/specs/2026-10-19-results-by-sex-design.md`.
+
 ## Sources multiples d'une épreuve : sources, bascule, re-scrape, fusion (epic #275)
 
 Quatre ressources sous `/admin/courses/{id}/...` (sources #284, bascule #285,

@@ -7,7 +7,10 @@ import type { ClubSummary, Participation, Stats } from "@/lib/types";
 
 vi.mock("@/components/charts/BarList", () => ({ BarList: () => <div data-testid="barlist" /> }));
 vi.mock("@/components/charts/MonthlyTrend", () => ({ MonthlyTrend: () => <div data-testid="monthly" /> }));
-vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams() }));
+vi.mock("next/navigation", () => ({
+  useSearchParams: () => new URLSearchParams(),
+  usePathname: () => "/club",
+}));
 const { session } = vi.hoisted(() => ({ session: { permissions: ["pages:preview"] as string[] } }));
 vi.mock("@/lib/queries/auth", () => ({
   useSession: () => ({ data: session }),
@@ -15,7 +18,7 @@ vi.mock("@/lib/queries/auth", () => ({
 }));
 
 import { ClubDashboard } from "./ClubDashboard";
-import { currentSeason, seasonLabel, seasonSelectionLabel } from "@/lib/utils/season";
+import { currentSeason, seasonAbsenceLabel, seasonLabel, seasonSelectionLabel } from "@/lib/utils/season";
 
 // `RosterApercu` appelle `useClubRosterRank` (#641), inconditionnellement
 // (l'`enabled` du hook ne change rien à l'obligation d'un `QueryClientProvider`
@@ -278,5 +281,45 @@ describe("ClubDashboard — smoke", () => {
   it("ne rend plus de bandeau de troncature", () => {
     render(<ClubDashboard stats={STATS} summary={EMPTY_SUMMARY} recent={[part({ id: 1 })]} seasons={[currentSeason()]} />);
     expect(screen.queryByText(/derniers résultats importés/)).not.toBeInTheDocument();
+  });
+
+  it("hides the composition card under a gender filter", () => {
+    render(<ClubDashboard stats={STATS} summary={EMPTY_SUMMARY} recent={[]} seasons={[currentSeason()]} gender="F" />);
+
+    expect(screen.queryByRole("tab", { name: "Composition" })).not.toBeInTheDocument();
+  });
+
+  it("falls back to the default tab when Composition is open and a gender is picked", async () => {
+    const props = { stats: STATS, summary: EMPTY_SUMMARY, recent: [], seasons: [currentSeason()] };
+    const { rerender } = render(<ClubDashboard {...props} />);
+    await userEvent.click(screen.getByRole("tab", { name: "Composition" }));
+
+    rerender(
+      <QueryClientProvider client={new QueryClient()}>
+        <ClubDashboard {...props} gender="F" />
+      </QueryClientProvider>,
+    );
+
+    expect(screen.getByRole("tab", { name: "Par discipline" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByTestId("barlist")).toBeVisible();
+  });
+
+  it("names the sex and offers to drop it when the filter leaves no result", () => {
+    render(
+      <ClubDashboard stats={{ ...STATS, total: 0 }} summary={EMPTY_SUMMARY} recent={[]} seasons={[2025]} gender="F" />,
+    );
+
+    expect(screen.getByText(`Aucun résultat enregistré chez les femmes pour ${seasonAbsenceLabel([2025])}.`)).toBeInTheDocument();
+    expect(screen.queryByText(/Aucun résultat enregistré pour/)).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Retirer le filtre par sexe" })).toHaveAttribute("href", "/club");
+  });
+
+  it("keeps the sexe in the link to the season list", () => {
+    render(<ClubDashboard stats={STATS} summary={EMPTY_SUMMARY} recent={[]} seasons={[2025]} gender="M" />);
+
+    expect(screen.getByRole("link", { name: /saison par saison/ })).toHaveAttribute(
+      "href",
+      "/club/athletes?seasons=2025&sexe=H",
+    );
   });
 });

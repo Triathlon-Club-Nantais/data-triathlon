@@ -539,3 +539,128 @@ def test_la_synthese_ignore_les_filtres_du_classement(client, epreuve_filtrable)
     ).json()
 
     assert corps["total"] == 3
+
+
+# ── GET /courses/{id}?gender= : place par sexe (#1645) ───────────────────────
+
+
+def _row(db_session, course, nom, *, gender, **columns):
+    athlete = athlete_repository.get_or_create(
+        db_session, nom=nom, prenom="Test", gender=gender, club="ASPTT"
+    )
+    return participation_repository.create(
+        db_session, athlete_id=athlete.id, course_id=course.id, bib_number=nom,
+        club="ASPTT", **{"status": "finisher", "total_time": "01:00:00", **columns},
+    )
+
+
+@pytest.fixture
+def mixed_course(db_session):
+    """Four ranked women (gender ranks 1, 2, 4, 5), a man, a row without sex,
+    a DNF woman and a woman's relay without `rank_gender`."""
+    course = course_repository.get_or_create(
+        db_session, name="Tri Mixte", event_date=date(2026, 8, 2), event_type="triathlon-m"
+    )
+    women = [
+        _row(db_session, course, f"FEMME{index}", gender="F", rank_overall=overall, rank_gender=gender_rank)
+        for index, (overall, gender_rank) in enumerate([(10, 1), (11, 2), (15, 4), (19, 5)], start=1)
+    ]
+    others = {
+        "man": _row(db_session, course, "HOMME", gender="M", rank_overall=1, rank_gender=1),
+        "unknown": _row(db_session, course, "INCONNU", gender="", rank_overall=2),
+        "relay": _row(db_session, course, "RELAIS", gender="F", rank_overall=12, is_relay=True),
+        "dnf": _row(db_session, course, "ABANDON", gender="F", status="DNF", total_time=None),
+    }
+    db_session.commit()
+    return course, women, others
+
+
+def _women(client, course, query=""):
+    return client.get(f"/api/v1/courses/{course.id}?gender=F{query}").json()
+
+
+def test_get_course_without_gender_is_unchanged(client, mixed_course):
+    course, women, others = mixed_course
+
+    rows = client.get(f"/api/v1/courses/{course.id}").json()["participations"]
+
+    assert [p["id"] for p in rows] == [
+        others["man"].id, others["unknown"].id, women[0].id, women[1].id,
+        others["relay"].id, women[2].id, women[3].id, others["dnf"].id,
+    ]
+    assert {(p["gender_place"], p["gender_place_official"]) for p in rows} == {(None, None)}
+
+
+def test_get_course_gender_uses_official_rank_gender(client, mixed_course):
+    course, women, others = mixed_course
+
+    body = _women(client, course)
+    rows = body["participations"]
+
+    assert [p["id"] for p in rows] == [w.id for w in women] + [others["relay"].id, others["dnf"].id]
+    assert [p["gender_place"] for p in rows] == [1, 2, 4, 5, None, None]
+    assert all(p["gender_place_official"] is True for p in rows[:4])
+    assert body["total"] == 6
+
+
+def test_get_course_gender_recalculates_when_one_rank_gender_missing(client, db_session, mixed_course):
+    course, women, _ = mixed_course
+    women[2].rank_gender = None
+    db_session.commit()
+
+    rows = _women(client, course)["participations"]
+
+    assert [p["id"] for p in rows[:4]] == [w.id for w in women]
+    assert [p["gender_place"] for p in rows[:4]] == [1, 2, 3, 4]
+    assert all(p["gender_place_official"] is False for p in rows[:4])
+
+
+def test_get_course_gender_relay_does_not_switch_to_recalculated(client, mixed_course):
+    course, _, others = mixed_course
+
+    rows = _women(client, course)["participations"]
+
+    assert others["relay"].rank_gender is None
+    assert rows[0]["gender_place_official"] is True
+
+
+def test_get_course_gender_place_survives_query_filter(client, mixed_course):
+    course, _, _ = mixed_course
+
+    rows = _women(client, course, "&q=FEMME3")["participations"]
+
+    assert [p["gender_place"] for p in rows] == [4]
+
+
+def test_get_course_gender_place_continues_across_pages(client, mixed_course):
+    course, _, _ = mixed_course
+
+    rows = _women(client, course, "&page_size=2&page=2")["participations"]
+
+    assert [p["gender_place"] for p in rows] == [4, 5]
+
+
+def test_get_course_gender_without_matching_finisher_is_empty(client, epreuve):
+    body = _women(client, epreuve)
+
+    assert body["participations"] == []
+    assert body["total"] == 0
+
+
+def test_get_course_gender_filters_pending_rows(client, db_session, mixed_course):
+    course, _, _ = mixed_course
+    _row(db_session, course, "ATTENTEH", gender="M", rank_overall=3, is_pending_validation=True)
+    pending_woman = _row(
+        db_session, course, "ATTENTEF", gender="F", rank_overall=4, rank_gender=1,
+        is_pending_validation=True,
+    )
+    db_session.commit()
+
+    pending = _women(client, course)["pending_participations"]
+
+    assert [p["id"] for p in pending] == [pending_woman.id]
+    assert pending[0]["gender_place"] is None
+
+
+def test_get_course_rejects_unknown_gender(client, epreuve):
+    assert client.get(f"/api/v1/courses/{epreuve.id}?gender=X").status_code == 422

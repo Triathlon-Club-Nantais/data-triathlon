@@ -308,6 +308,37 @@ def test_last_outing_accepts_seasons(client, db_session, monkeypatch):
     assert client.get("/api/v1/club/last-outing?seasons=2025").json()["end_date"] == "2026-05-10"
 
 
+def test_club_roster_rank_classe_parmi_le_sexe_demande(client, db_session):
+    course = course_repository.get_or_create(
+        db_session, name="C", event_date=date(2026, 5, 16), event_type="triathlon-m"
+    )
+    ids = {}
+    for prenom, gender, count in (("Hugo", "M", 2), ("Lea", "F", 1)):
+        ath = athlete_repository.get_or_create(db_session, nom="A", prenom=prenom, club="TCN")
+        ath.gender = gender
+        ids[prenom] = ath.id
+        for i in range(count):
+            other = course if i == 0 else course_repository.get_or_create(
+                db_session, name=f"C{i}", event_date=date(2026, 5, 17), event_type="triathlon-m"
+            )
+            participation_repository.create(
+                db_session, athlete_id=ath.id, course_id=other.id, bib_number=f"{prenom}{i}",
+                club="TCN", status="finisher",
+            )
+    db_session.commit()
+
+    assert client.get(f"/api/v1/club/roster/rank/{ids['Lea']}").json() == {"rank": 2, "total": 2}
+    assert client.get(f"/api/v1/club/roster/rank/{ids['Lea']}", params={"gender": "F"}).json() == {
+        "rank": 1,
+        "total": 1,
+    }
+    assert client.get(f"/api/v1/club/roster/rank/{ids['Lea']}", params={"gender": "M"}).status_code == 404
+
+
+def test_club_roster_rank_422_hors_m_f(client):
+    assert client.get("/api/v1/club/roster/rank/1", params={"gender": "X"}).status_code == 422
+
+
 def _total(swim, bike="00:30:00", run="00:20:00"):
     from app.services.mapping import parse_duration
 

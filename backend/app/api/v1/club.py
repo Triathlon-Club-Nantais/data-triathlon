@@ -34,11 +34,15 @@ def get_club_summary(
         "étant servie par `/club/podiums` ; `podiums_totals` donne les tailles complètes.",
     ),
     seasons: str | None = Query(None, description="Saisons (années de début, CSV) ; absentes, toutes saisons."),
+    gender: Literal["M", "F"] | None = Query(
+        None, description="Sexe de l'athlète ; absent, les deux sexes (et les athlètes sans sexe connu)."
+    ),
     db: Session = Depends(get_db),
 ):
     """Roster (top 12) et podiums (4 modes de rang) du club, agrégés côté serveur."""
     return club_service.get_club_summary(
-        db, federal_only=federal_only, podiums_preview=podiums == "preview", seasons=parse_seasons(seasons)
+        db, federal_only=federal_only, podiums_preview=podiums == "preview",
+        seasons=parse_seasons(seasons), gender=gender,
     )
 
 
@@ -49,10 +53,15 @@ def get_club_podiums(
         description="Exclut les disciplines hors fédération triathlon (trail, course à pied, cyclisme).",
     ),
     seasons: str | None = Query(None, description="Saisons (années de début, CSV) ; absentes, toutes saisons."),
+    gender: Literal["M", "F"] | None = Query(
+        None, description="Sexe de l'athlète ; absent, les deux sexes (et les athlètes sans sexe connu)."
+    ),
     db: Session = Depends(get_db),
 ):
     """Tous les podiums du club, par mode de rang : la liste dépliée de /club (#1354)."""
-    return club_service.get_club_podiums(db, federal_only=federal_only, seasons=parse_seasons(seasons))
+    return club_service.get_club_podiums(
+        db, federal_only=federal_only, seasons=parse_seasons(seasons), gender=gender
+    )
 
 
 @router.get("/club/best-times", response_model=list[ClubBestTime])
@@ -94,10 +103,15 @@ def get_club_roster_rank(
         description="Exclut les disciplines hors fédération triathlon (trail, course à pied, cyclisme).",
     ),
     seasons: str | None = Query(None, description="Saisons (années de début, CSV) ; absentes, toutes saisons."),
+    gender: Literal["M", "F"] | None = Query(
+        None, description="Sexe de l'athlète ; absent, classement sur les deux sexes."
+    ),
     db: Session = Depends(get_db),
 ):
     """Rang exact de l'athlète dans le roster club, au-delà de l'aperçu de 12 (#504, #641)."""
-    result = athlete_repository.club_rank(db, athlete_id, federal_only=federal_only, seasons=parse_seasons(seasons))
+    result = athlete_repository.club_rank(
+        db, athlete_id, federal_only=federal_only, seasons=parse_seasons(seasons), gender=gender
+    )
     if result is None:
         raise NotFoundError("Athlète hors du roster club")
     rank, total = result

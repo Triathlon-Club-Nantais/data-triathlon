@@ -15,7 +15,7 @@ import type { Feedback } from "@/lib/types";
 const RANK_LABEL_SHORT: Record<RankType, string> = {
   scratch: "Général",
   category: "Catégorie",
-  gender: "Genre",
+  gender: "Sexe",
   all: "Tous",
 };
 
@@ -23,8 +23,8 @@ const RANK_LABEL_SHORT: Record<RankType, string> = {
 const RANK_LABEL_LONG: Record<RankType, string> = {
   scratch: "général",
   category: "catégorie",
-  gender: "genre",
-  all: "général, genre ou catégorie",
+  gender: "sexe",
+  all: "général, sexe ou catégorie",
 };
 
 export function rankTypeLabel(

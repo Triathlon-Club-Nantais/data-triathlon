@@ -108,6 +108,23 @@ def test_season_activity_ne_rend_que_les_actifs_de_la_saison_scopes_club(client,
     assert body[0]["club_affiliated_count"] == 1
 
 
+def test_season_activity_exposes_gender(client, db_session):
+    from app.repositories import athlete_repository
+
+    course = _epreuve(db_session, "Genre 2025", date(2025, 10, 1))
+    for bib, (nom, gender) in enumerate([("HOMME", "M"), ("FEMME", "F"), ("INCONNU", "")], start=1):
+        athlete = athlete_repository.get_or_create(
+            db_session, nom=nom, prenom="X", club="Triathlon Club Nantais", gender=gender
+        )
+        db_session.commit()
+        _inscrit(db_session, athlete, course, str(bib))
+    db_session.commit()
+
+    resp = client.get("/api/v1/athletes/season-activity", params={"scope": "club", "seasons": "2025"})
+
+    assert {a["nom"]: a["gender"] for a in resp.json()} == {"HOMME": "M", "FEMME": "F", "INCONNU": ""}
+
+
 def test_season_activity_expose_trois_compteurs_distincts_quand_ils_divergent(client, db_session):
     """#709 — `total_count` compte tout, `validated_count`/`club_affiliated_count`
     filtrent, et `participation_count` reste égal à `club_affiliated_count`

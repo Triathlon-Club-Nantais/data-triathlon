@@ -1,3 +1,4 @@
+import type { Gender } from "@/lib/scope";
 import { cookies } from "next/headers";
 import { ApiError } from "@/lib/api/client";
 import { errorDetail, toQuery } from "@/lib/api/query";
@@ -259,7 +260,8 @@ export const apiServer = {
    * pas (#163).
    */
   getCourseSummary: (id: number) => serverFetch<CourseSummary>(`/courses/${id}/summary`),
-  getChallenge: (id: number) => serverFetch<ChallengeDetail>(`/challenges/${id}`),
+  getChallenge: (id: number, opts: { gender?: Gender } = {}) =>
+    serverFetch<ChallengeDetail>(`/challenges/${id}${toQuery(opts)}`),
   /** Sources connues de l'épreuve, active en tête (#284) — lecture publique (D4). */
   getCourseSources: (id: number) => serverFetch<CourseSource[]>(`/courses/${id}/sources`),
   listEvents: (filters: ParticipationFilters = {}, fetchOpts: FetchOpts = {}) =>
@@ -268,11 +270,11 @@ export const apiServer = {
       fetchOpts,
     ),
   getStats: (
-    opts: { scope?: string; seasons?: number[]; federal_only?: boolean } = {},
+    opts: { scope?: string; seasons?: number[]; federal_only?: boolean; gender?: Gender } = {},
     fetchOpts: FetchOpts = {},
   ) => serverFetch<Stats>(`/stats${toQuery(opts)}`, fetchOpts),
   getClubSummary: (
-    opts: { federal_only?: boolean; podiums?: "preview"; seasons?: number[] } = {},
+    opts: { federal_only?: boolean; podiums?: "preview"; seasons?: number[]; gender?: Gender } = {},
     fetchOpts: FetchOpts = {},
   ) => serverFetch<ClubSummary>(`/club/summary${toQuery(opts)}`, fetchOpts),
   /** Meilleur temps du club par format calibré et genre (#1588) ; sans `season`, toutes saisons. */

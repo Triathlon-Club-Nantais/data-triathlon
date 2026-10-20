@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { motCompte } from "@/lib/utils/format";
+import { chezLesSexe, type Gender } from "@/lib/scope";
 
 /**
  * Rappel épinglé de la position de l'athlète retenu (#504) — affiché quand sa
@@ -14,11 +15,14 @@ export function RappelPosition({
   epreuves,
   rang,
   hrefAncre,
+  gender,
 }: {
   visible: boolean;
   epreuves: number;
   rang: number;
   hrefAncre: string;
+  /** Filtre `?sexe=` : le rang est alors celui du sexe filtré, et le dit. */
+  gender?: Gender;
 }) {
   return (
     <div className="min-h-11">
@@ -32,7 +36,7 @@ export function RappelPosition({
             color: "var(--tcn-orange-deeper)",
           }}
         >
-          Vous : {motCompte(epreuves, "épreuve")} — {rang}ᵉ du club
+          Vous : {motCompte(epreuves, "épreuve")} — {rang}ᵉ {gender ? `${chezLesSexe(gender)} ` : ""}du club
         </Link>
       )}
     </div>

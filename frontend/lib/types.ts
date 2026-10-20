@@ -1,3 +1,4 @@
+import type { Gender } from "@/lib/scope";
 // Miroir des schémas Pydantic backend. Source de vérité : app/schemas/*.py.
 
 export interface AthleteBrief {
@@ -17,6 +18,7 @@ export interface AthleteSeasonActivity {
   id: number;
   nom: string;
   prenom: string;
+  gender: string;
   participation_count: number;
   total_count: number;
   validated_count: number;
@@ -158,6 +160,10 @@ export interface Participation {
   rank_overall: number | null;
   rank_category: number | null;
   rank_gender: number | null;
+  /** Place au sein du sexe demandé (`gender`), `null` sans filtre ou hors population classée. */
+  gender_place?: number | null;
+  /** `false` : place recalculée, la source ne publie pas tous les rangs par sexe. */
+  gender_place_official?: boolean | null;
   total_time: string | null;
   status: string;
   is_relay: boolean;
@@ -803,6 +809,11 @@ export interface ChallengeResult {
   rank_overall: number | null;
   total_time: string | null;
   status: string;
+  gender: string;
+  rank_gender: number | null;
+  /** Place au classement du sexe filtré (`?gender=`), nulle sans filtre. */
+  gender_place?: number | null;
+  gender_place_official?: boolean | null;
 }
 
 /** `GET /challenges/{id}` : classement trié par rang, les non classés en fin. */
@@ -812,6 +823,8 @@ export interface ChallengeDetail {
   event_date: string;
   courses: ChallengeCourse[];
   results: ChallengeResult[];
+  /** Résultats sans sexe connu, hors classement ; nul sans filtre de sexe. */
+  unknown_gender_count?: number | null;
 }
 
 export interface AthleteDetail {
@@ -896,6 +909,8 @@ export interface CourseQuery {
   club?: string;
   /** Code **exact** de catégorie, tel que rendu par `/summary` (#486). */
   category?: string;
+  /** Sexe du classement (`?sexe=` côté URL) : ajoute `gender_place` aux lignes. */
+  gender?: Gender;
 }
 
 interface CategoryCount {
@@ -970,6 +985,7 @@ export interface ParticipationFilters {
   sort?: string; // "date_desc" | "date_asc" | "name" (épreuves)
   page?: number;
   page_size?: number;
+  gender?: Gender;
 }
 
 // ── Authentification (#114) ──────────────────────────────────────────────────

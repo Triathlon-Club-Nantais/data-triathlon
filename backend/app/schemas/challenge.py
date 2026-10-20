@@ -37,6 +37,10 @@ class ChallengeResultOut(BaseModel):
     rank_overall: int | None
     total_time: str | None
     status: str
+    gender: str
+    rank_gender: int | None
+    gender_place: int | None = None
+    gender_place_official: bool | None = None
 
 
 class ChallengeDetail(BaseModel):
@@ -47,3 +51,4 @@ class ChallengeDetail(BaseModel):
     event_date: date
     courses: list[ChallengeCourseOut]
     results: list[ChallengeResultOut]
+    unknown_gender_count: int | None = None

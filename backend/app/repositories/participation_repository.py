@@ -1,7 +1,7 @@
 """Accès données pour Participation, incluant les filtres de la liste publique."""
 from collections.abc import Iterable, Sequence
 from datetime import date, datetime
-from typing import NamedTuple
+from typing import Literal, NamedTuple
 
 from sqlalchemy import and_, case, exists, func, literal, or_, select, union_all
 from sqlalchemy import update as sql_update
@@ -516,6 +516,7 @@ def _apply_filters(
     seasons=None,
     federal_only=False,
     include_pending=False,
+    gender=None,
 ):
     """Joint Athlete + Course et applique les filtres communs (liste + épreuves).
 
@@ -540,6 +541,8 @@ def _apply_filters(
         q = q.filter(name_filter(name))
     if club_only:
         q = q.filter(Participation.counts_for_tcn.is_(True))
+    if gender:
+        q = q.filter(_gender_clause(gender))
     q = _apply_course_filters(
         q,
         db,
@@ -565,6 +568,7 @@ def list_participations(
     course_id: int | None = None,
     seasons: list[int] | None = None,
     federal_only: bool = False,
+    gender: str | None = None,
     page: int = 1,
     page_size: int = 20,
 ) -> list[Participation]:
@@ -584,6 +588,7 @@ def list_participations(
         course_id=course_id,
         seasons=seasons,
         federal_only=federal_only,
+        gender=gender,
     )
     offset = (page - 1) * page_size
     # Pour le détail d'une épreuve, trier par classement ; sinon par date d'import.
@@ -821,6 +826,38 @@ def _display_order():
     )
 
 
+#: Population classée par sexe (#1645) : finishers individuels portant un rang.
+_GENDER_RANKED = and_(
+    _DISPLAY_GROUP == 0,
+    Participation.rank_overall.is_not(None),
+    Participation.is_relay.is_(False),
+)
+
+
+def gender_places(db: Session, course_id: int, gender: Literal["M", "F"]) -> tuple[dict[int, int], bool]:
+    """Place par sexe de chaque ligne classée de l'épreuve, et son caractère officiel.
+
+    Officielle (`rank_gender`) si **toutes** les lignes de la population en
+    portent un ; sinon recalculée par position dans `_display_order`. Calculée
+    sur l'épreuve entière, une recherche ou une page ne la décale donc pas.
+    """
+    rows = db.execute(
+        select(Participation.id, Participation.rank_gender)
+        .join(Athlete, Participation.athlete_id == Athlete.id)
+        .where(
+            Participation.course_id == course_id,
+            validated_clause(Participation.is_pending_validation),
+            Athlete.gender == gender,
+            _GENDER_RANKED,
+        )
+        .order_by(*_display_order())
+    ).all()
+    official = bool(rows) and all(rank is not None for _, rank in rows)
+    if official:
+        return {participation_id: rank for participation_id, rank in rows}, True
+    return {participation_id: position for position, (participation_id, _) in enumerate(rows, start=1)}, False
+
+
 def _club_filter_targets(db: Session, club: str, course_id: int) -> set[str]:
     """Les formes normalisées qu'un filtre `club=` doit retenir (#635).
 
@@ -864,6 +901,8 @@ def list_page_for_course(
     club_only: bool = False,
     club: str | None = None,
     category: str | None = None,
+    gender: Literal["M", "F"] | None = None,
+    official_gender_order: bool = False,
 ) -> tuple[list[Participation], int]:
     """Tranche ordonnée du classement d'une épreuve, et total de la sélection.
 
@@ -893,9 +932,15 @@ def list_page_for_course(
     par `list_pending_for_course` (#1273).
     """
     query = _course_rows(
-        db, course_id, q=q, club_only=club_only, club=club, category=category
+        db, course_id, q=q, club_only=club_only, club=club, category=category, gender=gender
     ).filter(validated_clause(Participation.is_pending_validation))
     total = query.count()
+    if gender:
+        # La population classée d'abord, dans l'ordre de `gender_places`.
+        query = query.order_by(case((_GENDER_RANKED, 0), else_=1))
+        if official_gender_order:
+            # Nul hors population : les lignes suivantes gardent l'ordre actuel.
+            query = query.order_by(case((_GENDER_RANKED, Participation.rank_gender), else_=None))
     query = query.order_by(*_display_order())
     if page_size is not None:
         query = query.offset((page - 1) * page_size).limit(page_size)
@@ -944,6 +989,7 @@ def list_pending_for_course(
     club_only: bool = False,
     club: str | None = None,
     category: str | None = None,
+    gender: Literal["M", "F"] | None = None,
 ) -> list[Participation]:
     """Les résultats en attente non refusés d'une épreuve, à afficher (#1273).
 
@@ -955,7 +1001,7 @@ def list_pending_for_course(
     Plafonnés à `PENDING_ROWS_CAP`, catégories et épreuves jeunes exclues.
     """
     return (
-        _course_rows(db, course_id, q=q, club_only=club_only, club=club, category=category)
+        _course_rows(db, course_id, q=q, club_only=club_only, club=club, category=category, gender=gender)
         .filter(_shown_awaiting(db))
         .order_by(func.lower(Athlete.nom), func.lower(Athlete.prenom), Participation.id)
         .limit(PENDING_ROWS_CAP)
@@ -963,7 +1009,7 @@ def list_pending_for_course(
     )
 
 
-def _course_rows(db: Session, course_id: int, *, q, club_only, club, category):
+def _course_rows(db: Session, course_id: int, *, q, club_only, club, category, gender=None):
     """Lignes d'une épreuve aux filtres du classement, **sans** clause de validation :
     chaque appelant pose la sienne."""
     query = (
@@ -988,6 +1034,8 @@ def _course_rows(db: Session, course_id: int, *, q, club_only, club, category):
         query = query.filter(_normalize_sql(Participation.club).in_(_club_filter_targets(db, club, course_id)))
     if category:
         query = query.filter(Participation.category == category)
+    if gender:
+        query = query.filter(Athlete.gender == gender)
     term = (q or "").strip()
     if term:
         query = query.filter(name_filter(term, also=_relay_name_matches))
@@ -1059,6 +1107,11 @@ def summary_rows_for_course(db: Session, course_id: int) -> list[tuple]:
 # `for_stats` n'a plus d'appelant et a été supprimée.
 
 
+def _gender_clause(gender: str):
+    """Participations of athletes of that sex, without depending on any join."""
+    return Participation.athlete_id.in_(select(Athlete.id).where(Athlete.gender == gender))
+
+
 def _stats_filters(
     q,
     *,
@@ -1066,6 +1119,7 @@ def _stats_filters(
     seasons: list[int] | None,
     federal_only: bool,
     dates: tuple[date, date] | None = None,
+    gender: str | None = None,
 ):
     """Filtres communs à toutes les stats agrégées, `Course` déjà joint.
 
@@ -1081,6 +1135,8 @@ def _stats_filters(
         q = q.filter(federal_clause(Course.event_type))
     if dates:
         q = q.filter(Course.event_date >= dates[0], Course.event_date <= dates[1])
+    if gender:
+        q = q.filter(_gender_clause(gender))
     return q
 
 
@@ -1090,6 +1146,7 @@ def stats_totals(
     club_only: bool = False,
     seasons: list[int] | None = None,
     federal_only: bool = False,
+    gender: str | None = None,
     dates: tuple[date, date] | None = None,
 ) -> tuple[int, int, int]:
     """`(total, athlètes distincts, épreuves distinctes)` en une requête agrégée.
@@ -1111,7 +1168,7 @@ def stats_totals(
     if seasons or federal_only or dates:
         q = q.join(Course, Participation.course_id == Course.id)
     q = _stats_filters(
-        q, club_only=club_only, seasons=seasons, federal_only=federal_only, dates=dates
+        q, club_only=club_only, seasons=seasons, federal_only=federal_only, dates=dates, gender=gender
     )
     total, athletes, events = q.one()
     return int(total or 0), int(athletes or 0), int(events or 0)
@@ -1123,6 +1180,7 @@ def stats_by_type(
     club_only: bool = False,
     seasons: list[int] | None = None,
     federal_only: bool = False,
+    gender: str | None = None,
 ) -> list[tuple[str, int]]:
     """Nombre de participations par `event_type`, un `GROUP BY`.
 
@@ -1138,7 +1196,7 @@ def stats_by_type(
         .filter(validated_clause(Participation.is_pending_validation))
         .filter(Course.event_type.isnot(None), Course.event_type != "")
     )
-    q = _stats_filters(q, club_only=club_only, seasons=seasons, federal_only=federal_only)
+    q = _stats_filters(q, club_only=club_only, seasons=seasons, federal_only=federal_only, gender=gender)
     return q.group_by(Course.event_type).order_by(Course.event_type).all()
 
 
@@ -1148,6 +1206,7 @@ def stats_by_month_rows(
     club_only: bool = False,
     seasons: list[int] | None = None,
     federal_only: bool = False,
+    gender: str | None = None,
 ) -> list[tuple]:
     """Une ligne par épreuve datée : `(event_date, nombre de participations)`.
 
@@ -1163,7 +1222,7 @@ def stats_by_month_rows(
         .filter(validated_clause(Participation.is_pending_validation))
         .filter(Course.event_date.isnot(None))
     )
-    q = _stats_filters(q, club_only=club_only, seasons=seasons, federal_only=federal_only)
+    q = _stats_filters(q, club_only=club_only, seasons=seasons, federal_only=federal_only, gender=gender)
     return q.group_by(Course.id, Course.event_date).all()
 
 
@@ -1173,6 +1232,7 @@ def stats_recent_rows(
     club_only: bool = False,
     seasons: list[int] | None = None,
     federal_only: bool = False,
+    gender: str | None = None,
     limit: int = 20,
 ) -> list[tuple]:
     """Les `limit` participations les plus récentes, triées et bornées en SQL.
@@ -1202,7 +1262,7 @@ def stats_recent_rows(
         .filter(validated_clause(Participation.is_pending_validation))
         .filter(Participation.created_at.isnot(None))
     )
-    q = _stats_filters(q, club_only=club_only, seasons=seasons, federal_only=federal_only)
+    q = _stats_filters(q, club_only=club_only, seasons=seasons, federal_only=federal_only, gender=gender)
     return (
         q.order_by(Participation.created_at.desc(), Participation.id.desc())
         .limit(limit)
@@ -1216,6 +1276,7 @@ def stats_rank_rows(
     club_only: bool = False,
     seasons: list[int] | None = None,
     federal_only: bool = False,
+    gender: str | None = None,
     dates: tuple[date, date] | None = None,
 ) -> list[tuple]:
     """`(rank_overall, rank_category, rank_gender, gender)` — un balayage réduit.
@@ -1238,7 +1299,7 @@ def stats_rank_rows(
     if seasons or federal_only or dates:
         q = q.join(Course, Participation.course_id == Course.id)
     q = _stats_filters(
-        q, club_only=club_only, seasons=seasons, federal_only=federal_only, dates=dates
+        q, club_only=club_only, seasons=seasons, federal_only=federal_only, dates=dates, gender=gender
     )
     return q.all()
 
@@ -1280,7 +1341,9 @@ def latest_club_event_date(db: Session, *, seasons: list[int], federal_only: boo
     return q.scalar()
 
 
-def club_podiums(db: Session, *, federal_only: bool = False, seasons: list[int] | None = None):
+def club_podiums(
+    db: Session, *, federal_only: bool = False, seasons: list[int] | None = None, gender: str | None = None
+):
     """Participations podium du club (rang ≤3 sur au moins une portée), #581.
 
     Colonnes utiles seulement — jamais l'entité `Participation` complète
@@ -1324,6 +1387,8 @@ def club_podiums(db: Session, *, federal_only: bool = False, seasons: list[int] 
         q = q.filter(federal_clause(Course.event_type))
     if seasons:
         q = q.filter(season_clause(seasons))
+    if gender:
+        q = q.filter(_gender_clause(gender))
     return q.all()
 
 

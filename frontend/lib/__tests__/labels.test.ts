@@ -5,7 +5,7 @@ describe("rankTypeLabel — forme courte (défaut)", () => {
   it("libelle les 4 modes canoniques", () => {
     expect(rankTypeLabel("scratch")).toBe("Général");
     expect(rankTypeLabel("category")).toBe("Catégorie");
-    expect(rankTypeLabel("gender")).toBe("Genre");
+    expect(rankTypeLabel("gender")).toBe("Sexe");
     expect(rankTypeLabel("all")).toBe("Tous");
   });
 });
@@ -14,15 +14,15 @@ describe("rankTypeLabel — forme longue (delta des StatCard)", () => {
   it("rend la version minuscule utilisée sous les compteurs", () => {
     expect(rankTypeLabel("scratch", { form: "long" })).toBe("général");
     expect(rankTypeLabel("category", { form: "long" })).toBe("catégorie");
-    expect(rankTypeLabel("gender", { form: "long" })).toBe("genre");
-    expect(rankTypeLabel("all", { form: "long" })).toBe("général, genre ou catégorie");
+    expect(rankTypeLabel("gender", { form: "long" })).toBe("sexe");
+    expect(rankTypeLabel("all", { form: "long" })).toBe("général, sexe ou catégorie");
   });
 });
 
 describe("podiumScopeLabel", () => {
   it("libelle les 3 scopes de podium", () => {
     expect(podiumScopeLabel("overall")).toBe("Général");
-    expect(podiumScopeLabel("gender")).toBe("Genre");
+    expect(podiumScopeLabel("gender")).toBe("Sexe");
     expect(podiumScopeLabel("category")).toBe("Catégorie");
   });
 

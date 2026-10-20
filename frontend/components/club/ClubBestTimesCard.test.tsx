@@ -26,6 +26,20 @@ describe("ClubBestTimesCard", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
+  it("names the sex when the filter leaves no record", () => {
+    render(
+      <ClubBestTimesCard
+        seasonLines={[line(2, { gender: "M" })]}
+        allLines={[line(2, { gender: "M" })]}
+        seasonLabel="Saison 2026 — 2027"
+        gender="F"
+      />,
+    );
+
+    expect(screen.getByText("Aucun record chez les femmes.")).toBeInTheDocument();
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+  });
+
   it("renders one line per format and gender, linking to the participation", () => {
     render(
       <ClubBestTimesCard
@@ -59,5 +73,14 @@ describe("ClubBestTimesCard", () => {
     await userEvent.click(screen.getByRole("tab", { name: "Saison 2026 — 2027" }));
 
     expect(screen.getByText(/Aucun temps comparable sur cette saison/)).toBeInTheDocument();
+  });
+
+  it("shows only the selected sex best times", () => {
+    const m = line(2, { gender: "M", athlete_name: "Jean MARTIN" });
+    render(<ClubBestTimesCard seasonLines={[line(1), m]} allLines={[line(1), m]} seasonLabel="S" gender="F" />);
+
+    expect(screen.getAllByRole("link", { name: /meilleur temps sur M/ })).toHaveLength(1);
+    expect(screen.queryByText(/Jean MARTIN/)).not.toBeInTheDocument();
+    expect(screen.getByText(/Alice DUPONT/)).toBeInTheDocument();
   });
 });
