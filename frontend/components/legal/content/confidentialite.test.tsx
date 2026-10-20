@@ -144,6 +144,12 @@ describe("Politique de confidentialité (#333)", () => {
     expect(rendre()).toMatch(/Me détacher de ma fiche/);
   });
 
+  it("lets a linked member oppose from Mon compte, the club alone lifting it (#1673)", () => {
+    const texte = rendre();
+    expect(texte).toMatch(/depuis la page Mon compte \(« Masquer mes résultats »\)/);
+    expect(texte).toMatch(/seul le club peut ensuite lever l.opposition/);
+  });
+
   it("ne rattache les actions du back-office au compte qu'avec l'accord (#1359)", () => {
     expect(rendre()).toMatch(/rattachées à l.identifiant du compte seulement si son titulaire a accepté la mesure détaillée/);
   });
