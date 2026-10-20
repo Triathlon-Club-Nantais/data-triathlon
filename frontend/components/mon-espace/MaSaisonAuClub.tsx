@@ -6,6 +6,7 @@ import type { SeasonQuota } from "@/lib/types";
 import { seasonLabel } from "@/lib/utils/season";
 
 const corps = { margin: "12px 0 0", fontSize: 15 } as const;
+const statut = { ...corps, fontWeight: 600 } as const;
 
 function Manque({ quota }: { quota: SeasonQuota }) {
   const { validated_count: n, required_events: requis } = quota;
@@ -20,7 +21,7 @@ function Manque({ quota }: { quota: SeasonQuota }) {
         Bénévolat : {quota.has_volunteer_action ? "action validée" : quota.has_pending_volunteer_action ? "action en attente de validation" : "aucune action déclarée"}
       </p>
       {!quota.has_volunteer_action && !quota.has_pending_volunteer_action && (
-        <Link href="/benevolat" className="text-sm underline underline-offset-2" style={{ display: "inline-block", marginTop: 8 }}>
+        <Link href="/benevolat" className="tcn-cible-tactile font-semibold text-accent-ink hover:underline" style={{ display: "inline-block", marginTop: 8, fontSize: 14 }}>
           Déclarer une action
         </Link>
       )}
@@ -33,17 +34,22 @@ export function MaSaisonAuClub() {
   const { data, isPending, isError } = useMySeasonQuota();
   if (!isPending && !isError && data === null) return null;
   return (
-    <Card padding={20}>
+    <Card padding={20} aria-busy={isPending || undefined}>
       <Eyebrow role="heading" aria-level={2}>
-        {data ? `Ma saison au club, ${seasonLabel(data.season).toLowerCase()}` : "Ma saison au club"}
+        Ma saison au club
       </Eyebrow>
-      {isPending && <Skeleton style={{ height: 20, marginTop: 12 }} />}
-      {isError && <p style={corps}>Impossible d&rsquo;afficher votre saison pour le moment.</p>}
+      {isPending && <Skeleton style={{ height: 48, marginTop: 12 }} />}
+      {isError && (
+        <p role="alert" style={corps}>
+          Impossible d&rsquo;afficher votre saison pour le moment. Rechargez la page pour réessayer.
+        </p>
+      )}
+      {data && <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--tcn-text-muted)" }}>{seasonLabel(data.season)}</p>}
       {data &&
         (data.season_validated ? (
-          <p style={corps}>Saison validée</p>
+          <p style={statut}>Saison validée</p>
         ) : data.quota_met ? (
-          <p style={corps}>Conditions remplies, en attente de validation par le club</p>
+          <p style={statut}>Conditions remplies, en attente de validation par le club</p>
         ) : (
           <Manque quota={data} />
         ))}
