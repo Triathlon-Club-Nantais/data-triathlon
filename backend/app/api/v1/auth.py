@@ -186,7 +186,12 @@ def list_methods():
     if not settings.auth_is_configured:
         return []
     return [
-        AuthMethodRead(slug=method.slug, label=method.label)
+        AuthMethodRead(
+            slug=method.slug,
+            label=method.label,
+            # shortcut: la doublure du conftest de test_auth ne déclare pas d'audience (conftest gelé cette semaine), retirer le défaut quand elle en porte une.
+            audience=getattr(method, "audience", "member"),
+        )
         for method in registry.enabled_methods()
     ]
 

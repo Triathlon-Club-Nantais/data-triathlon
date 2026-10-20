@@ -1,5 +1,7 @@
 """DTO du socle d'authentification (#114)."""
 
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict
 
 from app.schemas.athlete_claim import AthleteClaimRead, ClaimedAthleteRead
@@ -11,6 +13,7 @@ class AuthMethodRead(BaseModel):
 
     slug: str
     label: str
+    audience: Literal["member", "admin"]
 
 
 class AccountIdentityRead(BaseModel):

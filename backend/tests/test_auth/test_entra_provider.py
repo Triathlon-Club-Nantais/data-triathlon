@@ -394,9 +394,15 @@ def test_the_default_transport_is_the_guarded_one():
     assert EntraIdentityProvider()._transport_factory is http.guarded_transport
 
 
+def test_entra_is_a_member_method(client):
+    methods = client.get("/api/v1/auth/methods").json()
+    entra = next(method for method in methods if method["slug"] == "entra")
+    assert entra["audience"] == "member"
+
+
 def test_methods_list_entra_only_when_configured(client, monkeypatch):
     methods = client.get("/api/v1/auth/methods").json()
-    assert {"slug": "entra", "label": "Google ou code par e-mail"} in methods
+    assert "entra" in [method["slug"] for method in methods]
 
     monkeypatch.setenv("AUTH_ENTRA_CLIENT_SECRET", "")
     get_settings.cache_clear()

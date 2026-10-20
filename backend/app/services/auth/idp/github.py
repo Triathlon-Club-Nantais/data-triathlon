@@ -39,6 +39,7 @@ class GithubIdentityProvider:
 
     slug = "github"
     label = "GitHub"
+    audience = "admin"
 
     def __init__(
         self, transport_factory: Callable[[], httpx.BaseTransport] | None = None

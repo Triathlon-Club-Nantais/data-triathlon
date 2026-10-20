@@ -12,7 +12,7 @@ jamais par un fournisseur — c'est une garantie du socle, pas une variation.
 """
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Literal, Protocol
 
 
 @dataclass(frozen=True)
@@ -57,6 +57,7 @@ class IdentityProvider(Protocol):
 
     slug: str
     label: str
+    audience: Literal["member", "admin"]  # bloc de l'écran de connexion
 
     def is_configured(self) -> bool:
         """Vrai si ce moyen de connexion peut aboutir sur cette installation."""
