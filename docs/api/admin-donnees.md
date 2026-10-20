@@ -316,7 +316,7 @@ opposition : même `201` et même corps, rien n'est gardé (#1514). Pour qu'une
 seconde requête ne le trahisse pas davantage, une saisie en attente n'est
 lisible que des bénévoles et un dossard pris par une saisie en attente ne rend
 plus `409` (#1519, changement de contrat détaillé dans `backend/app/api/AGENTS.md`).
-Restent les identifiants de la réponse et les fiches qu'une saisie crée (#1615).
+Restent les fiches et épreuves qu'une saisie en attente crée (#1615) ; la réponse ne porte plus d'identifiant (#1724).
 
 ## Doublons suspects (#288)
 
