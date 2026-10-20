@@ -46,7 +46,7 @@ function LignesEpreuves({ courses, resultatsHref }: { courses: ClubLastOuting["c
             <span style={{ flex: "none", minWidth: 32, textAlign: "center", padding: "2px 8px", borderRadius: 999, background: "#fff", color: "var(--tcn-orange-deeper)", fontSize: 12, fontWeight: 800 }}>
               {pastilleFormat(course.event_type)}
             </span>
-            <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 700 }}>{course.name}</span>
+            <span title={course.name} style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 700 }}>{course.name}</span>
             <span className="inline-flex items-center gap-1" style={{ flex: "none", fontWeight: 800 }}>
               <Users aria-hidden="true" size={16} />
               <span aria-hidden="true">{course.tcn}</span>
