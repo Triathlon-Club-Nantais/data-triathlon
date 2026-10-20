@@ -35,7 +35,7 @@ function LignesEpreuves({ courses, resultatsHref }: { courses: ClubLastOuting["c
   const restantesBureau = courses.length - LIGNES_BUREAU;
   const restantesMobile = courses.length - LIGNES_MOBILE;
   return (
-    <ul style={{ listStyle: "none", margin: "16px 0 0", padding: 0, display: "grid", gap: 4 }}>
+    <ul style={{ listStyle: "none", margin: "16px 0 0", padding: 0, display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 4 }}>
       {courses.slice(0, LIGNES_BUREAU).map((course, i) => (
         <li key={course.id}>
           <Link
