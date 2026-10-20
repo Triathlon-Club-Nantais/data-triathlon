@@ -33,6 +33,7 @@ from app.schemas.athlete_claim import (
     ResultClaimRead,
 )
 from app.schemas.auth import (
+    AccountIdentityRead,
     AuthMethodRead,
     SessionGroupRead,
     SessionRoleRead,
@@ -482,6 +483,20 @@ def list_my_teammates(
     return teammate_service.list_for_athlete(
         db, athlete_id=user.athlete_id, federal_only=federal_only, seasons=parse_seasons(seasons)
     )
+
+
+@router.get("/auth/me/identities", response_model=list[AccountIdentityRead])
+def list_my_identities(user: User = Depends(current_user)):
+    """Les moyens de connexion du compte de la session (#1663), du plus ancien au plus récent."""
+    return [
+        AccountIdentityRead(
+            provider=identity.provider,
+            label=provider.label if (provider := registry.get(identity.provider)) else identity.provider,
+            email=identity.email,
+            created_at=identity.created_at,
+        )
+        for identity in sorted(user.identities, key=lambda identity: identity.created_at)
+    ]
 
 
 @router.get("/auth/me", response_model=SessionUserRead)
