@@ -44,6 +44,7 @@ import type {
   AthleteLink,
   ResultClaim,
   ResultClaimReview,
+  TeamResult,
   MemberEmailsImportReport,
   MemberEmailsSeason,
   CounterScope,
@@ -951,11 +952,12 @@ export const apiClient = {
   getAthleteLinks: () => request<AthleteLink[]>("/admin/athlete-links"),
   // ── Réclamations de résultat (#1637) ────────────────────────────────────────
   getMyResultClaims: () => request<ResultClaim[]>("/auth/me/result-claims"),
-  requestResultClaim: (participationId: number) =>
+  requestResultClaim: (participationId: number, kind: "result" | "team" = "result") =>
     request<ResultClaim>("/auth/me/result-claims", {
       method: "POST",
-      body: JSON.stringify({ participation_id: participationId }),
+      body: JSON.stringify({ participation_id: participationId, kind }),
     }),
+  searchMyTeamResults: (q: string) => request<TeamResult[]>(`/auth/me/team-results${toQuery({ q })}`),
   cancelResultClaim: (id: number) => request<null>(`/auth/me/result-claims/${id}`, { method: "DELETE" }),
   getResultClaims: () => request<ResultClaimReview[]>("/admin/result-claims"),
   approveResultClaim: (id: number) => request<null>(`/admin/result-claims/${id}/approve`, { method: "POST" }),

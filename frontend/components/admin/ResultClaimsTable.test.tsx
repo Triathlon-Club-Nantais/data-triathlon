@@ -19,6 +19,7 @@ import { ResultClaimsTable } from "./ResultClaimsTable";
 
 const RECLAMATION: ResultClaimReview = {
   id: 4,
+  kind: "result",
   created_at: "2026-10-19T10:00:00Z",
   user: { id: 12, display_name: "Léa M.", email: "lea@exemple.fr" },
   participation: {
@@ -27,6 +28,9 @@ const RECLAMATION: ResultClaimReview = {
   },
   current_athlete: { id: 7, prenom: "Léa", nom: "Martin", club: null },
   current_athlete_results: 1,
+  teammates: [],
+  proposed_teammates: null,
+  claimant_has_result_on_course: false,
   claimant_athlete: { id: 42, prenom: "Léa", nom: "Martin", club: "TCN" },
   licensee: { prenom: "Léa", nom: "MARTIN", season: 2026 },
 };

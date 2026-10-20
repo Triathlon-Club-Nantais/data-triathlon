@@ -1096,13 +1096,27 @@ export interface ResultClaim {
   course_id: number;
   course_name: string;
   event_date: string | null;
+  kind: "result" | "team";
   status: "pending" | "rejected";
   created_at: string;
+}
+
+/** Un relais trouvé par son nom d'équipe, à demander à rejoindre (#1739). */
+export interface TeamResult {
+  participation_id: number;
+  team_name: string;
+  course_id: number;
+  course_name: string;
+  event_date: string | null;
+  rank_overall: number | null;
+  total_time: string | null;
+  teammates: string[];
 }
 
 /** Une réclamation de résultat dans la file du back-office, avec ses indices (#1637). */
 export interface ResultClaimReview {
   id: number;
+  kind: "result" | "team";
   created_at: string;
   user: { id: number; display_name: string; email: string };
   participation: {
@@ -1119,6 +1133,10 @@ export interface ResultClaimReview {
   current_athlete: ClaimedAthlete & { club: string | null };
   /** Résultats de la fiche actuelle, celui-ci compris : 1 veut dire qu'elle sera purgée. */
   current_athlete_results: number;
+  /** Composition actuelle du relais (#1739), vide s'il n'y en a pas. */
+  teammates: ClaimedAthlete[];
+  proposed_teammates: ClaimedAthlete[] | null;
+  claimant_has_result_on_course: boolean;
   claimant_athlete: (ClaimedAthlete & { club: string | null }) | null;
   licensee: { prenom: string; nom: string; season: number } | null;
 }

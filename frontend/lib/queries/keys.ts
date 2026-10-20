@@ -33,6 +33,7 @@ export const queryKeys = {
   athleteLinks: () => ["athlete-links"] as const,
   resultClaims: () => ["result-claims"] as const,
   myResultClaims: () => ["my-result-claims"] as const,
+  myTeamResults: (q: string) => ["my-team-results", q] as const,
   providerQuality: () => ["provider-quality"] as const,
   // Clé distincte de `courseParticipations` : celle-ci stocke un `CourseDetail`,
   // l'autre un `Participation[]`. Même clé, deux formes = un écran qui plante.

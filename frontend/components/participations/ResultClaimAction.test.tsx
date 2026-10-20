@@ -54,7 +54,7 @@ describe("ResultClaimAction (#1637)", () => {
 
     await userEvent.click(await screen.findByRole("button", { name: "Ce résultat est à moi" }));
 
-    await waitFor(() => expect(requestResultClaim).toHaveBeenCalledWith(5));
+    await waitFor(() => expect(requestResultClaim).toHaveBeenCalledWith(5, "result"));
     expect(screen.getByText(/le club vérifie puis déplace ce résultat sur votre fiche/i)).toBeInTheDocument();
   });
 

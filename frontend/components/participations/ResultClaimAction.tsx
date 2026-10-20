@@ -57,7 +57,7 @@ export function ResultClaimAction({ participation }: { participation: Participat
         aria-describedby={EXPLICATION_ID}
         aria-disabled={demander.isPending || undefined}
         onClick={() => {
-          if (!demander.isPending) demander.mutate(participation.id);
+          if (!demander.isPending) demander.mutate({ participationId: participation.id });
         }}
       >
         Ce résultat est à moi
