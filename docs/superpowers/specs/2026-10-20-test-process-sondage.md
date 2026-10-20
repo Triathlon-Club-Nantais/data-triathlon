@@ -30,3 +30,17 @@ Rejeu de la condition d'origine : suite frontend complète sous couverture v8 (`
 | `components/athletes` + `components/admin/jeunes`, ordre de fichiers et de tests mélangé, seeds 1, 42, 1337 | 200 tests verts à chaque seed |
 
 Conclusion : **ouverte**. Les trois tests d'origine n'ont été rouges dans aucune des conditions rejouées ; la pollution entre tests (ordre mélangé) n'a rien révélé sur ces dossiers. Observations seulement, sans cause établie : sous forte charge, des tests quelconques passent le délai de 1 s de `findBy*` ou le `testTimeout` de 5 s, et un test étranger à la liste a échoué ainsi à load 18 à 21. Aucun correctif appliqué (hausse des délais et retries interdits). Si les trois rouges reviennent, rouvrir avec la sortie complète de l'exécution fautive (messages d'erreur, load, processus concurrents).
+
+## Coût de create_all
+
+Suite unitaire backend de la boucle locale (`pytest -m "not integration" -n 0`, sans `--migrations`), 7135 passés, 3841 appels à `create_all`/`drop_all`. Instrumentation temporaire non commitée : `time.perf_counter` autour de `MetaData.create_all` et `drop_all`, cumul écrit en fin de session.
+
+| Exécution | load au départ | durée suite | `create_all` | `drop_all` | part |
+| --- | --- | --- | --- | --- | --- |
+| 1 | 1,49 | 178,6 s | 46,5 s | 16,9 s | **35,5 %** |
+| 2 | 3,97 (hors seuil) | 947,1 s | 322,4 s | 92,0 s | non retenue |
+| 3 | 16,39 (hors seuil) | 175,0 s | 45,6 s | 16,3 s | non retenue (35,3 %, concorde) |
+
+Seule l'exécution 1 est sous le seuil de charge (< 2,0) ; la machine s'est chargée pendant et après (load 4 à 32), donc les durées absolues sont gonflées (la suite fait ~58 s au repos, cf. sondage du 2026-08-20) mais la part, mesurée dans le même processus, est stable entre les exécutions 1 et 3. Une seule répétition valide : le minimum de 2 n'est pas atteint.
+
+Décision : part ≈ 35 % > 10 %, donc fixture transactionnelle retenue (schéma partagé par worker, rollback par test). Implémentation à faire séparément ; à remesurer au repos après coup.
