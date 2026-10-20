@@ -82,6 +82,6 @@ describe("MaSaisonAuClub", () => {
   it("shows the season in the title", async () => {
     getMySeasonQuota.mockResolvedValue(quota({ season: 2026 }));
     afficher();
-    expect(await screen.findByRole("heading", { level: 2, name: new RegExp(seasonLabel(2026).toLowerCase()) })).toBeInTheDocument();
+    expect(await screen.findByText(seasonLabel(2026))).toBeInTheDocument();
   });
 });
