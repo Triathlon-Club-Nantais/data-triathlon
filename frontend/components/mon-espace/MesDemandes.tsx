@@ -85,7 +85,7 @@ export function MesDemandes() {
                 {c.event_date && ` · ${formatDate(c.event_date)}`}
               </Link>
             }
-            detail={`Demandée le ${formatDate(c.created_at)}`}
+            detail={`${c.kind === "team" ? "Rejoindre une équipe · " : ""}Demandée le ${formatDate(c.created_at)}`}
             status={c.status}
             nomAction={c.course_name}
             onCancel={() => annulerReclamation.mutate(c.id)}

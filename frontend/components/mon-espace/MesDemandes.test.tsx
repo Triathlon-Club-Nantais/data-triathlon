@@ -57,6 +57,14 @@ describe("MesDemandes (#1670)", () => {
     expect(screen.getAllByRole("button", { name: /Annuler la demande/ })).toHaveLength(1);
   });
 
+  it("tells a team request apart from a result claim (#1739)", async () => {
+    getMyResultClaims.mockResolvedValue([claim({ kind: "result" }), claim({ id: 4, kind: "team", course_name: "Swimrun" })]);
+    afficher();
+
+    expect(await screen.findByText(/Rejoindre une équipe · Demandée le 19\/10\/2026/)).toBeInTheDocument();
+    expect(screen.getAllByText(/Rejoindre une équipe/)).toHaveLength(1);
+  });
+
   it("cancels a pending result claim after inline confirmation", async () => {
     getMyResultClaims.mockResolvedValue([claim(), claim({ id: 4, status: "rejected", course_name: "Autre" })]);
     cancelResultClaim.mockResolvedValue(null);
