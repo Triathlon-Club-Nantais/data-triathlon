@@ -59,6 +59,7 @@ def replace_pending(db: Session, *, user_id: int, participation_id: int) -> Resu
 def list_for_user(db: Session, user_id: int) -> list[ResultClaim]:
     return list(db.scalars(
         select(ResultClaim)
+        .join(Participation, Participation.id == ResultClaim.participation_id)
         .options(selectinload(ResultClaim.participation).selectinload(Participation.course))
         .where(ResultClaim.user_id == user_id)
         .order_by(ResultClaim.id)
