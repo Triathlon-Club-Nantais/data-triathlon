@@ -95,14 +95,12 @@ export function AthleteSeasonList({ athletes }: { athletes: AthleteSeasonActivit
     );
   }
 
-  const parNom = filterAthletes(
-    gender ? athletes.filter((a) => a.gender === gender) : athletes,
-    query,
-  );
+  const duSexe = gender ? athletes.filter((a) => a.gender === gender) : athletes;
+  const parNom = filterAthletes(duSexe, query);
   const filtered = filterByValidation(parNom, singleSeason ? filtreValidation : "tous");
   const sorted = sortAthletes(filtered, sort);
 
-  // Rang calculé sur la liste **complète**, triée par volume et non filtrée
+  // Rang calculé sur la liste **complète** du sexe filtré, triée par volume et non filtrée
   // par la recherche — jamais sur `sort` : « 41ᵉ du club » promet un rang de
   // club, cohérent avec l'ordre de `club_roster` (backend, #581), toujours
   // trié par volume ; le laisser suivre le tri d'affichage ferait mentir le
@@ -110,7 +108,7 @@ export function AthleteSeasonList({ athletes }: { athletes: AthleteSeasonActivit
   // #504). Le rappel de `/club` lui-même reste générique, sans numéro de
   // rang : son roster arrive déjà plafonné côté SQL, `RosterApercu` n'a donc
   // pas de liste complète où chercher un rang au-delà de l'aperçu.
-  const rangComplet = sortAthletes(athletes, SORT_DEFAULT);
+  const rangComplet = sortAthletes(duSexe, SORT_DEFAULT);
   const rang = athleteRetenu
     ? trouverRang(athleteRetenu.id, rangComplet.map((a) => a.id))
     : null;

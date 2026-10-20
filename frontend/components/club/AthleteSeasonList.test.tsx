@@ -503,6 +503,17 @@ describe("AthleteSeasonList — retrouver sa ligne (#504)", () => {
       expect(rowNames()).toEqual(["FEMME"]);
     });
 
+    it("computes the recall rank among the filtered sex only", () => {
+      writeAthlete({ id: 2, prenom: "P", nom: "FEMME" });
+      searchParams = new URLSearchParams("sexe=F");
+      const many = [
+        ...Array.from({ length: 30 }, (_, i) => athlete({ id: 100 + i, nom: `H${i}`, gender: "M", participation_count: 50 - i })),
+        athlete({ id: 2, nom: "FEMME", gender: "F", participation_count: 1 }),
+      ];
+      render(<AthleteSeasonList athletes={many} />);
+      expect(screen.queryByText(/ᵉ du club/)).not.toBeInTheDocument();
+    });
+
     it("renders the sexe toggle", () => {
       render(<AthleteSeasonList athletes={mixed} />);
       expect(screen.getByRole("group", { name: "Sexe" })).toBeInTheDocument();
