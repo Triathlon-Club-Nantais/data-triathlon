@@ -3,10 +3,14 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AthleteDetail, Participation, SessionUser } from "@/lib/types";
 
-const { getSession, getAthlete } = vi.hoisted(() => ({ getSession: vi.fn(), getAthlete: vi.fn() }));
+const { getSession, getAthlete, getSeasonGoals } = vi.hoisted(() => ({
+  getSession: vi.fn(),
+  getAthlete: vi.fn(),
+  getSeasonGoals: vi.fn(),
+}));
 vi.mock("@/lib/api/client", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api/client")>();
-  return { ...original, apiClient: { ...original.apiClient, getSession, getAthlete } };
+  return { ...original, apiClient: { ...original.apiClient, getSession, getAthlete, getSeasonGoals } };
 });
 
 import { SeasonRecap } from "./SeasonRecap";
@@ -46,6 +50,7 @@ function afficher(season = 2025) {
 beforeEach(() => {
   vi.clearAllMocks();
   document.cookie = "tcn_logged_in=1; path=/";
+  getSeasonGoals.mockResolvedValue([]);
   getSession.mockResolvedValue({ id: 1, athlete: LEA, athlete_claim: null, permissions: [], roles: [], groups: [] } as unknown as SessionUser);
 });
 
@@ -90,6 +95,17 @@ describe("SeasonRecap (#1372)", () => {
     afficher();
 
     expect(await screen.findByText(/Aucun résultat validé sur cette saison/)).toBeInTheDocument();
+  });
+
+  it("still shows the season goals when the season has no result", async () => {
+    getAthlete.mockResolvedValue(detail([]));
+    getSeasonGoals.mockResolvedValue([
+      { id: 1, season: 2025, kind: "count", event_type: null, target: 3, best_time: null, count: 0, reached: false },
+    ]);
+    afficher();
+
+    expect(await screen.findByText("Aucun résultat validé sur cette saison.")).toBeInTheDocument();
+    expect(await screen.findByText("Non atteint")).toBeInTheDocument();
   });
 
   it("invites a visitor without a claimed athlete to claim it", async () => {
