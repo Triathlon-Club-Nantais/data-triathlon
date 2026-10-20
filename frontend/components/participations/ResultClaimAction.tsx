@@ -20,14 +20,14 @@ const texteDiscret = { margin: 0, fontSize: 13, lineHeight: 1.45, color: "var(--
 export function ResultClaimAction({ participation }: { participation: Participation }) {
   const session = useHydratedSession();
   const fiche = session.data?.athlete ?? null;
-  const eligible =
-    fiche !== null && participation.athlete.id !== fiche.id && !participation.is_pending_validation && !participation.is_relay;
+  const relais = participation.is_relay || participation.course.is_relay;
+  const eligible = fiche !== null && participation.athlete.id !== fiche.id && !participation.is_pending_validation && !relais;
   const mine = useMyResultClaims(eligible);
   const demander = useRequestResultClaim();
   const annuler = useCancelResultClaim();
 
   if (!eligible || mine.isPending) return null;
-  const claim = mine.data?.find((c) => c.participation_id === participation.id);
+  const claim = mine.data?.find((c) => c.kind === "result" && c.participation_id === participation.id);
   const erreur = demander.error ?? annuler.error;
 
   if (claim?.status === "pending") {

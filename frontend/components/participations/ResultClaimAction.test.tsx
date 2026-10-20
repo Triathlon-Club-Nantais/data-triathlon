@@ -59,7 +59,7 @@ describe("ResultClaimAction (#1637)", () => {
   });
 
   it("shows a pending claim and lets the member cancel it", async () => {
-    getMyResultClaims.mockResolvedValue([{ id: 3, participation_id: 5, status: "pending", created_at: "2026-10-19T10:00:00Z" }]);
+    getMyResultClaims.mockResolvedValue([{ id: 3, participation_id: 5, kind: "result", status: "pending", created_at: "2026-10-19T10:00:00Z" }]);
     cancelResultClaim.mockResolvedValue(null);
     afficher();
 
@@ -69,11 +69,21 @@ describe("ResultClaimAction (#1637)", () => {
   });
 
   it("says a claim was rejected and offers to ask again", async () => {
-    getMyResultClaims.mockResolvedValue([{ id: 3, participation_id: 5, status: "rejected", created_at: "2026-10-19T10:00:00Z" }]);
+    getMyResultClaims.mockResolvedValue([{ id: 3, participation_id: 5, kind: "result", status: "rejected", created_at: "2026-10-19T10:00:00Z" }]);
     afficher();
 
     expect(await screen.findByText(/réclamation précédente a été refusée/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Ce résultat est à moi" })).toBeInTheDocument();
+  });
+
+  it("ignores a team request on the same result (#1739)", async () => {
+    getMyResultClaims.mockResolvedValue([
+      { id: 3, participation_id: 5, kind: "team", status: "pending", created_at: "2026-10-19T10:00:00Z" },
+    ]);
+    afficher();
+
+    expect(await screen.findByRole("button", { name: "Ce résultat est à moi" })).toBeInTheDocument();
+    expect(screen.queryByText(/réclamation en attente/i)).not.toBeInTheDocument();
   });
 
   it.each([
@@ -81,11 +91,14 @@ describe("ResultClaimAction (#1637)", () => {
     ["an account without a claimed record", session(null), RESULTAT],
     ["a pending result", session(LEA), { ...RESULTAT, is_pending_validation: true }],
     ["a relay", session(LEA), { ...RESULTAT, is_relay: true }],
+    ["a relay course", session(LEA), { ...RESULTAT, course: { ...RESULTAT.course, is_relay: true } }],
   ])("offers nothing on %s", async (_, user, participation) => {
     getSession.mockResolvedValue(user);
     afficher(participation as Participation);
 
     await waitFor(() => expect(getSession).toHaveBeenCalled());
+    await new Promise((r) => setTimeout(r, 0));
+    expect(getMyResultClaims).not.toHaveBeenCalled();
     expect(screen.queryByRole("button", { name: "Ce résultat est à moi" })).not.toBeInTheDocument();
   });
 });
