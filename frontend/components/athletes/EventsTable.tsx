@@ -240,6 +240,7 @@ export function EventsTable({
   }
 
   return (
+    <div className="@container">
     <Card padding={0} style={{ overflow: "hidden" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 26px 16px", flexWrap: "wrap", gap: 8 }}>
         <h2 style={{ fontFamily: "var(--tcn-font-display)", fontSize: 22, fontWeight: 400, color: "var(--tcn-ink)", margin: 0 }}>Toutes les épreuves</h2>
@@ -344,10 +345,10 @@ export function EventsTable({
         <div
           data-testid="epreuves-grille"
           data-affichage="grille"
-          // `min-[1145px]` = MIN_WIDTH (988) + CHROME_RAIL_REPLIE (`lib/utils/table.ts`),
-          // pas le cran Tailwind `md:` (768) : ce dernier rouvrait une bande de
-          // défilement horizontal entre 768 et 1145px (revue UI/UX #461).
-          className="hidden min-[1145px]:block overflow-x-auto"
+          // `@min-[988px]` = MIN_WIDTH, mesuré sur le conteneur `@container` du
+          // composant et non sur le viewport : la colonne centrale de Mon
+          // espace est plus étroite que la fiche athlète à viewport égal (#1720).
+          className="hidden @min-[988px]:block overflow-x-auto"
           role="region"
           aria-label="Épreuves, défilement horizontal"
           tabIndex={0}
@@ -454,10 +455,10 @@ export function EventsTable({
           </div>
         </div>
 
-        {/* Sous 1145 px (988 px de grille + CHROME_RAIL_REPLIE), FORMAT, TEMPS,
+        {/* Sous 988 px de conteneur, FORMAT, TEMPS,
             PLACE et le ⚠ sortaient de l'écran : la donnée pour laquelle on
             ouvre un profil était invisible sans geste (#461, WCAG 1.4.10). */}
-        <div data-testid="epreuves-cartes" data-affichage="cartes" className="min-[1145px]:hidden">
+        <div data-testid="epreuves-cartes" data-affichage="cartes" className="@min-[988px]:hidden">
           {ordered.map((p) => {
             const { ratio, unreliableTitle, nonFinisher, sigle, preuve } = rowDerived(p);
             return (
@@ -517,5 +518,6 @@ export function EventsTable({
         </>
       )}
     </Card>
+    </div>
   );
 }
