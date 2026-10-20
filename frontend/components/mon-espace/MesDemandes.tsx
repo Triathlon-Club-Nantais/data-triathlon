@@ -51,7 +51,7 @@ function Demande({
       {error && (
         <div role="alert">
           <Alert status="error" title="Demande non annulée">
-            {error.message}
+            {error.message} Réessayez avec « Confirmer ».
           </Alert>
         </div>
       )}
@@ -73,14 +73,14 @@ export function MesDemandes() {
         <h2 style={{ margin: 0, font: "inherit", letterSpacing: "inherit", textTransform: "inherit" }}>Mes demandes</h2>
       </Eyebrow>
       <p style={{ margin: "8px 0 12px", fontSize: 13, color: "var(--tcn-text-muted)" }}>
-        Une réclamation acceptée disparaît : le résultat est alors sur votre fiche.
+        Une demande acceptée disparaît : le résultat est alors sur votre fiche.
       </p>
       <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 16 }}>
         {reclamations.map((c) => (
           <Demande
             key={c.id}
             titre={
-              <Link href={`/courses/${c.course_id}`} className="tcn-cible-tactile underline underline-offset-2" style={{ fontSize: 15, fontWeight: 600 }}>
+              <Link href={`/courses/${c.course_id}`} className="tcn-cible-tactile break-words underline underline-offset-2" style={{ fontSize: 15, fontWeight: 600 }}>
                 {c.course_name}
                 {c.event_date && ` · ${formatDate(c.event_date)}`}
               </Link>
