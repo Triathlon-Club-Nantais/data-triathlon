@@ -125,7 +125,6 @@ def list_validated_for_athlete(db: Session, *, athlete_id: int) -> list[Voluntee
     )
 
 
-
 def list_declared_by(db: Session, *, user_id: int) -> list[VolunteerAction]:
     """Mes déclarations (#1672) : tous statuts, toutes fiches, l'athlète chargé pour son nom."""
     return (
@@ -135,6 +134,7 @@ def list_declared_by(db: Session, *, user_id: int) -> list[VolunteerAction]:
         .order_by(VolunteerAction.created_at.desc())
         .all()
     )
+
 
 def delete(db: Session, action: VolunteerAction) -> None:
     """Retire une déclaration, quel que soit son statut (#818)."""

@@ -510,11 +510,11 @@ def list_my_volunteer_actions(user: User = Depends(current_user), db: Session = 
     return volunteer_action_service.list_validated_for_athlete(db, athlete_id=user.athlete_id)
 
 
-
 @router.get("/auth/me/volunteer-declarations", response_model=list[MyVolunteerDeclarationOut])
 def list_my_volunteer_declarations(user: User = Depends(current_user), db: Session = Depends(get_db)):
     """Déclarations de bénévolat faites par mon compte (#1672), tous statuts, pour toute fiche."""
     return volunteer_action_service.list_declared_by(db, user_id=user.id)
+
 
 @router.get("/auth/me/teammates", response_model=list[Teammate])
 def list_my_teammates(

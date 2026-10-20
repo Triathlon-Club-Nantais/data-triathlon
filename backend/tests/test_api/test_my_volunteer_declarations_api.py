@@ -1,4 +1,6 @@
 """Volunteer declarations made by my account over HTTP (#1672): every status, any athlete."""
+from datetime import datetime
+
 import pytest
 
 from app.models.athlete import Athlete
@@ -22,9 +24,9 @@ def lea(client, db_session):
     db_session.add_all(
         [
             VolunteerAction(athlete_id=athlete.id, season=2026, title="Buvette", status="validee",
-                            declared_by_user_id=user.id),
+                            declared_by_user_id=user.id, created_at=datetime(2026, 9, 5)),
             VolunteerAction(athlete_id=friend.id, season=2026, title="Balisage", status="en_attente",
-                            declared_by_user_id=user.id),
+                            declared_by_user_id=user.id, created_at=datetime(2026, 10, 12)),
             VolunteerAction(athlete_id=athlete.id, season=2026, title="Chrono", status="validee",
                             declared_by_user_id=other_user.id),
             VolunteerAction(athlete_id=athlete.id, season=2026, title="Anonyme", status="refusee"),
@@ -34,12 +36,12 @@ def lea(client, db_session):
     return user
 
 
-def test_lists_only_declarations_made_by_my_account(client, lea):
+def test_lists_only_declarations_made_by_my_account_newest_first(client, lea):
     response = client.get(URL)
 
     assert response.status_code == 200
     body = response.json()
-    assert sorted((d["title"], d["status"], d["athlete_prenom"]) for d in body) == [
+    assert [(d["title"], d["status"], d["athlete_prenom"]) for d in body] == [
         ("Balisage", "en_attente", "Paul"),
         ("Buvette", "validee", "Léa"),
     ]
