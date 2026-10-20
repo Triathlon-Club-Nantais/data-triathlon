@@ -12,6 +12,7 @@ import { MaPlaceAuClub } from "./MaPlaceAuClub";
 import { MaSaisonAuClub } from "./MaSaisonAuClub";
 import { MesCoequipiers } from "./MesCoequipiers";
 import { MiniCarte } from "./MiniCarte";
+import { RappelObjectifMajeur } from "./ObjectifMajeur";
 import { ProchainPalier } from "./ProchainPalier";
 
 /** Encarts de droite de Mon espace : dernier résultat, place au club, prochain palier. */
@@ -63,6 +64,7 @@ export function ColonneDroite({
     <>
       <MaSaisonAuClub />
       <MesDemandes />
+      <RappelObjectifMajeur />
       <DernierResultat participation={dernier} record={record} />
       <MaPlaceAuClub athleteId={athleteId} seasons={seasons} federalOnly={federalOnly} />
       <ProchainPalier palier={palier} />

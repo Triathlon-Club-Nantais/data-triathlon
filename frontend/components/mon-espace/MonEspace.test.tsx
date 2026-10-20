@@ -3,10 +3,10 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AthleteDetail, Participation, SessionUser } from "@/lib/types";
 
-const { getSession, getAthlete } = vi.hoisted(() => ({ getSession: vi.fn(), getAthlete: vi.fn() }));
+const { getSession, getAthlete, getSeasonGoals } = vi.hoisted(() => ({ getSession: vi.fn(), getAthlete: vi.fn(), getSeasonGoals: vi.fn() }));
 vi.mock("@/lib/api/client", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api/client")>();
-  return { ...original, apiClient: { ...original.apiClient, getSession, getAthlete } };
+  return { ...original, apiClient: { ...original.apiClient, getSession, getAthlete, getSeasonGoals } };
 });
 vi.mock("./OngletsMonEspace", () => ({
   OngletsMonEspace: ({ participations }: { participations: unknown[] }) => <div data-testid="onglets">{participations.length}</div>,
@@ -43,6 +43,7 @@ function afficher(seasons = [2026]) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  getSeasonGoals.mockResolvedValue([]);
   document.cookie = "tcn_logged_in=1; path=/";
 });
 afterEach(() => vi.useRealTimers());

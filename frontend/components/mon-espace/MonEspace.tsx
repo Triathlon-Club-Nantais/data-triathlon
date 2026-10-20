@@ -10,6 +10,7 @@ import { serializeSeasons } from "@/lib/utils/season";
 import { ColonneDroite } from "./ColonneDroite";
 import { InvitationMonEspace } from "./InvitationMonEspace";
 import { MesChiffres } from "./MesChiffres";
+import { ObjectifMajeur } from "./ObjectifMajeur";
 import { OngletsMonEspace } from "./OngletsMonEspace";
 import { SqueletteMonEspace } from "./SqueletteMonEspace";
 
@@ -69,6 +70,7 @@ export function MonEspace({ seasons, federalOnly }: { seasons: number[]; federal
     <MonEspaceLayout
       centre={
         <>
+          <ObjectifMajeur />
           <MesChiffres courant={chiffresSaison(courant.data.participations)} precedent={precedent.data ? chiffresSaison(precedent.data) : null} />
           <OngletsMonEspace
             athleteId={athlete.id}

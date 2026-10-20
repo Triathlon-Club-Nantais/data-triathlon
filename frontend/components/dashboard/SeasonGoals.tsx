@@ -320,7 +320,7 @@ export function progression(goal: SeasonGoal): string {
 function progressionEpreuve(goal: SeasonGoal): string {
   switch (goal.outcome) {
     case "upcoming": {
-      const jours = Math.round((Date.parse(goal.race_date ?? "") - Date.parse(localToday())) / 86_400_000);
+      const jours = joursAvant(goal);
       return jours <= 0 ? "Aujourd'hui" : `Dans ${jours} ${jours > 1 ? "jours" : "jour"}`;
     }
     case "awaiting_results": return "En attente des résultats";
@@ -329,7 +329,11 @@ function progressionEpreuve(goal: SeasonGoal): string {
   }
 }
 
-function hms(seconds: number): string {
+export function joursAvant(goal: SeasonGoal): number {
+  return Math.round((Date.parse(goal.race_date ?? "") - Date.parse(localToday())) / 86_400_000);
+}
+
+export function hms(seconds: number): string {
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
   const s = seconds % 60;
