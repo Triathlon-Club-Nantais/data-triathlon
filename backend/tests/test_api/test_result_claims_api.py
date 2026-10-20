@@ -7,6 +7,7 @@ from app.models.athlete import Athlete
 from app.models.course import Course
 from app.models.participation import Participation
 from app.models.user import User
+from app.repositories import participation_repository
 
 from .test_admin_data_api import _session_etroite
 
@@ -77,6 +78,7 @@ def test_the_queue_approves_and_moves_the_result(client, db_session, setup):
     assert client.get("/api/v1/admin/badge-counts").json()["claims"] == 1
     (item,) = client.get(QUEUE).json()
     assert item["participation"]["course_name"] == "Tri de Nantes"
+    assert (item["participation"]["is_relay"], item["participation"]["teammates"]) == (False, [])
     assert item["current_athlete"]["id"] == homonym.id
     assert (item["current_athlete_results"], item["claimant_athlete"]["id"]) == (1, mine.id)
 
@@ -103,3 +105,25 @@ def test_permissions_and_sessions(client, db_session):
     client.cookies.clear()
     assert client.get(MINE).status_code == 401
     assert client.post(MINE, json={"participation_id": 1}).status_code == 401
+
+
+def test_a_relay_claim_shows_its_team_and_waits_for_it_to_be_completed(client, db_session, setup):
+    """#1739: the queue shows the current team; approval needs the member in it."""
+    _, mine, homonym, result = setup
+    partner = Athlete(nom="Durand", prenom="Paul")
+    db_session.add(partner)
+    relay = db_session.get(Participation, result.id)
+    relay.is_relay, relay.team_name = True, "Les Dauphins"
+    db_session.flush()
+    participation_repository.replace_teammates(db_session, relay, [homonym.id, partner.id])
+    db_session.commit()
+    claim_id = client.post(MINE, json={"participation_id": result.id}).json()["id"]
+    _session_etroite(client, db_session, "athlete_claims:review", email="rev@exemple.fr", slug="rev")
+
+    (item,) = client.get(QUEUE).json()
+    assert (item["participation"]["is_relay"], item["participation"]["team_name"]) == (True, "Les Dauphins")
+    assert [a["id"] for a in item["participation"]["teammates"]] == [homonym.id, partner.id]
+
+    refused = client.post(f"{QUEUE}/{claim_id}/approve")
+    assert refused.status_code == 409
+    assert "Attribuer aux équipiers" in refused.json()["detail"]

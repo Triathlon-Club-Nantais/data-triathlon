@@ -1,11 +1,15 @@
 """Réclamer un résultat rangé sur une autre fiche (#1637).
 
 Un compte rattaché (#1325) dit « ce résultat est à moi » pour un résultat
-validé et individuel d'une autre fiche, typiquement celle d'un homonyme. Jamais
-d'office : un responsable valide, et la validation passe par le geste existant
+validé d'une autre fiche, typiquement celle d'un homonyme. Jamais d'office : un
+responsable valide, et la validation passe par le geste existant
 `admin_actions.reassign_participation` (résultat figé contre l'import, fiche
 d'origine purgée si elle se vide, journal). La file est celle des rattachements
 de fiche (`/admin/rattachements`), en section distincte.
+
+Un relais (#1739) se réclame aussi : la fiche du compte rejoint sa composition
+(#894). Sans composition, elle en devient le seul équipier ; avec, l'admin la
+complète par « Attribuer aux équipiers », et la réclamation se clôt ensuite.
 """
 import logging
 from dataclasses import dataclass
@@ -42,7 +46,12 @@ class NoClaimedAthleteError(DomainError):
 
 class UnclaimableResultError(DomainError):
     status_code = 409
-    message = "Ce résultat ne peut pas être réclamé : il est déjà sur votre fiche, ou d'un relais."
+    message = "Ce résultat ne peut pas être réclamé : il est déjà sur votre fiche."
+
+
+class TeamToCompleteError(DomainError):
+    status_code = 409
+    message = "Ce relais a déjà des équipiers : ajoutez ce membre avec « Attribuer aux équipiers »."
 
 
 class TooManyClaimsError(DomainError):
@@ -61,7 +70,10 @@ def request_claim(db: Session, user: User, participation_id: int) -> ResultClaim
     # En attente, comme une absente : la réponse de `GET /participations/{id}` (#1519, #1615).
     if participation is None or participation.is_pending_validation:
         raise NotFoundError("Résultat introuvable.")
-    if participation.athlete_id == user.athlete_id or participation.is_relay:
+    if (
+        participation.athlete_id == user.athlete_id
+        or user.athlete_id in participation_repository.teammate_athlete_ids(db, participation_id)
+    ):
         raise UnclaimableResultError()
     existing = result_claim_repository.get_for_participation(db, user.id, participation_id)
     if existing is not None and existing.status == STATUS_PENDING:
@@ -89,14 +101,35 @@ def approve(db: Session, claim_id: int, *, actor_id: int) -> None:
     if claim is None or claim.user.athlete_id is None:
         raise _claim_not_pending()
     participation_id, user_id, target = claim.participation_id, claim.user_id, claim.user.athlete_id
-    # Le geste du back-office : verrou de l'épreuve, conflit si la fiche du compte
-    # y a déjà un résultat, figement contre l'import, purge de la fiche vidée.
-    admin_actions.reassign_participation(db, participation_id=participation_id, athlete_id=target, user_id=actor_id)
+    participation = claim.participation
+    team = participation_repository.teammate_athlete_ids(db, participation_id)
+    if participation.is_relay or participation.course.is_relay:
+        if team and target not in team:
+            raise TeamToCompleteError()
+        if not team:
+            _join_empty_relay(db, participation, target, actor_id)
+    else:
+        _move(db, participation_id, target, actor_id)
     result_claim_repository.delete_claim(db, claim)
     audit.record(
         db, actor_id, action="result_claim.approve", entity_type=_ENTITY, entity_id=participation_id,
         payload={"user_id": user_id, "athlete_id": target, "claim_id": claim_id},
     )
+
+
+def _move(db: Session, participation_id: int, target: int, actor_id: int) -> None:
+    # Le geste du back-office : verrou de l'épreuve, conflit si la fiche du compte
+    # y a déjà un résultat, figement contre l'import, purge de la fiche vidée.
+    admin_actions.reassign_participation(db, participation_id=participation_id, athlete_id=target, user_id=actor_id)
+
+
+def _join_empty_relay(db: Session, participation: Participation, target: int, actor_id: int) -> None:
+    """Le membre devient le seul équipier : la fiche au nom de l'équipe part, le nom
+    d'équipe reste (même formule que `set_teammates`), qui apparie le relais à l'import."""
+    carrier = participation.athlete
+    participation.team_name = participation.team_name or " ".join(filter(None, [carrier.nom, carrier.prenom]))
+    _move(db, participation.id, target, actor_id)
+    participation_repository.replace_teammates(db, participation, [target])
 
 
 def reject(db: Session, claim_id: int, *, actor_id: int) -> None:
