@@ -195,7 +195,7 @@ def _postgres_engine():
 
 def _sqlite_engine_with_schema(*, savepoints: bool, foreign_keys: bool = False):
     """Moteur SQLite mémoire, schéma posé par `create_all`."""
-    import app.models  # noqa: F401 — enregistre toutes les tables sur Base.metadata
+    import app.models  # noqa: F401 (enregistre toutes les tables sur Base.metadata)
     from app.core.database import Base
 
     engine = create_engine(
@@ -246,6 +246,10 @@ def _rolled_back_session(engine):
     « Joining a Session into an External Transaction »)."""
     with engine.connect() as connection:
         transaction = connection.begin()
+        # Garde : une seconde `Session` sur `get_bind()` (mode par défaut) trouve
+        # un SAVEPOINT ouvert et s'y imbrique, au lieu de rejoindre `transaction`
+        # en `rollback_only`, où son `rollback()` l'annulerait.
+        connection.begin_nested()
         session = Session(
             bind=connection, autoflush=False, join_transaction_mode="create_savepoint"
         )
@@ -253,6 +257,7 @@ def _rolled_back_session(engine):
             yield session
         finally:
             session.close()
+            assert transaction.is_active, "transaction du test perdue en cours de route"
             transaction.rollback()
 
 
@@ -303,7 +308,8 @@ def db_session(request, _postgres_engine, _sqlite_engine):
 @pytest.fixture
 def db_session_fk(_sqlite_engine_fk):
     """Comme `db_session`, mais avec `PRAGMA foreign_keys=ON` : les FK s'y
-    vérifient comme en PostgreSQL, là où `database.py` les laisse inertes."""
+    vérifient comme en PostgreSQL, là où `database.py` les laisse inertes.
+    SQLite seul, et sans le marqueur `own_database`, qu'il ignore."""
     with _rolled_back_session(_sqlite_engine_fk) as session:
         yield session
 
