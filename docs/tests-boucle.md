@@ -50,6 +50,19 @@ uv run pytest tests/test_migrations.py --migrations -n 0
 
 La CI passe toujours `--migrations`.
 
+## Hooks
+
+Un hook `PreToolUse` (`.claude/hooks/test_gate.py`, branché dans
+`.claude/settings.json`) refuse dans Claude Code les suites complètes lancées
+depuis un outil Bash : `pytest` ou `npm test` / `vitest run` sans fichier, sans
+`-k`, `--lf`, `--sw`, `related` ni `--changed`, avec ou sans préfixe `rtk`,
+`uv run` ou `npx`. Un test ciblé passe sans bruit.
+
+Pour une vraie suite complète (fin de branche), préfixer la commande par
+`FULL_SUITE=1`. Le hook échoue ouvert : un JSON illisible ou une commande qu'il
+ne sait pas découper ne bloque rien. Ses tests :
+`python3 -m unittest discover -s .claude/hooks -p 'test_test_gate.py'`.
+
 ## Précédence
 
 Cette règle du projet prime sur les consignes de suite complète des skills pour les étapes intermédiaires. `verification-before-completion` est satisfait par la commande ciblée pour une affirmation sur une tâche, et par la suite complète pour une affirmation sur la branche.
