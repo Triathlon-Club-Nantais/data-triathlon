@@ -402,7 +402,11 @@ def test_entra_is_a_member_method(client):
 
 def test_methods_list_entra_only_when_configured(client, monkeypatch):
     methods = client.get("/api/v1/auth/methods").json()
-    assert "entra" in [method["slug"] for method in methods]
+    assert {
+        "slug": "entra",
+        "label": "Google ou code par e-mail",
+        "audience": "member",
+    } in methods
 
     monkeypatch.setenv("AUTH_ENTRA_CLIENT_SECRET", "")
     get_settings.cache_clear()
