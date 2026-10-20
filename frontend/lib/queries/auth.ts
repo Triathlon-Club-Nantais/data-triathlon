@@ -161,10 +161,10 @@ export function useMyVolunteerActions(enabled: boolean) {
 }
 
 /** Objectifs de saison du compte rattaché (#1373) ; `enabled` faux sans fiche. */
-export function useSeasonGoals(enabled: boolean) {
+export function useSeasonGoals(enabled: boolean, season?: number) {
   return useQuery({
-    queryKey: queryKeys.seasonGoals(),
-    queryFn: () => apiClient.getSeasonGoals(),
+    queryKey: queryKeys.seasonGoals(season),
+    queryFn: () => apiClient.getSeasonGoals(season),
     enabled,
     retry: false,
   });

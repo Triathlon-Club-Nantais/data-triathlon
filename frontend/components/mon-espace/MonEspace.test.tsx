@@ -111,4 +111,12 @@ describe("MonEspace access", () => {
     expect(getAthlete).toHaveBeenCalledTimes(1);
     expect(screen.queryByTestId("ecart")).toBeNull();
   });
+
+  it("still renders the tabs (goals included) when the selected season has no club race (#1668)", async () => {
+    getSession.mockResolvedValue(session({ athlete: LEA }));
+    getAthlete.mockResolvedValue(detail([]));
+    afficher();
+
+    expect(await screen.findByTestId("onglets")).toHaveTextContent("0");
+  });
 });

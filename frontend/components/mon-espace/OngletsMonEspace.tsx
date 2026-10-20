@@ -122,7 +122,7 @@ export function OngletsMonEspace({
         <MesActionsBenevolat />
       </TabsContent>
       <TabsContent value="objectifs">
-        <SeasonGoals />
+        <SeasonGoals seasons={seasons} />
       </TabsContent>
     </Tabs>
   );

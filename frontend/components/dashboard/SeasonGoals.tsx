@@ -1,12 +1,12 @@
 "use client";
 
-import Link from "next/link";
 import { useId, useState } from "react";
 import { DangerConfirm } from "@/components/admin/DangerConfirm";
-import { Button, Card, Eyebrow, MetaPill } from "@/components/tcn";
+import { Button, Card, MetaPill } from "@/components/tcn";
 import { EVENT_TYPE_OPTIONS, eventTypeLabel } from "@/lib/constants";
 import { useDeleteSeasonGoal, useHydratedSession, useSaveSeasonGoal, useSeasonGoals } from "@/lib/queries/auth";
 import type { SeasonGoal, SeasonGoalWrite } from "@/lib/types";
+import { currentSeason, seasonLabel } from "@/lib/utils/season";
 import { secondsFromHms } from "@/lib/utils/time";
 
 /** Même motif que la saisie manuelle (`ManualResultForm`, `DUREE`). */
@@ -16,12 +16,16 @@ const MESSAGE_DUREE = "Format attendu H:MM:SS (par exemple 2:30:00).";
 /**
  * « Mes objectifs » de Mon espace (#1373) : privés, pour le seul compte rattaché
  * à sa fiche (#1325). La progression vient du serveur, sur les résultats validés
- * de la saison en cours.
+ * de la saison affichée : la saison choisie si elle est seule, sinon la saison en
+ * cours. Une saison passée est en lecture seule (création bornée à la saison en cours).
  */
-export function SeasonGoals() {
+export function SeasonGoals({ seasons }: { seasons: number[] }) {
   const session = useHydratedSession();
   const rattache = Boolean(session.data?.athlete);
-  const goals = useSeasonGoals(rattache);
+  const plusieurs = seasons.length !== 1;
+  const saison = plusieurs ? currentSeason() : seasons[0];
+  const modifiable = saison === currentSeason();
+  const goals = useSeasonGoals(rattache, saison);
   const [edition, setEdition] = useState<SeasonGoal | "nouveau" | null>(null);
   const [aSupprimer, setASupprimer] = useState<SeasonGoal | null>(null);
   const supprimer = useDeleteSeasonGoal();
@@ -29,20 +33,24 @@ export function SeasonGoals() {
   if (!rattache) return null;
 
   return (
-    <Card style={{ marginTop: 24 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-        <Eyebrow>Mes objectifs</Eyebrow>
-        <Link href="/mon-espace/recap" className="underline underline-offset-2" style={{ fontSize: 14 }}>
-          Récap de la saison passée
-        </Link>
-      </div>
+    <Card>
+      <h2 style={{ fontFamily: "var(--tcn-font-display)", fontSize: 22, fontWeight: 400, color: "var(--tcn-ink)", margin: 0 }}>
+        Objectifs, {seasonLabel(saison)}
+      </h2>
+      {plusieurs && (
+        <p style={{ margin: "8px 0 0", fontSize: 13, color: "var(--tcn-text-muted)" }}>
+          Plusieurs saisons sont sélectionnées : les objectifs affichés sont ceux de la saison en cours.
+        </p>
+      )}
       {goals.isPending ? null : goals.error ? (
         <p role="alert" style={{ marginTop: 12 }}>{goals.error.message}</p>
       ) : (
         <>
           {goals.data.length === 0 && edition === null && (
             <p style={{ marginTop: 12, color: "var(--tcn-text-muted)" }}>
-              Aucun objectif pour cette saison. Fixez un temps à battre ou un nombre d&apos;épreuves.
+              {modifiable
+                ? "Aucun objectif pour cette saison. Fixez un temps à battre ou un nombre d'épreuves."
+                : "Aucun objectif pour cette saison."}
             </p>
           )}
           <ul style={{ listStyle: "none", padding: 0, margin: "12px 0 0", display: "grid", gap: 12 }}>
@@ -53,18 +61,22 @@ export function SeasonGoals() {
                   <div style={{ fontSize: 13, color: "var(--tcn-text-muted)" }}>{progression(goal)}</div>
                 </div>
                 {goal.reached && <MetaPill accent dot>Atteint</MetaPill>}
-                <Button variant="secondary" size="sm" onClick={() => setEdition(goal)}
-                  aria-label={`Modifier l'objectif « ${libelle(goal)} »`}>
-                  Modifier
-                </Button>
-                <Button variant="secondary" size="sm" onClick={() => { supprimer.reset(); setASupprimer(goal); }}
-                  aria-label={`Supprimer l'objectif « ${libelle(goal)} »`}>
-                  Supprimer
-                </Button>
+                {modifiable && (
+                  <>
+                    <Button variant="secondary" size="sm" onClick={() => setEdition(goal)}
+                      aria-label={`Modifier l'objectif « ${libelle(goal)} »`}>
+                      Modifier
+                    </Button>
+                    <Button variant="secondary" size="sm" onClick={() => { supprimer.reset(); setASupprimer(goal); }}
+                      aria-label={`Supprimer l'objectif « ${libelle(goal)} »`}>
+                      Supprimer
+                    </Button>
+                  </>
+                )}
               </li>
             ))}
           </ul>
-          {edition === null ? (
+          {!modifiable ? null : edition === null ? (
             <div style={{ marginTop: 16 }}>
               <Button variant="secondary" onClick={() => setEdition("nouveau")}>Ajouter un objectif</Button>
             </div>
