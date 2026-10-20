@@ -175,14 +175,14 @@ function GoalForm({ goal, onDone }: { goal: SeasonGoal | null; onDone: () => voi
   );
 }
 
-function libelle(goal: SeasonGoal): string {
+export function libelle(goal: SeasonGoal): string {
   const format = goal.event_type ? eventTypeLabel(goal.event_type) : null;
   if (goal.kind === "time") return `${format} en moins de ${hms(goal.target)}`;
   const epreuves = `${goal.target} ${goal.target > 1 ? "épreuves" : "épreuve"}`;
   return format ? `${epreuves} de ${format}` : epreuves;
 }
 
-function progression(goal: SeasonGoal): string {
+export function progression(goal: SeasonGoal): string {
   if (goal.kind === "time") return goal.best_time ? `Meilleur temps : ${goal.best_time}` : "Aucun temps sur la saison";
   return `${goal.count ?? 0} sur ${goal.target}`;
 }

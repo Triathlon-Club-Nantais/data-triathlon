@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { BestTimesCard } from "@/components/athletes/BestTimesCard";
 import { Card, Eyebrow } from "@/components/tcn";
 import { apiClient } from "@/lib/api/client";
+import { RecapObjectifs } from "@/components/dashboard/RecapObjectifs";
 import { useHydratedSession } from "@/lib/queries/auth";
 import { isPodium } from "@/lib/utils/club-aggregate";
 import { formatDate } from "@/lib/utils/date";
@@ -67,9 +68,12 @@ export function SeasonRecap({ season, lastClosed }: { season: number; lastClosed
         {seasonLabel(season)}
       </h2>
       {resultats.length === 0 ? (
-        <Card>
-          <p style={{ margin: 0 }}>Aucun résultat validé sur cette saison.</p>
-        </Card>
+        <>
+          <Card>
+            <p style={{ margin: 0 }}>Aucun résultat validé sur cette saison.</p>
+          </Card>
+          <RecapObjectifs season={season} />
+        </>
       ) : (
         <>
           <Card>
@@ -82,6 +86,7 @@ export function SeasonRecap({ season, lastClosed }: { season: number; lastClosed
               )}
             </ul>
           </Card>
+          <RecapObjectifs season={season} />
           <BestTimesCard participations={resultats} />
           {challenges.length > 0 && (
             <Card>
