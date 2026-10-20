@@ -85,6 +85,25 @@ Pour une vraie suite complète (fin de branche), préfixer la commande par
 ne sait pas découper ne bloque rien. Ses tests :
 `python3 -m unittest discover -s .claude/hooks -p 'test_test_gate.py'`.
 
+Un hook `Stop` (`.claude/hooks/targeted_tests.py`) lance des tests ciblés quand
+un tour se termine avec du code modifié (diff par rapport à `HEAD` plus fichiers
+non suivis, sources `backend/**/*.py` et `frontend/**/*.{ts,tsx,js,jsx}`
+seulement). Commandes :
+
+- backend : `uv run pytest --testmon --testmon-forceselect -m "not integration" -n 0 -q`
+  (`testmon_retenu: oui`, cf. le sondage). Si testmon n'était pas retenu
+  (`TESTMON_RETENU` dans le script), il lancerait les tests important
+  directement les modules modifiés ;
+- frontend : `npx vitest related --run <fichiers>`.
+
+Budget total de 180 s : au dépassement, un avertissement sur stderr et aucun
+blocage. Un test rouge bloque la fin du tour (sortie tronquée aux 40 dernières
+lignes). Garde `stop_hook_active` : pas de second passage dans la foulée d'un
+blocage. L'empreinte du contenu des fichiers modifiés est écrite après un passage
+vert dans `<git-dir>/claude-targeted-tests.sha` ; une empreinte identique ne
+relance rien. Le hook échoue ouvert. Ses tests :
+`python3 -m unittest discover -s .claude/hooks -p 'test_targeted_tests.py'`.
+
 ## Précédence
 
 Cette règle du projet prime sur les consignes de suite complète des skills pour les étapes intermédiaires. `verification-before-completion` est satisfait par la commande ciblée pour une affirmation sur une tâche, et par la suite complète pour une affirmation sur la branche.
