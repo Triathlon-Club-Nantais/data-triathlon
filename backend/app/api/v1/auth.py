@@ -23,6 +23,7 @@ from app.core.database import get_db
 from app.core.exceptions import AuthUnavailableError, NotFoundError
 from app.core.season import SEASON_MAX, SEASON_MIN, current_season, parse_seasons
 from app.core.time import utcnow
+from app.models.result_claim import ResultClaim
 from app.models.user import User
 from app.repositories import user_repository
 from app.schemas.athlete_claim import (
@@ -379,10 +380,19 @@ def cancel_athlete_claim(user: User = Depends(current_user), db: Session = Depen
     return Response(status_code=204, headers=NO_STORE_HEADERS)
 
 
+def _result_claim_read(claim: ResultClaim) -> ResultClaimRead:
+    course = claim.participation.course
+    return ResultClaimRead(
+        id=claim.id, participation_id=claim.participation_id, status=claim.status, created_at=claim.created_at,
+        course_id=course.id, course_name=course.name,
+        event_date=course.event_date.isoformat() if course.event_date else None,
+    )
+
+
 @router.get("/auth/me/result-claims", response_model=list[ResultClaimRead])
 def list_my_result_claims(user: User = Depends(current_user), db: Session = Depends(get_db)):
     """Mes réclamations de résultat (#1637), en attente ou refusées."""
-    return [ResultClaimRead.model_validate(claim) for claim in result_claims.list_mine(db, user)]
+    return [_result_claim_read(claim) for claim in result_claims.list_mine(db, user)]
 
 
 @router.post(
@@ -396,7 +406,7 @@ def request_result_claim(body: ResultClaimCreate, user: User = Depends(current_u
     """« Ce résultat est à moi » (#1637), toujours soumis à la file du club."""
     claim = result_claims.request_claim(db, user, body.participation_id)
     db.commit()
-    return ResultClaimRead.model_validate(claim)
+    return _result_claim_read(claim)
 
 
 @router.delete("/auth/me/result-claims/{claim_id}", status_code=204)
