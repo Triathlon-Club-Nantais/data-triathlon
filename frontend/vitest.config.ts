@@ -24,8 +24,9 @@ const GLOBS_JSDOM = [
 // Les exclusions par défaut ne couvrent pas les dossiers en « . » : un
 // worktree créé sous frontend/.claude/ ajoutait sa propre suite à la
 // collecte (52 fichiers de plus, cf. #300). On reprend les défauts, sans
-// quoi node_modules rentrerait.
-const EXCLUDE = [...configDefaults.exclude, "**/.claude/**"];
+// quoi node_modules rentrerait. Les bacs à sable de Stryker sont des copies
+// du front : laissés sur disque, ils doubleraient une exécution ciblée.
+const EXCLUDE = [...configDefaults.exclude, "**/.claude/**", ".stryker-tmp/**"];
 
 // Ne rien exporter d'autre que ce `default` : un export nommé fait émettre à
 // rollup un avertissement MIXED_EXPORTS à chaque exécution de la suite.

@@ -1,6 +1,7 @@
 {
   "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
-  "testRunner": "vitest",
+  "plugins": ["@stryker-mutator/*", "./stryker/vitest-runner.mjs"],
+  "testRunner": "vitest-gt",
   "vitest": { "configFile": "vitest.config.ts" },
   "incremental": true,
   "incrementalFile": "reports/stryker-incremental.json",

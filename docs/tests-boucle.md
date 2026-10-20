@@ -163,7 +163,11 @@ Score = tués / (tués + survivants), timeouts exclus.
   détectés ; recalculer avec la formule ci-dessus. `--force` est indispensable
   pour comparer avant et après une modification de **test** : le mode
   incrémental (`reports/stryker-incremental.json`) a réutilisé tel quel le
-  verdict d'avant la suppression d'un test.
+  verdict d'avant la suppression d'un test. Le runner est `vitest-gt`
+  (`frontend/stryker/vitest-runner.mjs`) : le runner publié filtre les tests
+  par un nom joint d'une espace, vitest 5 par un nom joint de « > », et tout
+  test sous un `describe` était sauté, chaque mutant sortant « Survived » sans
+  test exécuté (relevé au lot 3).
 - **Où vivent les résultats** : backend dans `backend/mutants/` (copie de `app/`
   et `tests/`, base de résultats `mutmut-stats.json` et `*.meta`) ; frontend dans
   `frontend/reports/` (JSON et fichier incrémental) et `frontend/.stryker-tmp/`.
@@ -177,7 +181,9 @@ Score = tués / (tués + survivants), timeouts exclus.
   `app/`). Un nouveau test de ce genre doit y être ajouté. `scripts/`, `alembic/`
   et `alembic.ini` sont copiés via `also_copy`.
 - **Mesures de référence** (machine chargée, load 3 à 10) : `app.core.gender*`
-  34 tués, 2 survivants (94,4 %) ; `lib/rank.ts` 7 tués, 3 survivants (70 %).
+  34 tués, 2 survivants (94,4 %) ; `lib/rank.ts` 9 tués, 1 survivant (90 %),
+  `components/tcn/ErrorScreen.tsx` 10 tués, 1 survivant (90,9 %), ces deux
+  derniers à load 20 après le correctif du runner (avant : 7/10 et 0/11).
 - **Relancer après une modification de test** : mutmut ne réinvalide que les
   fonctions **source** modifiées. Un `run` sans motif garderait le verdict
   d'avant pour un mutant dont seul le test a changé ; un `run` **avec** motif
