@@ -3,12 +3,13 @@ import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Participation, SessionUser } from "@/lib/types";
 
-const { getSession, getClubRosterRank, getAthlete, getMyTeammates, getEventsGeo } = vi.hoisted(() => ({
+const { getSession, getClubRosterRank, getAthlete, getMyTeammates, getEventsGeo, getMyResultClaims } = vi.hoisted(() => ({
   getSession: vi.fn(), getClubRosterRank: vi.fn(), getAthlete: vi.fn(), getMyTeammates: vi.fn(), getEventsGeo: vi.fn(),
+  getMyResultClaims: vi.fn(),
 }));
 vi.mock("@/lib/api/client", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api/client")>();
-  return { ...original, apiClient: { ...original.apiClient, getSession, getClubRosterRank, getAthlete, getMyTeammates, getEventsGeo } };
+  return { ...original, apiClient: { ...original.apiClient, getSession, getClubRosterRank, getAthlete, getMyTeammates, getEventsGeo, getMyResultClaims } };
 });
 
 import { currentSeason } from "@/lib/utils/season";
@@ -35,6 +36,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   getMyTeammates.mockResolvedValue([]);
   getEventsGeo.mockResolvedValue([]);
+  getMyResultClaims.mockResolvedValue([]);
   document.cookie = "tcn_logged_in=1; path=/";
   getSession.mockResolvedValue({ id: 1, athlete: LEA, permissions: [], roles: [], groups: [] } as unknown as SessionUser);
 });
@@ -52,6 +54,15 @@ describe("ColonneDroite", () => {
     expect(await screen.findByRole("link", { name: /Récente/ })).toBeInTheDocument();
     expect(await screen.findByText("record perso")).toBeInTheDocument();
     expect(await screen.findByText(/Encore 1 épreuve pour égaler/)).toBeInTheDocument();
+  });
+});
+
+describe("ColonneDroite team result card (#1739)", () => {
+  it("offers the missing team result card", async () => {
+    getAthlete.mockResolvedValue({ athlete: LEA, participations: [], challenges: [] });
+    getClubRosterRank.mockResolvedValue(null);
+    afficher(<ColonneDroite athleteId={42} selection={[]} seasons={[currentSeason()]} federalOnly />);
+    expect(await screen.findByText("Un résultat d'équipe manque ?")).toBeInTheDocument();
   });
 });
 

@@ -10,6 +10,7 @@ import { DernierResultat } from "./DernierResultat";
 import { MesDemandes } from "./MesDemandes";
 import { MaPlaceAuClub } from "./MaPlaceAuClub";
 import { MesCoequipiers } from "./MesCoequipiers";
+import { ResultatEquipeManquant } from "./ResultatEquipeManquant";
 import { MiniCarte } from "./MiniCarte";
 import { ProchainPalier } from "./ProchainPalier";
 
@@ -65,6 +66,7 @@ export function ColonneDroite({
       <MaPlaceAuClub athleteId={athleteId} seasons={seasons} federalOnly={federalOnly} />
       <ProchainPalier palier={palier} />
       <MesCoequipiers athleteId={athleteId} seasons={seasons} federalOnly={federalOnly} />
+      <ResultatEquipeManquant />
       <MiniCarte courseIds={[...new Set(selection.map((p) => p.course.id))]} />
     </>
   );
