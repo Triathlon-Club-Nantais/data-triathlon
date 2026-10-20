@@ -17,7 +17,7 @@ MESSAGE = (
 SEPARATORS = {"&&", "||", ";", "|", "&"}
 WRAPPERS = {"rtk", "time", "env", "uv", "run", "npx", "python", "python3", "-m"}
 UV_OPTIONS = ("--directory", "--project", "--with")
-PYTEST_TARGETING = {"-k", "--lf", "--last-failed", "--sw", "--stepwise"}
+PYTEST_TARGETING = {"-k", "--lf", "--last-failed", "--sw", "--stepwise", "--testmon"}
 # Options whose next token is a value, not a positional argument.
 VALUE_OPTIONS = {"-m", "-k", "-n", "-p", "-c", "-o", "--maxfail", "--tb", "--durations",
                  "--rootdir", "--ignore", "--deselect", "--junitxml", "--reporter"}
