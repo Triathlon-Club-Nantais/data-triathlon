@@ -13,6 +13,15 @@ class AuthMethodRead(BaseModel):
     label: str
 
 
+class AccountIdentityRead(BaseModel):
+    """Un moyen de connexion du compte (#1663) ; jamais le `subject` ni le secret."""
+
+    provider: str
+    label: str
+    email: str
+    created_at: UtcDatetime
+
+
 class SessionRoleRead(BaseModel):
     """Un rôle tel que son porteur se le voit attribuer (#115)."""
 
