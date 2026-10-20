@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { queryKeys } from "@/lib/queries/keys";
@@ -29,11 +29,12 @@ const CIBLE: AthleteBrief = { id: 2, nom: "KERMARREC", prenom: "Hadrien", gender
 function afficher(maFiche?: ClaimedAthlete) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
   if (maFiche) client.setQueryData(queryKeys.session(), { id: 1, permissions: [], athlete: maFiche });
-  return render(
+  render(
     <QueryClientProvider client={client}>
       <VolunteerActionForm />
     </QueryClientProvider>,
   );
+  return client;
 }
 
 beforeEach(() => {
@@ -164,7 +165,7 @@ describe("VolunteerActionForm", () => {
       }),
     );
     expect(toastSuccess).toHaveBeenCalledWith(
-      `Déclaration enregistrée pour la ${seasonLabel(currentSeason()).toLowerCase()}, en attente de validation.`,
+      `Déclaration enregistrée pour Hadrien KERMARREC, ${seasonLabel(currentSeason()).toLowerCase()}, en attente de validation.`,
     );
   });
 
@@ -257,6 +258,68 @@ describe("VolunteerActionForm", () => {
 
       expect(screen.getByText("Hadrien KERMARREC")).toBeInTheDocument();
       expect(screen.queryByText("Léa Martin")).not.toBeInTheDocument();
+    });
+
+    it("donne le focus à la recherche et propose de revenir à sa fiche", async () => {
+      afficher(MOI);
+      await userEvent.click(await screen.findByRole("button", { name: /changer d'athlète/i }));
+
+      expect(screen.getByLabelText(/athlète/i)).toHaveFocus();
+      await userEvent.click(screen.getByRole("button", { name: "Revenir à ma fiche" }));
+      expect(screen.getByText("Léa Martin")).toBeInTheDocument();
+    });
+
+    it("revient à sa fiche après une déclaration pour un autre athlète", async () => {
+      searchAthletesConnected.mockResolvedValue([CIBLE]);
+      createVolunteerAction.mockResolvedValue({ id: 1, season: 2026 });
+      afficher(MOI);
+      await userEvent.click(await screen.findByRole("button", { name: /changer d'athlète/i }));
+      await userEvent.type(screen.getByLabelText(/athlète/i), "Ker");
+      await userEvent.click(await screen.findByText(/Hadrien KERMARREC/));
+      await userEvent.type(screen.getByLabelText("Titre"), "Chrono");
+      await userEvent.type(screen.getByLabelText("Description"), "Arrivée");
+      await userEvent.click(screen.getByRole("button", { name: /déclarer/i }));
+
+      await waitFor(() => expect(createVolunteerAction).toHaveBeenCalledWith(expect.objectContaining({ athlete_id: 2 })));
+      expect(await screen.findByText("Léa Martin")).toBeInTheDocument();
+      expect(toastSuccess).toHaveBeenCalledWith(expect.stringContaining("pour Hadrien KERMARREC,"));
+    });
+
+    it("présélectionne la fiche arrivée après le premier rendu", async () => {
+      const client = afficher();
+      await screen.findByLabelText(/athlète/i);
+
+      act(() => {
+        client.setQueryData(queryKeys.session(), { id: 1, permissions: [], athlete: MOI });
+      });
+
+      expect(await screen.findByText("Léa Martin")).toBeInTheDocument();
+    });
+
+    it("ne remplace pas une recherche commencée avant l'arrivée de la session", async () => {
+      const client = afficher();
+      await userEvent.type(screen.getByLabelText(/athlète/i), "Ke");
+
+      await act(async () => {
+        client.setQueryData(queryKeys.session(), { id: 1, permissions: [], athlete: MOI });
+        await new Promise((r) => setTimeout(r, 0));
+      });
+
+      expect(screen.getByLabelText(/athlète/i)).toHaveValue("Ke");
+      expect(screen.queryByText("Léa Martin")).not.toBeInTheDocument();
+    });
+
+    it("recharge la liste de mes déclarations après un envoi", async () => {
+      createVolunteerAction.mockResolvedValue({ id: 1, season: 2026 });
+      const client = afficher(MOI);
+      const invalider = vi.spyOn(client, "invalidateQueries");
+      await userEvent.type(await screen.findByLabelText("Titre"), "Buvette");
+      await userEvent.type(screen.getByLabelText("Description"), "Stand");
+      await userEvent.click(screen.getByRole("button", { name: /déclarer/i }));
+
+      await waitFor(() =>
+        expect(invalider).toHaveBeenCalledWith({ queryKey: queryKeys.myVolunteerDeclarations() }),
+      );
     });
   });
 });

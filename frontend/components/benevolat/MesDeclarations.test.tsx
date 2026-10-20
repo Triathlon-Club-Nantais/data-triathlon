@@ -1,6 +1,7 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { QueryClient, QueryClientProvider, onlineManager } from "@tanstack/react-query";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { queryKeys } from "@/lib/queries/keys";
 import type { MyVolunteerDeclarationOut } from "@/lib/types";
 
@@ -27,7 +28,8 @@ const declaration = (extra: Partial<MyVolunteerDeclarationOut>): MyVolunteerDecl
 
 function afficher(connecte = true) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
-  client.setQueryData(queryKeys.session(), connecte ? { id: 1, permissions: [], athlete: null } : null);
+  const session = { id: 1, permissions: [], athlete: { id: 9, prenom: "Moi", nom: "Même" } };
+  client.setQueryData(queryKeys.session(), connecte ? session : null);
   return render(
     <QueryClientProvider client={client}>
       <MesDeclarations />
@@ -37,6 +39,10 @@ function afficher(connecte = true) {
 
 beforeEach(() => {
   getMyVolunteerDeclarations.mockReset();
+});
+
+afterEach(() => {
+  onlineManager.setOnline(true);
 });
 
 describe("MesDeclarations (#1672)", () => {
@@ -63,17 +69,44 @@ describe("MesDeclarations (#1672)", () => {
     expect(screen.getByText("Refusée")).toBeInTheDocument();
   });
 
+  it("dit « Pour vous » pour sa propre fiche et nomme un statut inconnu", async () => {
+    getMyVolunteerDeclarations.mockResolvedValue([declaration({ athlete_id: 9, status: "archivee" })]);
+    afficher();
+
+    expect(await screen.findByText(/Pour vous/)).toBeInTheDocument();
+    expect(screen.getByText("Statut inconnu")).toBeInTheDocument();
+  });
+
+  it("annonce le chargement puis le nombre de déclarations", async () => {
+    getMyVolunteerDeclarations.mockResolvedValue([declaration({}), declaration({ id: 2 })]);
+    afficher();
+
+    expect(screen.getByRole("status")).toHaveTextContent("Chargement de vos déclarations");
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("2 déclarations."));
+  });
+
+  it("garde le squelette, pas l'état vide, tant que la requête est suspendue", () => {
+    onlineManager.setOnline(false);
+    afficher();
+
+    expect(screen.getByTestId("mes-declarations-squelette")).toBeInTheDocument();
+    expect(screen.queryByText(/rien déclaré/)).not.toBeInTheDocument();
+  });
+
   it("dit l'absence de déclaration", async () => {
     getMyVolunteerDeclarations.mockResolvedValue([]);
     afficher();
 
-    expect(await screen.findByText("Aucune déclaration pour l'instant")).toBeInTheDocument();
+    expect(await screen.findByText(/Vous n'avez encore rien déclaré/)).toBeInTheDocument();
   });
 
-  it("dit l'échec du chargement", async () => {
+  it("dit l'échec du chargement et propose de réessayer", async () => {
     getMyVolunteerDeclarations.mockRejectedValue(new Error("réseau"));
     afficher();
 
     expect(await screen.findByText(/pas pu être chargées/)).toBeInTheDocument();
+    getMyVolunteerDeclarations.mockResolvedValue([declaration({})]);
+    await userEvent.click(screen.getByRole("button", { name: "Réessayer" }));
+    expect(await screen.findByText("Buvette")).toBeInTheDocument();
   });
 });
