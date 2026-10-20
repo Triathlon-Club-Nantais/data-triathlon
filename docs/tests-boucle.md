@@ -156,8 +156,9 @@ Score = tués / (tués + survivants), timeouts exclus.
   exécute toute la suite unitaire en séquentiel (`-n 0`, 4 min à 5 min) pour
   cartographier quel test couvre quelle fonction, puis chaque mutant ne rejoue
   que ses tests ; modifier une fonction source invalide ses mutants (un test
-  modifié, voir « Relancer » plus bas), un `run` suivant dure ~1 min sur `app.core.gender*` (36 mutants). Il ne lit
-  pas `--migrations` et n'en a pas besoin.
+  modifié, voir « Relancer » plus bas), un `run` suivant dure ~1 min sur
+  `app.core.gender*` (36 mutants). Il ne lit pas `--migrations` et n'en a pas
+  besoin.
 - **Stryker** : le tableau affiche « total » qui compte les timeouts comme
   détectés ; recalculer avec la formule ci-dessus. `--force` est indispensable
   pour comparer avant et après une modification de **test** : le mode
@@ -206,7 +207,11 @@ appliquée lot par lot. Les lots et leur statut :
 
    - score de mutation (section « Mutation » ci-dessus), avec la liste des
      survivants pour vérifier ensuite que l'ensemble des mutants est le même.
-     Noter durée murale et `uptime` au départ. Budget 30 min : au delà,
+     **Toujours passer le motif de mutant**, même pour un module entier
+     (`uv run mutmut run "<module>*"`), et le même motif pour la mesure
+     d'après : sans motif, mutmut garde les verdicts d'avant une modification
+     qui ne touche que les tests. Noter durée murale et `uptime` au départ.
+     Budget 30 min : au delà,
      restreindre aux fonctions dont des tests seront supprimés ou fusionnés
      (un motif de nom de mutant par fonction, `app.x.y.x_<fonction>__mutmut_*`),
      et garder **les mêmes motifs** pour la mesure d'après. Timeouts et mutants
@@ -216,7 +221,9 @@ appliquée lot par lot. Les lots et leur statut :
    - fusionner deux tests au même montage dont l'un prolonge l'autre ;
    - supprimer les tests d'interaction (vérification d'appels de mocks), de
      structure (constante, expression rationnelle privée) et ceux de haut
-     niveau déjà couverts plus bas.
+     niveau déjà couverts plus bas ;
+   - mettre à jour les commentaires et docstrings qui nomment un test fusionné
+     ou supprimé, ou qui en décrivent le rôle.
 
    Aucune assertion de comportement observable ne disparaît sans qu'un autre
    test la porte ; aucune assertion n'est affaiblie pour faire passer le lot. Un
@@ -225,8 +232,8 @@ appliquée lot par lot. Les lots et leur statut :
 3. **Mesurer après**, mêmes commandes, mêmes motifs. Garder le lot seulement si
    le score de mutation est ≥ référence **et** la couverture ≥ référence (mêmes
    lignes manquées ou moins), sur le même ensemble de mutants. Sinon annuler le
-   lot entier (`/usr/bin/git -C <worktree> checkout <fichier>`) et consigner
-   l'abandon dans l'inventaire.
+   lot entier, tous ses fichiers (`git checkout -- <fichiers du lot>`), et
+   consigner l'abandon dans l'inventaire.
 4. **Un commit par lot** : `test(<zone>): consolidate <fichier> (#1707)`, corps
    `tests: A -> B, mutation: X/Y -> X'/Y', coverage: P% -> P'%` (X tués, Y
    tués + survivants ; A et B comptent les tests collectés, un cas de
