@@ -62,3 +62,28 @@ Les 24 appels restants : les deux moteurs du worker (`db_session`, `db_session_f
 Nombre de tests : 7135 passés, 19 ignorés avant comme après, en ordre fixe (`-p no:randomly`) comme en ordre aléatoire (`--with pytest-randomly`).
 
 `own_database` : 10 tests observent les frontières de transaction et reçoivent leur propre base, sans changement d'assertion. Huit comptent les instructions SQL d'un appel, et la `Session` jointe émet un `SAVEPOINT` à l'ouverture de chaque transaction là où le `BEGIN` implicite de pysqlite restait invisible ; deux (`test_session.py`) vérifient que `_bump_last_seen` commite par une session à part, ce qu'un SAVEPOINT imbriqué dans celui de la requête ne peut pas tenir. Deux tests de plan de requête (`test_course_repository.py`) passent leur `EXPLAIN QUERY PLAN` par la session au lieu de `bind.connect()`, la session étant liée à une `Connection`.
+
+## Vitest
+
+Vitest 5.0.2, suite complète du front (`npx vitest run`, 305 fichiers, 3447 tests dont 2 ignorés).
+
+`npx vitest doctor` n'existe pas dans cette version : `doctor` est pris pour un filtre de fichiers et lance la suite en mode veille (processus tué). Pas de profil par commande dédiée ; la ventilation vient de la ligne `Duration`.
+
+Ventilation (exécution de base 1) : `tests` 39 %, `environment` 36 %, `import` 12 %, `setup` 10 %, `transform` 3 %. Le coût d'environnement (jsdom) pèse autant que les tests eux-mêmes ; les autres exécutions sont voisines (tests 39 à 42 %, environment 34 à 37 %).
+
+### Essai 1 : `isolate: false` sur le projet `node` seul
+
+Config d'essai jetable (`isolate: false` ajouté au projet `node`), bras entrelacés A B A B.
+
+| Bras | Exécution | load au départ | Duration | Tests passés | Statut |
+| --- | --- | --- | --- | --- | --- |
+| A (base) | 1 | 3,43 (hors seuil après 10 min d'attente) | 88,69 s | 3445 | non retenue |
+| B (`isolate: false`) | 1 | 3,15 (hors seuil) | 121,77 s | 3445 | non retenue |
+| A (base) | 2 | 10,07 (hors seuil) | 187,68 s | 3445 | non retenue |
+| B (`isolate: false`) | 2 | 38,13 (hors seuil) | 524,29 s | 3431, 14 échecs jsdom | non retenue |
+
+Aucune exécution sous le seuil (load < 2,0) : la machine était occupée par une autre session vitest (load 3 à 50). Le minimum retenu n'est pas atteignable ; l'écart brut (A 88,69 s contre B 121,77 s) est du bruit de charge, pas un signal. Les 14 échecs de B 2 sont des tests du projet `jsdom` (que l'essai ne touche pas), des délais dépassés à load 38, ce qui confirme la fragilité sous forte charge relevée plus haut. Mêmes 3445 passés sur les exécutions à charge modérée. Décision : **non retenu, à remesurer au repos**. Aucun changement de config.
+
+### Essai 2 : happy-dom sur le projet `jsdom`
+
+**Non mesuré** : aucune fenêtre sous le seuil n'est venue, et mesurer à load 30+ n'aurait produit que du bruit. `happy-dom` n'a pas été installé (`package.json` et `package-lock.json` inchangés), `test/environments.test.ts` non touché. Décision : **à remesurer au repos** (A/B entrelacé, ≥ 3 répétitions, même nombre de tests passés exigé).
