@@ -186,7 +186,7 @@ describe("Politique de confidentialité (#333)", () => {
   it("announces account deletion from the menu and the 5-year inactivity limit (#1326)", () => {
     const texte = rendre();
     expect(screen.getByRole("row", { name: /^Compte / })).toHaveTextContent(
-      "Jusqu'à sa suppression depuis le menu du compte, ou 5 ans sans connexion",
+      "Jusqu'à sa suppression depuis la page Mon compte, ou 5 ans sans connexion",
     );
     expect(screen.getByRole("row", { name: /^Compte / })).toHaveTextContent(
       /un compte qui porte un rôle est gardé tant qu.il le porte/,

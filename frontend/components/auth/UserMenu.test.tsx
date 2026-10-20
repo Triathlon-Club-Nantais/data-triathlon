@@ -7,13 +7,10 @@ import { ApiError } from "@/lib/api/client";
 import { RETOUR_CONNEXION_KEY } from "@/lib/constants";
 import type { SessionUser } from "@/lib/types";
 
-const { push, getSession, logout, deleteAccount, detachAthlete, cancelAthleteClaim, captureEvent } = vi.hoisted(() => ({
+const { push, getSession, logout, captureEvent } = vi.hoisted(() => ({
   push: vi.fn(),
   getSession: vi.fn(),
   logout: vi.fn(),
-  deleteAccount: vi.fn(),
-  detachAthlete: vi.fn(),
-  cancelAthleteClaim: vi.fn(),
   captureEvent: vi.fn(),
 }));
 
@@ -26,7 +23,7 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/lib/api/client", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api/client")>();
-  return { ...original, apiClient: { getSession, logout, deleteAccount, detachAthlete, cancelAthleteClaim } };
+  return { ...original, apiClient: { getSession, logout } };
 });
 
 import { UserMenu } from "./UserMenu";
@@ -52,8 +49,6 @@ function afficher(session: SessionUser | null, props: { pleineLargeur?: boolean;
   sessionStorage.clear();
   window.history.pushState({}, "", "/");
   logout.mockResolvedValue(undefined);
-  deleteAccount.mockReset();
-  deleteAccount.mockResolvedValue(null);
   if (session) getSession.mockResolvedValue(session);
   else getSession.mockRejectedValue(new ApiError(401, "anonyme"));
 
@@ -325,74 +320,25 @@ describe("UserMenu — onNavigate ferme le tiroir au bon moment (#482, NAV-4)", 
   });
 });
 
-describe("UserMenu: account deletion (#1326)", () => {
-  async function ouvrirLaSuppression() {
-    await ouvrirLeMenu();
-    await userEvent.click(screen.getByRole("menuitem", { name: "Supprimer mon compte" }));
-    return screen.findByRole("dialog");
-  }
-
-  it("opens an accessible dialog saying what is erased and what stays", async () => {
-    afficher(SESSION);
-    const dialog = await ouvrirLaSuppression();
-
-    expect(dialog).toHaveAccessibleName("Supprimer votre compte ?");
-    expect(dialog).toHaveTextContent(/connexions, rôles et groupes/);
-    expect(dialog).toHaveTextContent(/résultats et votre fiche athlète restent/);
-    expect(deleteAccount).not.toHaveBeenCalled();
-  });
-
-  it("closes without any request when the user backs out", async () => {
-    afficher(SESSION);
-    await ouvrirLaSuppression();
-
-    await userEvent.click(screen.getByRole("button", { name: "Renoncer" }));
-
-    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-    expect(deleteAccount).not.toHaveBeenCalled();
-  });
-
-  it("deletes the account then goes back to the home page", async () => {
-    afficher(SESSION);
-    await ouvrirLaSuppression();
-
-    await userEvent.click(screen.getByRole("button", { name: "Supprimer définitivement" }));
-
-    await waitFor(() => expect(deleteAccount).toHaveBeenCalled());
-    await waitFor(() => expect(push).toHaveBeenCalledWith("/"));
-  });
-
-  it("shows the server refusal inside the dialog and stays put", async () => {
-    afficher(SESSION);
-    deleteAccount.mockRejectedValue(new ApiError(409, "Contactez le club pour le faire supprimer."));
-    const dialog = await ouvrirLaSuppression();
-
-    await userEvent.click(screen.getByRole("button", { name: "Supprimer définitivement" }));
-
-    await waitFor(() => expect(dialog).toHaveTextContent("Contactez le club pour le faire supprimer."));
-    expect(push).not.toHaveBeenCalled();
-  });
-
-  it("styles the irreversible action as destructive, not the logout (#1326)", async () => {
+describe("UserMenu: link to Mon compte (#1663)", () => {
+  it("links to /mon-compte from the desktop menu, with no deletion gesture", async () => {
     afficher(SESSION);
     await ouvrirLeMenu();
 
-    expect(screen.getByRole("menuitem", { name: "Supprimer mon compte" })).toHaveAttribute("data-variant", "destructive");
-    expect(screen.getByRole("menuitem", { name: "Se déconnecter" })).toHaveAttribute("data-variant", "default");
+    expect(screen.getByRole("menuitem", { name: "Mon compte" })).toHaveAttribute("href", "/mon-compte");
+    expect(screen.queryByRole("menuitem", { name: "Supprimer mon compte" })).not.toBeInTheDocument();
   });
 
-  it("gives the mobile button the destructive emphasis too (#1326)", async () => {
-    afficher(SESSION, { pleineLargeur: true });
+  it("links to /mon-compte from the mobile drawer and closes it on click", async () => {
+    const onNavigate = vi.fn();
+    afficher(SESSION, { pleineLargeur: true, onNavigate });
 
-    expect(await screen.findByRole("button", { name: "Supprimer mon compte" })).toHaveClass("tcn-btn--destructive");
-  });
+    const lien = await screen.findByRole("link", { name: "Mon compte" });
+    expect(lien).toHaveAttribute("href", "/mon-compte");
+    expect(screen.queryByRole("button", { name: "Supprimer mon compte" })).not.toBeInTheDocument();
 
-  it("is offered in the mobile drawer too", async () => {
-    afficher(SESSION, { pleineLargeur: true });
-
-    await userEvent.click(await screen.findByRole("button", { name: "Supprimer mon compte" }));
-
-    expect(await screen.findByRole("dialog")).toHaveAccessibleName("Supprimer votre compte ?");
+    await userEvent.click(lien);
+    expect(onNavigate).toHaveBeenCalled();
   });
 });
 
@@ -408,29 +354,20 @@ describe("UserMenu: athlete record (#1325)", () => {
   const JEAN = { id: 12, prenom: "Jean", nom: "Dupont" };
   const claim = (status: "pending" | "rejected") => ({ id: 3, athlete: JEAN, status, created_at: "2026-10-17T10:00:00Z" });
 
-  it("shows the linked record and detaches after confirmation", async () => {
-    detachAthlete.mockResolvedValue(null);
+  it("shows the linked record, with no detach gesture (moved to Mon compte)", async () => {
     afficher({ ...SESSION, athlete: JEAN });
     const { menu } = await ouvrirLeMenu();
 
     expect(menu).toHaveTextContent("Fiche : Jean Dupont");
-    await userEvent.click(screen.getByRole("menuitem", { name: "Me détacher de ma fiche" }));
-    const dialog = await screen.findByRole("dialog");
-    expect(dialog).toHaveAccessibleName("Vous détacher de votre fiche ?");
-    expect(detachAthlete).not.toHaveBeenCalled();
-
-    await userEvent.click(screen.getByRole("button", { name: "Me détacher" }));
-    await waitFor(() => expect(detachAthlete).toHaveBeenCalled());
+    expect(screen.queryByRole("menuitem", { name: "Me détacher de ma fiche" })).not.toBeInTheDocument();
   });
 
-  it("shows a pending claim and cancels it without confirmation", async () => {
-    cancelAthleteClaim.mockResolvedValue(null);
+  it("shows a pending claim, with no cancel gesture", async () => {
     afficher({ ...SESSION, athlete_claim: claim("pending") });
     const { menu } = await ouvrirLeMenu();
 
     expect(menu).toHaveTextContent("Demande en attente : Jean Dupont");
-    await userEvent.click(screen.getByRole("menuitem", { name: "Annuler la demande" }));
-    await waitFor(() => expect(cancelAthleteClaim).toHaveBeenCalled());
+    expect(screen.queryByRole("menuitem", { name: "Annuler la demande" })).not.toBeInTheDocument();
   });
 
   it("says a claim was rejected", async () => {
@@ -438,13 +375,12 @@ describe("UserMenu: athlete record (#1325)", () => {
     const { menu } = await ouvrirLeMenu();
 
     expect(menu).toHaveTextContent("Demande refusée : Jean Dupont");
-    expect(screen.queryByRole("menuitem", { name: "Annuler la demande" })).not.toBeInTheDocument();
   });
 
-  it("offers the same gestures in the mobile drawer", async () => {
+  it("shows the record in the mobile drawer, without gestures", async () => {
     afficher({ ...SESSION, athlete: JEAN }, { pleineLargeur: true });
 
     expect(await screen.findByText("Fiche : Jean Dupont")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Me détacher de ma fiche" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Me détacher de ma fiche" })).not.toBeInTheDocument();
   });
 });
