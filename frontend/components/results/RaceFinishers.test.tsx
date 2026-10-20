@@ -1807,12 +1807,71 @@ describe("RaceFinishers par sexe (#1645)", () => {
     expect(screen.queryByText(/sans sexe connu/)).not.toBeInTheDocument();
   });
 
+  it("hides the unknown-sex note under the club scope, the count covers the whole race", () => {
+    searchParams = new URLSearchParams("sexe=F&scope=club");
+    afficher({ gender: "F", unknownGenderCount: 3 });
+    expect(screen.queryByText(/sans sexe connu/)).not.toBeInTheDocument();
+  });
+
+  it("titles the place column with the sex under a filter, Rang without", () => {
+    const { unmount } = afficher({ participations: femmes, gender: "F" });
+    expect(within(screen.getByTestId("classement-grille")).getByRole("columnheader", { name: "Place (F)" })).toBeInTheDocument();
+    unmount();
+    afficher({ participations: femmes, gender: "M" });
+    expect(within(screen.getByTestId("classement-grille")).getByRole("columnheader", { name: "Place (H)" })).toBeInTheDocument();
+  });
+
+  it("names the sex in the screen reader announcement", () => {
+    afficher({ participations: femmes, gender: "F" });
+    expect(screen.getByRole("status").textContent).toContain("chez les femmes");
+  });
+
+  it("shows the selection banner under a sex filter alone, naming the sex, and Tout effacer clears it", async () => {
+    searchParams = new URLSearchParams("sexe=F");
+    afficher({ participations: femmes, gender: "F", total: 2, summary: synthese({ total: 40 }) });
+    expect(screen.getByText("2 résultats sur 40 chez les femmes")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Tout effacer" }));
+
+    expect(push).toHaveBeenCalledWith("/courses/1");
+  });
+
+  it("names the sex in the empty state and offers to drop only the sex", async () => {
+    searchParams = new URLSearchParams("sexe=F");
+    afficher({ participations: [], total: 0, gender: "F" });
+    expect(screen.getByText("Aucun athlète chez les femmes sur cette épreuve")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Voir tous les participants" }));
+
+    expect(push).toHaveBeenCalledWith("/courses/1");
+  });
+
+  it("names the sex when a club filter also empties the list, and the reset clears the sex", async () => {
+    searchParams = new URLSearchParams("sexe=F&club=CLUB+X");
+    afficher({ participations: [], total: 0, gender: "F" });
+    expect(screen.getByText(/du club « CLUB X » chez les femmes/)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Voir tous les participants" }));
+
+    expect(push).toHaveBeenCalledWith("/courses/1");
+  });
+
+  it("names the sex in the club scope empty state, and the reset clears the sex", async () => {
+    searchParams = new URLSearchParams("sexe=F&scope=club");
+    afficher({ participations: [], total: 0, gender: "F" });
+    expect(screen.getByText(`Aucun athlète du ${CLUB_NAME} chez les femmes sur cette épreuve`)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Voir tous les participants" }));
+
+    expect(push).toHaveBeenCalledWith("/courses/1");
+  });
+
   it("announces unknown-sex rows", () => {
     const { unmount } = afficher({ gender: "F", unknownGenderCount: 3 });
-    expect(screen.getByText("3 résultats sans sexe connu non comptés")).toBeInTheDocument();
+    expect(screen.getByText("3 résultats sans sexe connu, absents de ce classement.")).toBeInTheDocument();
     unmount();
     const second = afficher({ gender: "F", unknownGenderCount: 1 });
-    expect(screen.getByText("1 résultat sans sexe connu non compté")).toBeInTheDocument();
+    expect(screen.getByText("1 résultat sans sexe connu, absent de ce classement.")).toBeInTheDocument();
     second.unmount();
     afficher({ gender: "F", unknownGenderCount: 0 });
     expect(screen.queryByText(/sans sexe connu/)).not.toBeInTheDocument();

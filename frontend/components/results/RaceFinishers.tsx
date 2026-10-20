@@ -13,7 +13,7 @@ import { genderShort, motCompte, ordinalFr, plural } from "@/lib/utils/format";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ClassementPagination } from "@/components/results/ClassementPagination";
 import { PAGE_SIZE_DEFAUT, PAGE_SIZE_PARAM, boundPageSize, pageSizeOptions, parsePageSize } from "@/lib/pageSize";
-import { CATEGORY_PARAM, CLUB_PARAM, SCOPE_CLUB, SCOPE_PARAM, SEXE_PARAM, type Gender } from "@/lib/scope";
+import { CATEGORY_PARAM, CLUB_PARAM, SCOPE_CLUB, SCOPE_PARAM, SEXE_PARAM, chezLesSexe, type Gender } from "@/lib/scope";
 import { SexeToggle } from "@/components/layout/SexeToggle";
 import { CLUB_NAME } from "@/lib/club";
 import { nomComplet, useSelectedAthlete } from "@/components/layout/AthletePicker";
@@ -402,6 +402,8 @@ export function RaceFinishers({
   const nbPages = pageSize ? Math.max(1, Math.ceil(total / pageSize)) : 1;
   const enAttente = page === nbPages ? lignesEnAttente : [];
   const placesRecalculees = !!gender && participations.some((p) => p.gender_place_official === false);
+  // Le compte porte sur l'épreuve entière : sous la portée club, il mentirait.
+  const afficheSexeInconnu = !!gender && unknownGenderCount > 0 && !filtreClub;
 
   /**
    * État du tri **de la colonne**, pour l'aide technique (#481, WCAG 1.3.1).
@@ -458,6 +460,7 @@ export function RaceFinishers({
   const perimetreFiltres = [
     clubChoisi ? `du club ${clubChoisi}` : "",
     categorieChoisie ? `en catégorie ${categoryTitle(categorieChoisie)}` : "",
+    gender ? chezLesSexe(gender) : "",
   ]
     .filter(Boolean)
     .join(", ");
@@ -540,17 +543,18 @@ export function RaceFinishers({
           />
         </div>
       </div>
-      {(placesRecalculees || (!!gender && unknownGenderCount > 0)) && (
-        <div style={{ padding: "8px 26px", borderBottom: "1px solid var(--tcn-border)", fontSize: 13, color: "var(--tcn-text-muted)" }}>
+      {(placesRecalculees || afficheSexeInconnu) && (
+        <div style={{ padding: "8px 26px", borderBottom: "1px solid var(--tcn-border)", fontSize: 13, color: "var(--tcn-text-muted)", display: "flex", flexDirection: "column", gap: 4 }}>
           {placesRecalculees && <p style={{ margin: 0 }}>Classement par sexe : places recalculées, la source ne publie pas toutes les places par sexe.</p>}
-          {gender && unknownGenderCount > 0 && (
+          {afficheSexeInconnu && (
             <p style={{ margin: 0 }}>
-              {unknownGenderCount} {plural(unknownGenderCount, "résultat")} sans sexe connu {plural(unknownGenderCount, "non compté", "non comptés")}
+              {unknownGenderCount} {plural(unknownGenderCount, "résultat")} sans sexe connu,{" "}
+              {plural(unknownGenderCount, "absent", "absents")} de ce classement.
             </p>
           )}
         </div>
       )}
-      {(rechercheUrl || filtreClub || clubChoisi || categorieChoisie) && (
+      {(rechercheUrl || filtreClub || clubChoisi || categorieChoisie || gender) && (
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", padding: "10px 26px", borderBottom: "1px solid var(--tcn-border)", fontSize: 13, color: "var(--tcn-text-body)" }}>
           <span>
             {libelleSelection(total, summary.total, {
@@ -558,6 +562,7 @@ export function RaceFinishers({
               filtreClub,
               club: clubChoisi,
               categorie: categorieChoisie,
+              sexe: gender,
             }, lignesEnAttente.length)}
           </span>
           {/* Un repère par filtre, **retirable indépendamment** : deux
@@ -586,6 +591,7 @@ export function RaceFinishers({
                 [SCOPE_PARAM]: null,
                 [CLUB_PARAM]: null,
                 [CATEGORY_PARAM]: null,
+                [SEXE_PARAM]: null,
               })
             }
             style={{ background: "none", border: "none", padding: "4px 0", minHeight: 24, font: "inherit", fontWeight: 700, color: "var(--tcn-ink)", textDecoration: "underline", cursor: "pointer" }}
@@ -613,7 +619,7 @@ export function RaceFinishers({
           {/* Liseré transparent de 3 px : celui des lignes, sans quoi rang et nom
               commencent 3 px plus loin que leurs en-têtes (#1380). */}
           <tr role="row" style={{ display: "grid", gridTemplateColumns: fcols, gap: "0 12px", alignItems: "center", padding: "12px 22px", borderLeft: "3px solid transparent", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", color: "var(--tcn-text-faint)", borderBottom: "1px solid var(--tcn-border)" }}>
-            <th role="columnheader" scope="col">Rang</th><th role="columnheader" scope="col">Athlète</th><th role="columnheader" scope="col">Catég.</th><th role="columnheader" scope="col">Sexe</th>
+            <th role="columnheader" scope="col">{gender ? `Place (${gender === "M" ? "H" : "F"})` : "Rang"}</th><th role="columnheader" scope="col">Athlète</th><th role="columnheader" scope="col">Catég.</th><th role="columnheader" scope="col">Sexe</th>
             <th role="columnheader" scope="col" aria-sort={ariaSort(CLE_TEMPS_TOTAL)}>
               <EnteteTriable cle={CLE_TEMPS_TOTAL} libelle="Temps total" ariaSujet="temps total" tri={tri} onTrier={trierSur} perimetre={perimetreTri} />
             </th>
@@ -847,7 +853,7 @@ export function RaceFinishers({
             action={
               <button
                 type="button"
-                onClick={() => naviguer({ q: null, [SCOPE_PARAM]: null })}
+                onClick={() => naviguer({ q: null, [SCOPE_PARAM]: null, [SEXE_PARAM]: null })}
                 style={STYLE_BOUTON_ABSENCE}
               >
                 Voir tous les participants
@@ -861,7 +867,7 @@ export function RaceFinishers({
           // jamais nommer le filtre qui le vidait (relevé en revue de code).
           <EmptyState
             bare
-            title="Aucun athlète ne correspond à cette recherche"
+            title={`Aucun athlète ne correspond à cette recherche${gender ? ` ${chezLesSexe(gender)}` : ""}`}
             action={
               <button
                 type="button"
@@ -878,14 +884,14 @@ export function RaceFinishers({
           // c'est le défaut constaté sur `/courses/340?scope=club`.
           <EmptyState
             bare
-            title={titreAbsenceFiltre(clubChoisi, categorieChoisie, filtreClub)}
+            title={titreAbsenceFiltre(clubChoisi, categorieChoisie, filtreClub, gender)}
             action={
               <button
                 type="button"
                 // La recherche part avec, quand elle est là : la laisser
                 // renverrait sur un second écran vide, pour une autre raison.
                 onClick={() =>
-                  naviguer({ [CLUB_PARAM]: null, [CATEGORY_PARAM]: null, q: null })
+                  naviguer({ [CLUB_PARAM]: null, [CATEGORY_PARAM]: null, q: null, [SEXE_PARAM]: null })
                 }
                 style={STYLE_BOUTON_ABSENCE}
               >
@@ -896,11 +902,25 @@ export function RaceFinishers({
         ) : filtreClub ? (
           <EmptyState
             bare
-            title={`Aucun athlète du ${CLUB_NAME} sur cette épreuve`}
+            title={`Aucun athlète du ${CLUB_NAME}${gender ? ` ${chezLesSexe(gender)}` : ""} sur cette épreuve`}
             action={
               <button
                 type="button"
-                onClick={() => naviguer({ [SCOPE_PARAM]: null })}
+                onClick={() => naviguer({ [SCOPE_PARAM]: null, [SEXE_PARAM]: null })}
+                style={STYLE_BOUTON_ABSENCE}
+              >
+                Voir tous les participants
+              </button>
+            }
+          />
+        ) : gender ? (
+          <EmptyState
+            bare
+            title={`Aucun athlète ${chezLesSexe(gender)} sur cette épreuve`}
+            action={
+              <button
+                type="button"
+                onClick={() => naviguer({ [SEXE_PARAM]: null })}
                 style={STYLE_BOUTON_ABSENCE}
               >
                 Voir tous les participants
@@ -942,7 +962,7 @@ export function RaceFinishers({
 function libelleSelection(
   total: number,
   totalEpreuve: number,
-  selection: { recherche: string; filtreClub: boolean; club: string; categorie: string },
+  selection: { recherche: string; filtreClub: boolean; club: string; categorie: string; sexe?: Gender },
   enAttente: number,
 ): string {
   const tete = `${motCompte(total, "résultat")} sur ${totalEpreuve}`;
@@ -951,6 +971,7 @@ function libelleSelection(
   const morceaux = [];
   if (selection.recherche) morceaux.push(`pour « ${selection.recherche} »`);
   if (selection.filtreClub) morceaux.push(`du ${CLUB_NAME}`);
+  if (selection.sexe) morceaux.push(chezLesSexe(selection.sexe));
   // Le club et la catégorie ne sont pas repris ici : leurs repères les portent
   // juste à côté, et les redire allongerait la ligne sans rien apprendre.
   // `join(" ")`, pas `join(", ")` : les deux clauses n'ont pas la même nature
@@ -966,7 +987,7 @@ function libelleSelection(
  * construction** : choisir un club autre que le TCN alors que la portée TCN est active
  * ne peut rien rendre. Le taire laisserait chercher une cause ailleurs.
  */
-function titreAbsenceFiltre(club: string, categorie: string, filtreClub: boolean): string {
+function titreAbsenceFiltre(club: string, categorie: string, filtreClub: boolean, sexe?: Gender): string {
   if (club && filtreClub && !isTcnLabel(club)) {
     return `Aucun athlète : le filtre « ${club} » et la portée ${CLUB_NAME} s'excluent`;
   }
@@ -976,6 +997,7 @@ function titreAbsenceFiltre(club: string, categorie: string, filtreClub: boolean
   // disent « V2 — Vétéran 2 » au même instant, et les trois surfaces sont
   // visibles ensemble. Un nom, un parcours.
   if (categorie) morceaux.push(`en catégorie « ${categoryTitle(categorie)} »`);
+  if (sexe) morceaux.push(chezLesSexe(sexe));
   return `Aucun athlète ${morceaux.join(" ")} sur cette épreuve`;
 }
 
