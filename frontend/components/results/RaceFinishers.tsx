@@ -13,7 +13,7 @@ import { genderShort, motCompte, ordinalFr, plural } from "@/lib/utils/format";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ClassementPagination } from "@/components/results/ClassementPagination";
 import { PAGE_SIZE_DEFAUT, PAGE_SIZE_PARAM, boundPageSize, pageSizeOptions, parsePageSize } from "@/lib/pageSize";
-import { CATEGORY_PARAM, CLUB_PARAM, SCOPE_CLUB, SCOPE_PARAM, type Gender } from "@/lib/scope";
+import { CATEGORY_PARAM, CLUB_PARAM, SCOPE_CLUB, SCOPE_PARAM, SEXE_PARAM, type Gender } from "@/lib/scope";
 import { SexeToggle } from "@/components/layout/SexeToggle";
 import { CLUB_NAME } from "@/lib/club";
 import { nomComplet, useSelectedAthlete } from "@/components/layout/AthletePicker";
@@ -516,7 +516,7 @@ export function RaceFinishers({
               // sur `is_tcn`, or la recherche par nom peut viser un athlète
               // hors club — le garder pouvait faire échouer un saut qui devrait
               // réussir.
-              onClick={() => naviguer({ q: nomRetenu, [SCOPE_PARAM]: null })}
+              onClick={() => naviguer({ q: nomRetenu, [SCOPE_PARAM]: null, [SEXE_PARAM]: null })}
               aria-label={`Aller à ma ligne — ${nomRetenu}`}
               // Bordé, pas un lien de texte : `.tcn-lien-action` ne convient
               // pas. Stylé en ligne, il ne peut pas déclarer son propre

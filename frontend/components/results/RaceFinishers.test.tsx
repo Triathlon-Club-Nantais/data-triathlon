@@ -1775,6 +1775,16 @@ describe("RaceFinishers par sexe (#1645)", () => {
     expect(within(grille).queryByText("11")).not.toBeInTheDocument();
   });
 
+  it("drops the sexe filter when jumping to my row", async () => {
+    writeAthlete({ id: 3, prenom: "Thomas", nom: "DNFGUY" });
+    searchParams = new URLSearchParams("sexe=F");
+    afficher({ participations: femmes, gender: "F" });
+
+    await userEvent.click(screen.getByRole("button", { name: /Aller à ma ligne/ }));
+
+    expect(push).toHaveBeenCalledWith("/courses/1?q=Thomas+DNFGUY");
+  });
+
   it("keeps the current place column without gender", () => {
     afficher({ participations: femmes });
     const grille = screen.getByTestId("classement-grille");
