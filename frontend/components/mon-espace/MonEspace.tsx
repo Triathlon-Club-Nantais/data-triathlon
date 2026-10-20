@@ -6,6 +6,7 @@ import { apiClient } from "@/lib/api/client";
 import { chiffresSaison, fenetreSaisonPrecedente } from "@/lib/mon-espace";
 import { useHydratedSession } from "@/lib/queries/auth";
 import { serializeSeasons } from "@/lib/utils/season";
+import { ColonneDroite } from "./ColonneDroite";
 import { InvitationMonEspace } from "./InvitationMonEspace";
 import { MesChiffres } from "./MesChiffres";
 import { OngletsMonEspace } from "./OngletsMonEspace";
@@ -74,7 +75,7 @@ export function MonEspace({ seasons, federalOnly }: { seasons: number[]; federal
           />
         </>
       }
-      droite={null}
+      droite={<ColonneDroite athleteId={athlete.id} selection={courant.data.participations} seasons={seasons} federalOnly={federalOnly} />}
     />
   );
 }

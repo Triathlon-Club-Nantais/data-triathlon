@@ -113,6 +113,26 @@ export function formatTempsTotal(secondes: number): string {
   return `${Math.floor(secondes / 3600)} h ${String(minutes).padStart(2, "0")}`;
 }
 
+export interface Palier {
+  type: "epreuves" | "podiums";
+  reste: number;
+  cible: number;
+}
+
+/** Le plus proche des deux paliers « égaler votre meilleure saison » (épreuves d'abord à égalité), null s'ils sont atteints. */
+export function prochainPalier(
+  courant: { epreuves: number; podiums: number },
+  saisons: { epreuves: number; podiums: number }[],
+): Palier | null {
+  const paliers = (["epreuves", "podiums"] as const)
+    .map((type) => {
+      const cible = Math.max(0, ...saisons.map((s) => s[type]));
+      return { type, reste: cible - courant[type], cible };
+    })
+    .filter((p) => p.reste > 0);
+  return paliers.sort((a, b) => a.reste - b.reste)[0] ?? null;
+}
+
 export interface RecordPersonnel {
   format: string;
   discipline: string;

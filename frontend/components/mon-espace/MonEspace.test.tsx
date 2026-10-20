@@ -12,6 +12,8 @@ vi.mock("./OngletsMonEspace", () => ({
   OngletsMonEspace: ({ participations }: { participations: unknown[] }) => <div data-testid="onglets">{participations.length}</div>,
 }));
 
+vi.mock("./ColonneDroite", () => ({ ColonneDroite: () => <div data-testid="colonne-droite" /> }));
+
 import { MonEspace } from "./MonEspace";
 
 const LEA = { id: 42, prenom: "Léa", nom: "Martin" };
@@ -81,7 +83,7 @@ describe("MonEspace access", () => {
     afficher();
 
     expect(await screen.findByTestId("mon-espace-centre")).toBeInTheDocument();
-    expect(screen.getByTestId("mon-espace-droite")).toBeInTheDocument();
+    expect(screen.getByTestId("mon-espace-droite")).toContainElement(screen.getByTestId("colonne-droite"));
     expect(screen.getByTestId("onglets")).toHaveTextContent("2");
     expect(getAthlete).toHaveBeenCalledWith(42, { seasons: "2026", federal_only: true });
     expect(getAthlete).toHaveBeenCalledWith(42, { seasons: "2025", federal_only: true });

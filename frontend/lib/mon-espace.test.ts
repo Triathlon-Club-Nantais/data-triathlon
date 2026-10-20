@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Participation } from "@/lib/types";
-import { chiffresSaison, ecart, fenetreSaisonPrecedente, formatTempsTotal, recordsPersonnels } from "./mon-espace";
+import { chiffresSaison, ecart, fenetreSaisonPrecedente, formatTempsTotal, prochainPalier, recordsPersonnels } from "./mon-espace";
 
 let id = 0;
 function part(extra: Omit<Partial<Participation>, "course"> & { course?: Partial<Participation["course"]> } = {}): Participation {
@@ -75,5 +75,27 @@ describe("recordsPersonnels", () => {
     const relais = part({ is_relay: true, course: { is_relay: true } });
     const douteux = part({ course: { is_reliable: false } });
     expect(recordsPersonnels([relais, douteux], [relais, douteux])).toEqual([]);
+  });
+});
+
+describe("prochainPalier", () => {
+  const saisons = [{ epreuves: 8, podiums: 3 }, { epreuves: 12, podiums: 1 }];
+
+  it("picks the milestone with the fewest left", () => {
+    expect(prochainPalier({ epreuves: 5, podiums: 2 }, saisons)).toEqual({ type: "podiums", reste: 1, cible: 3 });
+    expect(prochainPalier({ epreuves: 11, podiums: 0 }, saisons)).toEqual({ type: "epreuves", reste: 1, cible: 12 });
+  });
+
+  it("prefers races on a tie", () => {
+    expect(prochainPalier({ epreuves: 10, podiums: 1 }, saisons)).toEqual({ type: "epreuves", reste: 2, cible: 12 });
+  });
+
+  it("ignores a milestone already reached", () => {
+    expect(prochainPalier({ epreuves: 12, podiums: 0 }, saisons)).toEqual({ type: "podiums", reste: 3, cible: 3 });
+  });
+
+  it("is null when both are reached or there is no history", () => {
+    expect(prochainPalier({ epreuves: 12, podiums: 3 }, saisons)).toBeNull();
+    expect(prochainPalier({ epreuves: 0, podiums: 0 }, [])).toBeNull();
   });
 });
