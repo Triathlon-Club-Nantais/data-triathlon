@@ -132,7 +132,7 @@ def test_only_one_major_goal_per_season(client, lea, october_2026):
     second = client.post(URL, json={"kind": "count", "target": 4}).json()
 
     assert [g["major"] for g in client.get(URL).json()] == [True, False]
-    client.put(f"{URL}/{second['id']}", json={"kind": "count", "target": 4, "major": True})
+    assert client.put(f"{URL}/{second['id']}", json={"kind": "count", "target": 4, "major": True}).status_code == 200
     assert {g["id"]: g["major"] for g in client.get(URL).json()} == {first["id"]: False, second["id"]: True}
     third = client.post(URL, json={"kind": "count", "target": 5, "major": True})
     assert third.status_code == 201
@@ -156,7 +156,6 @@ def test_race_goals_count_in_limit(client, lea, october_2026):
 
 
 def test_deleted_course_keeps_goal(db_session_fk, october_2026):
-    from app.models.athlete import Athlete
     from app.models.season_goal import SeasonGoal
     from app.repositories import course_repository, user_repository
 
@@ -177,3 +176,14 @@ def test_deleted_course_keeps_goal(db_session_fk, october_2026):
 
     kept = db.get(SeasonGoal, goal.id)
     assert (kept.course_id, kept.race_name) == (None, "Triathlon de Nantes")
+
+
+def test_known_course_without_date_is_422(client, db_session, lea, october_2026):
+    course = Course(name="Sans date", event_date=None, event_type="triathlon-m")
+    db_session.add(course)
+    db_session.commit()
+
+    refused = client.post(URL, json=_race(course_id=course.id))
+
+    assert refused.status_code == 422
+    assert "pas de date" in refused.json()["detail"]

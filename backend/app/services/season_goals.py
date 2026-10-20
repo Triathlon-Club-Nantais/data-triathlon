@@ -1,7 +1,9 @@
 """Objectifs de saison privés de l'athlète rattaché (#1373).
 
 Un objectif appartient à un compte et se lit sur sa fiche rattachée (#1325) :
-un temps cible sur un format, ou un nombre d'épreuves. La progression se calcule
+un temps cible sur un format, un nombre d'épreuves, ou une épreuve cible (connue
+ou saisie librement, avec un temps visé facultatif). Un seul objectif par saison
+peut être « majeur ». La progression se calcule
 à la lecture. Un objectif d'un autre compte est introuvable, jamais interdit :
 la réponse ne confirme pas qu'il existe.
 """
@@ -44,6 +46,10 @@ class InvalidRaceGoalError(InvalidGoalError):
     message = "Épreuve cible incomplète : choisissez une épreuve connue, ou indiquez un nom et une date."
 
 
+class RaceWithoutDateError(InvalidGoalError):
+    message = "Cette épreuve n'a pas de date : indiquez le nom et la date vous même."
+
+
 class RaceOutsideSeasonError(InvalidGoalError):
     message = "L'épreuve cible doit tomber dans la saison en cours."
 
@@ -65,9 +71,11 @@ def _fields(db: Session, data: SeasonGoalWrite) -> dict:
         course_id, race_name, race_date = data.course_id, (data.race_name or "").strip(), data.race_date
         if course_id is not None:
             course = course_repository.get(db, course_id)
-            if course is None or course.event_date is None:
+            if course is None:
                 raise InvalidRaceGoalError()
-            race_name, race_date = course.name, course.event_date
+            if course.event_date is None:
+                raise RaceWithoutDateError()
+            race_name, race_date = course.name[:200], course.event_date
             event_type = course.event_type or event_type
         elif not race_name or race_date is None:
             raise InvalidRaceGoalError()
@@ -98,10 +106,13 @@ def update(db: Session, user: User, goal_id: int, data: SeasonGoalWrite) -> Seas
     goal = season_goal_repository.get_for(db, user.id, goal_id)
     if goal is None:
         raise _not_found()
-    for name, value in _fields(db, data).items():
+    fields = _fields(db, data)
+    season = season_of(fields["race_date"]) if data.kind == KIND_RACE else goal.season
+    if season != goal.season and season_goal_repository.count_for(db, user.id, season) >= MAX_GOALS_PER_SEASON:
+        raise TooManyGoalsError()
+    for name, value in fields.items():
         setattr(goal, name, value)
-    if data.kind == KIND_RACE:
-        goal.season = season_of(goal.race_date)
+    goal.season = season
     if goal.major:
         season_goal_repository.clear_major(db, user.id, goal.season, except_id=goal.id)
     db.flush()

@@ -32,8 +32,8 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    # Un objectif d'épreuve sans temps visé n'a pas de cible : il ne tient pas dans l'ancien schéma.
-    op.execute("DELETE FROM season_goals WHERE target IS NULL")
+    # Les objectifs d'épreuve cible n'existent pas dans l'ancien schéma (et peuvent n'avoir aucune cible).
+    op.execute("DELETE FROM season_goals WHERE kind = 'race' OR target IS NULL")
     with op.batch_alter_table('season_goals', schema=None) as batch_op:
         batch_op.drop_constraint('fk_season_goals_course_id', type_='foreignkey')
         batch_op.alter_column('target',
