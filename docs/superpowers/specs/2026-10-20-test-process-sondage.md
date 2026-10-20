@@ -21,6 +21,12 @@ Aucune condition raisonnable ne reproduit les trois tests nommés. Le rouge n'ap
 
 Horloge de `CalendrierEntrainements` : le bloc fige `Date` (`vi.useFakeTimers({ toFake: ["Date"] })` + `vi.setSystemTime(new Date(2026, 9, 10, 12))`), donc aucune dépendance à « aujourd'hui ». Les minuteries réelles restent actives, ce qui est voulu pour `findBy*`.
 
-Cause probable (non prouvée test par test) : ces tests dépendent du temps réel (debounce de 300 ms de `useDebounce` dans `TeammatesDialog`, enchaînements `userEvent` dans des dialogues Radix) et vivent sous le budget de 1 s de `findBy*`. Les rouges du 20/10 sont donc des délais dépassés par manque de CPU, pas une régression de code ni une horloge. La seule parade serait d'allonger les délais, ce que l'épic interdit (pas de hausse de `testTimeout`, pas de retries). Aucun correctif n'est appliqué : un test vert dans toutes les conditions reproductibles ne justifie pas d'en inventer un.
+Rejeu de la condition d'origine : suite frontend complète sous couverture v8 (`npx vitest run --coverage --coverage.provider=v8 --coverage.reportOnFailure`), en parallèle d'un `pytest -m "not integration" --cov=app` backend complet (7209 passed), load 18 à 21 :
 
-Limite : la suite complète sous couverture n'a pas été rejouée ici. Si les trois rouges reviennent à charge modérée, rouvrir avec la sortie complète de l'exécution fautive.
+| Exécution | Résultat |
+| --- | --- |
+| Suite complète + couverture, run 1 | 305 fichiers, 3445 tests verts |
+| Suite complète + couverture, run 2 | 1 rouge, `AthleteHeaderActions` « bascule la hiérarchie d'un seul rendu, panneau chargé » (1050 ms, délai `findBy*`), aucun des trois tests d'origine |
+| `components/athletes` + `components/admin/jeunes`, ordre de fichiers et de tests mélangé, seeds 1, 42, 1337 | 200 tests verts à chaque seed |
+
+Conclusion : **ouverte**. Les trois tests d'origine n'ont été rouges dans aucune des conditions rejouées ; la pollution entre tests (ordre mélangé) n'a rien révélé sur ces dossiers. Observations seulement, sans cause établie : sous forte charge, des tests quelconques passent le délai de 1 s de `findBy*` ou le `testTimeout` de 5 s, et un test étranger à la liste a échoué ainsi à load 18 à 21. Aucun correctif appliqué (hausse des délais et retries interdits). Si les trois rouges reviennent, rouvrir avec la sortie complète de l'exécution fautive (messages d'erreur, load, processus concurrents).
