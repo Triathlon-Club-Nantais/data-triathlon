@@ -9,7 +9,10 @@ import { secondsFromHms } from "@/lib/utils/time";
 export interface ChiffresSaison {
   epreuves: number;
   podiums: number;
+  /** Somme des distances connues (hors relais). */
   km: number;
+  /** Épreuves hors relais sans distance : `km` est alors un minimum. */
+  sansDistance: number;
   tempsSecondes: number;
   /** Meilleur « top % » (le plus petit), null si aucune épreuve classable. */
   meilleurRatio: number | null;
@@ -23,16 +26,18 @@ export function chiffresSaison(participations: Participation[]): ChiffresSaison 
   const validees = participations.filter((p) => !p.is_pending_validation);
   const { epreuves, podiums } = compteMaSaison(validees, "all");
   let km = 0;
+  let sansDistance = 0;
   let tempsSecondes = 0;
   let meilleurRatio: number | null = null;
   for (const p of validees) {
     if (estRelais(p)) continue;
-    km += p.course.distance_km ?? 0;
+    if (p.course.distance_km == null) sansDistance += 1;
+    else km += p.course.distance_km;
     tempsSecondes += secondsFromHms(p.total_time) ?? 0;
     const pourcent = rankRatio(p).ratio?.percent;
     if (pourcent !== undefined && (meilleurRatio === null || pourcent < meilleurRatio)) meilleurRatio = pourcent;
   }
-  return { epreuves, podiums, km, tempsSecondes, meilleurRatio };
+  return { epreuves, podiums, km, sansDistance, tempsSecondes, meilleurRatio };
 }
 
 /** Saison précédente jusqu'à la même date un an plus tôt (bornes fixes au 1er septembre). */

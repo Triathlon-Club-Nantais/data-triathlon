@@ -15,10 +15,18 @@ function ecartClassement(valeur: number): string {
 
 /** « Mes chiffres » de Mon espace : cinq chiffres de la sélection, écart face à la saison précédente à date égale quand `precedent` est fourni. */
 export function MesChiffres({ courant, precedent }: { courant: ChiffresSaison; precedent: ChiffresSaison | null }) {
-  const chiffres: { libelle: string; valeur: string; ecart: string | null }[] = [
+  const kmInconnus = courant.epreuves > 0 && courant.km === 0 && courant.sansDistance > 0;
+  const kmIncomplets = courant.sansDistance > 0 || (precedent?.sansDistance ?? 0) > 0;
+  const chiffres: { libelle: string; valeur: string; ecart: string | null; note?: string; etiquette?: string }[] = [
     { libelle: "Épreuves", valeur: String(courant.epreuves), ecart: precedent && signe(ecart(courant.epreuves, precedent.epreuves)) },
     { libelle: "Podiums", valeur: String(courant.podiums), ecart: precedent && signe(ecart(courant.podiums, precedent.podiums)) },
-    { libelle: "Kilomètres", valeur: String(Math.round(courant.km)), ecart: precedent && signe(Math.round(ecart(courant.km, precedent.km))) },
+    {
+      libelle: "Kilomètres",
+      valeur: kmInconnus ? "—" : `${courant.sansDistance > 0 ? "au moins " : ""}${Math.round(courant.km)}`,
+      etiquette: kmInconnus ? "Distance inconnue" : undefined,
+      note: courant.sansDistance > 0 ? `${courant.sansDistance} épreuve${courant.sansDistance > 1 ? "s" : ""} sans distance` : undefined,
+      ecart: precedent && !kmIncomplets ? signe(Math.round(ecart(courant.km, precedent.km))) : null,
+    },
     {
       libelle: "Temps en course",
       valeur: formatTempsTotal(courant.tempsSecondes),
@@ -47,8 +55,9 @@ export function MesChiffres({ courant, precedent }: { courant: ChiffresSaison; p
           <div key={chiffre.libelle} style={{ minWidth: 0 }}>
             <dt style={{ fontSize: 12, color: "var(--tcn-text-muted)" }}>{chiffre.libelle}</dt>
             <dd style={{ margin: 0, fontFamily: "var(--tcn-font-display)", fontSize: 26, lineHeight: 1.1, color: "var(--tcn-ink)" }}>
-              {chiffre.valeur}
+              {chiffre.etiquette ? <span role="img" aria-label={chiffre.etiquette}>{chiffre.valeur}</span> : chiffre.valeur}
             </dd>
+            {chiffre.note && <dd style={{ margin: 0, fontSize: 12, color: "var(--tcn-text-muted)" }}>{chiffre.note}</dd>}
             {chiffre.ecart && (
               <dd data-testid="ecart" style={{ margin: 0, fontSize: 12, color: "var(--tcn-text-muted)" }}>
                 {chiffre.ecart}
