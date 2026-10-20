@@ -33,10 +33,13 @@ export function TeammatesDialog({
   resultat,
   equipiers,
   onClose,
+  onAttribue,
 }: {
   resultat: { id: number; epreuve: string; date: string | null };
   equipiers: Equipier[];
   onClose: () => void;
+  /** Geste enchaîné après l'attribution, dans le même essai : clore une réclamation (#1739). */
+  onAttribue?: () => Promise<unknown>;
 }) {
   const [equipe, setEquipe] = useState<Membre[]>(equipiers);
   const [nouveauNom, setNouveauNom] = useState("");
@@ -90,6 +93,7 @@ export function TeammatesDialog({
           e.id != null ? e.id : { athlete_name: e.nom, athlete_firstname: e.prenom },
         ),
       });
+      await onAttribue?.();
       toast.success(`Relais attribué à ${equipe.length} athlètes.`);
       onClose();
       // La fiche courante peut avoir été purgée : `notFound()` prend le relais.

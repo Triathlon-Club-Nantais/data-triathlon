@@ -1124,6 +1124,10 @@ export interface ResultClaimReview {
     total_time: string | null;
     club: string | null;
     category: string | null;
+    /** Relais (#1739) : sa composition actuelle, porteur compris, vide sans équipiers. */
+    is_relay: boolean;
+    team_name: string | null;
+    teammates: ClaimedAthlete[];
   };
   current_athlete: ClaimedAthlete & { club: string | null };
   /** Résultats de la fiche actuelle, celui-ci compris : 1 veut dire qu'elle sera purgée. */
