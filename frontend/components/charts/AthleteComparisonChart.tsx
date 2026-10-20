@@ -209,7 +209,7 @@ type Etat = "idle" | "chargement" | "ok" | "echec";
  * `GET /athletes/{id}` rend déjà toutes les participations de l'athlète
  * choisi en un seul appel — pas de nouveau contrat API pour cette US.
  */
-export function AthleteComparisonChart({ mine }: { mine: Participation[] }) {
+export function AthleteComparisonChart({ mine, preselect }: { mine: Participation[]; preselect?: number }) {
   const [query, setQuery] = useState("");
   const debouncedQuery = useDebounce(query, 300);
   const [results, setResults] = useState<AthleteSearchResult[]>([]);
@@ -231,6 +231,21 @@ export function AthleteComparisonChart({ mine }: { mine: Participation[] }) {
       champRecherche.current?.focus();
     }
   }, [selected]);
+
+  // `?comparer=<id>` (#1701) : le coéquipier arrive déjà choisi ; sans le paramètre, rien ne change.
+  useEffect(() => {
+    if (preselect === undefined) return;
+    const numero = ++requete.current;
+    apiClient
+      .getAthlete(preselect)
+      .then(({ athlete, participations }) => {
+        if (numero !== requete.current) return;
+        setSelected({ id: athlete.id, nom: athlete.nom, prenom: athlete.prenom, gender: athlete.gender, club: athlete.club, participation_count: participations.length });
+        setTheirs(participations);
+        setEtat("ok");
+      })
+      .catch(() => {});
+  }, [preselect]);
 
   const search = debouncedQuery.trim();
 

@@ -37,6 +37,7 @@ import type {
   AthleteClaim,
   AthleteClaimReview,
   SeasonGoal,
+  Teammate,
   SeasonGoalWrite,
   AthleteLink,
   ResultClaim,
@@ -936,6 +937,8 @@ export const apiClient = {
   getAthleteClaims: () => request<AthleteClaimReview[]>("/admin/athlete-claims"),
   // ── Objectifs de saison (#1373), privés au compte ───────────────────────────
   getMyVolunteerActions: () => request<AdminVolunteerActionOut[]>("/auth/me/volunteer-actions"),
+  getMyTeammates: (opts: { federal_only?: boolean; seasons?: number[] } = {}) =>
+    request<Teammate[]>(`/auth/me/teammates${toQuery(opts as Record<string, unknown>)}`),
   getSeasonGoals: () => request<SeasonGoal[]>("/auth/me/goals"),
   createSeasonGoal: (body: SeasonGoalWrite) =>
     request<SeasonGoal>("/auth/me/goals", { method: "POST", body: JSON.stringify(body) }),

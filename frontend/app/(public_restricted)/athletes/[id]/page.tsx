@@ -28,8 +28,15 @@ import { AthleteComparisonChart } from "@/components/charts/AthleteComparisonCha
 
 export const metadata: Metadata = { title: "Athlète" };
 
-export default async function AthletePage({ params }: { params: Promise<{ id: string }> }) {
+export default async function AthletePage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams?: Promise<{ comparer?: string }>;
+}) {
   const { id } = await params;
+  const comparer = Number((await searchParams)?.comparer);
   const data = await apiServer.getAthlete(idDeRoute(id)).catch(rendreNullSi404);
   if (!data) notFound();
   const { athlete, participations, challenges } = data;
@@ -255,7 +262,7 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
           </Card>
         )}
 
-        {validated.length > 0 && <AthleteComparisonChart mine={validated} />}
+        {validated.length > 0 && <AthleteComparisonChart mine={validated} preselect={Number.isInteger(comparer) && comparer > 0 ? comparer : undefined} />}
 
         <EventsTable participations={participations} athleteId={athlete.id} athleteName={fullName} />
 

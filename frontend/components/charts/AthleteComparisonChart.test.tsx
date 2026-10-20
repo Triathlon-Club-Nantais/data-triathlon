@@ -225,3 +225,20 @@ describe("AthleteComparisonChart, teammate load failure (#1028)", () => {
     expect(screen.queryByText(/comparaison avec/i)).not.toBeInTheDocument();
   });
 });
+
+describe("AthleteComparisonChart preselect", () => {
+  it("loads and shows the comparison with the athlete named by `preselect`", async () => {
+    getAthlete.mockResolvedValue({ athlete: { id: 7, nom: "Durand", prenom: "Paul" }, participations: [participation(11, 10, "2026-06-01", "01:55:00")] });
+    render(<AthleteComparisonChart mine={[participation(1, 10, "2026-06-01", "02:00:00")]} preselect={7} />);
+
+    expect(await screen.findByText(/Comparaison avec Paul Durand/)).toBeInTheDocument();
+    expect(getAthlete).toHaveBeenCalledWith(7);
+  });
+
+  it("keeps the search field without `preselect`", () => {
+    render(<AthleteComparisonChart mine={[participation(1, 10, "2026-06-01", "02:00:00")]} />);
+
+    expect(screen.getByLabelText("Chercher un athlète à comparer")).toBeInTheDocument();
+    expect(getAthlete).not.toHaveBeenCalled();
+  });
+});

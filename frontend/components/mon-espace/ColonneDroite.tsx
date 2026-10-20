@@ -8,6 +8,8 @@ import { compteMaSaison } from "@/lib/utils/ma-saison";
 import { seasonOf } from "@/lib/utils/season";
 import { DernierResultat } from "./DernierResultat";
 import { MaPlaceAuClub } from "./MaPlaceAuClub";
+import { MesCoequipiers } from "./MesCoequipiers";
+import { MiniCarte } from "./MiniCarte";
 import { ProchainPalier } from "./ProchainPalier";
 
 /** Encarts de droite de Mon espace : dernier résultat, place au club, prochain palier. */
@@ -60,6 +62,8 @@ export function ColonneDroite({
       <DernierResultat participation={dernier} record={record} />
       <MaPlaceAuClub athleteId={athleteId} seasons={seasons} federalOnly={federalOnly} />
       <ProchainPalier palier={palier} />
+      <MesCoequipiers athleteId={athleteId} seasons={seasons} federalOnly={federalOnly} />
+      <MiniCarte courseIds={[...new Set(selection.map((p) => p.course.id))]} />
     </>
   );
 }

@@ -1398,6 +1398,29 @@ def club_split_rows(db: Session, *, event_type: str, federal_only: bool = False,
     return q.all()
 
 
+def teammate_rows(db: Session, *, athlete_id: int, federal_only: bool = False, seasons: list[int] | None = None):
+    """`(id, prenom, nom, épreuves en commun)` des membres du club passés sur mes épreuves (#1701).
+
+    Mêmes exclusions de ligne que `club_split_rows`, appliquées aux deux côtés de l'appariement.
+    """
+    mine = aliased(Participation)
+    q = (
+        db.query(Athlete.id, Athlete.prenom, Athlete.nom, func.count(func.distinct(Participation.course_id)))
+        .select_from(Participation)
+        .join(Athlete, Participation.athlete_id == Athlete.id)
+        .join(mine, and_(mine.course_id == Participation.course_id, mine.athlete_id == athlete_id))
+        .join(Course, Participation.course_id == Course.id)
+        .filter(Participation.athlete_id != athlete_id)
+    )
+    for row in (Participation, mine):
+        q = q.filter(validated_clause(row.is_pending_validation), row.counts_for_tcn.is_(True), row.is_relay.is_(False))
+    if federal_only:
+        q = q.filter(federal_clause(Course.event_type))
+    if seasons:
+        q = q.filter(season_clause(seasons))
+    return q.group_by(Athlete.id, Athlete.prenom, Athlete.nom).all()
+
+
 def course_split_gap_rows(db: Session, course_ids: list[int]):
     """Colonnes (course, total, splits) de toutes les lignes validées avec splits de ces épreuves.
 
