@@ -60,8 +60,8 @@ export function MonEspace({ seasons, federalOnly }: { seasons: number[]; federal
   }
   if (athlete === null) return <InvitationMonEspace session={session.data} />;
   if (courant.error) {
-    const { title, description } = messageDeRefus(courant.error, REFUS);
-    return <p role="alert">{title}. {description} Rechargez la page.</p>;
+    const { description } = messageDeRefus(courant.error, REFUS);
+    return <p role="alert">{description}</p>;
   }
   if (courant.isPending) return <SqueletteMonEspace />;
 
