@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/lib/api/client";
 import type { AdminAthlete, AthleteBrief } from "@/lib/types";
 import { TeammatesDialog } from "./TeammatesDialog";
@@ -44,24 +44,36 @@ function afficher(equipiers: AthleteBrief[] = [], onClose = vi.fn()) {
   return onClose;
 }
 
+// La recherche attend 300 ms après la frappe : sur l'horloge réelle, ce délai
+// mangeait un tiers du budget d'1 s des `findBy*` qui le suivent (#1708).
+let user: ReturnType<typeof userEvent.setup>;
+
+async function rechercher(texte: string) {
+  const champ = screen.getByRole("searchbox");
+  await user.clear(champ);
+  await user.type(champ, texte);
+  await act(() => vi.advanceTimersByTimeAsync(300));
+}
+
 async function ajouter(athlete: AdminAthlete) {
   searchAthletesAdmin.mockResolvedValue([athlete]);
-  const champ = screen.getByRole("searchbox");
-  await userEvent.clear(champ);
-  await userEvent.type(champ, athlete.nom);
-  await userEvent.click(
+  await rechercher(athlete.nom);
+  await user.click(
     await screen.findByRole("button", { name: `Ajouter ${athlete.nom} ${athlete.prenom}` }),
   );
 }
 
 describe("TeammatesDialog", () => {
   beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     searchAthletesAdmin.mockReset();
     setParticipationTeammates.mockReset();
     toastSuccess.mockReset();
     toastError.mockReset();
     refresh.mockReset();
   });
+  afterEach(() => vi.useRealTimers());
 
   it("n'attribue rien tant que l'équipe compte moins de deux coureurs", async () => {
     afficher();
@@ -87,7 +99,7 @@ describe("TeammatesDialog", () => {
 
     await ajouter(JEAN);
     await ajouter(PAUL);
-    await userEvent.click(screen.getByRole("button", { name: "Attribuer" }));
+    await user.click(screen.getByRole("button", { name: "Attribuer" }));
 
     await waitFor(() => expect(setParticipationTeammates).toHaveBeenCalledWith(314, [10, 11]));
     expect(toastSuccess).toHaveBeenCalledWith("Relais attribué à 2 athlètes.");
@@ -100,9 +112,9 @@ describe("TeammatesDialog", () => {
     afficher([JEAN, PAUL]);
     const marie = fiche(12, "DURAND", "Marie");
 
-    await userEvent.click(screen.getByRole("button", { name: "Retirer MARTIN Paul" }));
+    await user.click(screen.getByRole("button", { name: "Retirer MARTIN Paul" }));
     await ajouter(marie);
-    await userEvent.click(screen.getByRole("button", { name: "Attribuer" }));
+    await user.click(screen.getByRole("button", { name: "Attribuer" }));
 
     await waitFor(() => expect(setParticipationTeammates).toHaveBeenCalledWith(314, [10, 12]));
   });
@@ -111,7 +123,7 @@ describe("TeammatesDialog", () => {
     searchAthletesAdmin.mockResolvedValue([JEAN, PAUL]);
     afficher([JEAN]);
 
-    await userEvent.type(screen.getByRole("searchbox"), "d");
+    await rechercher("d");
 
     expect(await screen.findByRole("button", { name: "Ajouter MARTIN Paul" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Ajouter DUPONT Jean" })).not.toBeInTheDocument();
@@ -123,11 +135,11 @@ describe("TeammatesDialog", () => {
 
     const ajouterLaPersonne = screen.getByRole("button", { name: "Ajouter cet athlète" });
     expect(ajouterLaPersonne).toBeDisabled();
-    await userEvent.type(screen.getByLabelText("Nom"), "DURAND");
+    await user.type(screen.getByLabelText("Nom"), "DURAND");
     expect(ajouterLaPersonne).toBeDisabled();
-    await userEvent.type(screen.getByLabelText("Prénom"), "Marie");
-    await userEvent.click(ajouterLaPersonne);
-    await userEvent.click(screen.getByRole("button", { name: "Attribuer" }));
+    await user.type(screen.getByLabelText("Prénom"), "Marie");
+    await user.click(ajouterLaPersonne);
+    await user.click(screen.getByRole("button", { name: "Attribuer" }));
 
     await waitFor(() =>
       expect(setParticipationTeammates).toHaveBeenCalledWith(314, [
@@ -149,7 +161,7 @@ describe("TeammatesDialog", () => {
     searchAthletesAdmin.mockResolvedValue([]);
     afficher([JEAN, PAUL]);
 
-    await userEvent.type(screen.getByRole("searchbox"), "zzz");
+    await rechercher("zzz");
 
     expect(await screen.findByText("Aucun athlète ne correspond à cette recherche.")).toBeInTheDocument();
   });
@@ -157,7 +169,7 @@ describe("TeammatesDialog", () => {
   it("ramène le focus sur la recherche après un retrait", async () => {
     afficher([JEAN, PAUL]);
 
-    await userEvent.click(screen.getByRole("button", { name: "Retirer MARTIN Paul" }));
+    await user.click(screen.getByRole("button", { name: "Retirer MARTIN Paul" }));
 
     expect(screen.getByRole("searchbox")).toHaveFocus();
   });
@@ -165,8 +177,8 @@ describe("TeammatesDialog", () => {
   it("ajoute un coureur sans fiche à la touche Entrée", async () => {
     afficher([JEAN]);
 
-    await userEvent.type(screen.getByLabelText("Nom"), "DURAND");
-    await userEvent.type(screen.getByLabelText("Prénom"), "Marie{Enter}");
+    await user.type(screen.getByLabelText("Nom"), "DURAND");
+    await user.type(screen.getByLabelText("Prénom"), "Marie{Enter}");
 
     expect(screen.getByRole("button", { name: "Retirer DURAND Marie" })).toBeInTheDocument();
   });
@@ -175,7 +187,7 @@ describe("TeammatesDialog", () => {
     setParticipationTeammates.mockReturnValue(new Promise(() => {}));
     afficher([JEAN, PAUL]);
 
-    await userEvent.click(screen.getByRole("button", { name: "Attribuer" }));
+    await user.click(screen.getByRole("button", { name: "Attribuer" }));
 
     expect(await screen.findByRole("button", { name: "Attribution…" })).toBeDisabled();
   });
@@ -186,7 +198,7 @@ describe("TeammatesDialog", () => {
     );
     afficher([JEAN, PAUL]);
 
-    await userEvent.click(screen.getByRole("button", { name: "Attribuer" }));
+    await user.click(screen.getByRole("button", { name: "Attribuer" }));
 
     expect(await screen.findByRole("status")).toHaveTextContent(
       "Seul un résultat de relais peut être attribué à des équipiers.",
@@ -200,7 +212,7 @@ describe("TeammatesDialog", () => {
     );
     const onClose = afficher([JEAN, PAUL]);
 
-    await userEvent.click(screen.getByRole("button", { name: "Attribuer" }));
+    await user.click(screen.getByRole("button", { name: "Attribuer" }));
 
     expect(await screen.findByRole("status")).toHaveTextContent(
       "MARTIN Paul a déjà un résultat sur cette épreuve.",

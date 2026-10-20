@@ -3,6 +3,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { ApiError } from "@/lib/api/client";
+import { queryKeys } from "@/lib/queries/keys";
 import type { TrainingSession, TrainingSessionDetail, SessionUser } from "@/lib/types";
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
@@ -96,8 +97,15 @@ const AVEC_ECRITURE: SessionUser = {
 
 const LECTURE_SEULE: SessionUser = { ...AVEC_ECRITURE, permissions: ["jeunes:read"] };
 
-function afficher() {
+// `seances` met la liste en cache avant le rendu : le premier rendu des cartes,
+// lent à froid (jusqu'à ~1 s sous charge), se fait alors dans
+// `render` et non dans le budget d'1 s du `findBy*` qui suit (#1708).
+function afficher(seances?: TrainingSession[]) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  if (seances) {
+    listTrainingSessions.mockResolvedValue(seances);
+    client.setQueryData(queryKeys.trainingSessions(), seances);
+  }
   return render(
     <QueryClientProvider client={client}>
       <DangerConfirmProvider>
@@ -184,14 +192,12 @@ describe("CalendrierEntrainements", () => {
     const seance = (id: number, date: string): TrainingSession => ({ ...SEANCE, id, date });
 
     it("liste les séances à venir d'abord, puis les passées de la plus récente à la plus ancienne", async () => {
-      listTrainingSessions.mockResolvedValue([
+      afficher([
         seance(1, "2026-09-20"),
         seance(2, "2026-10-01"),
         seance(3, "2026-10-10"),
         seance(4, "2026-10-20"),
       ]);
-
-      afficher();
 
       const aVenir = await screen.findByRole("region", { name: "Séances à venir" });
       const passees = screen.getByRole("region", { name: "Séances passées" });
@@ -204,9 +210,7 @@ describe("CalendrierEntrainements", () => {
     });
 
     it("signale la séance du jour", async () => {
-      listTrainingSessions.mockResolvedValue([seance(3, "2026-10-10"), seance(4, "2026-10-20")]);
-
-      afficher();
+      afficher([seance(3, "2026-10-10"), seance(4, "2026-10-20")]);
 
       const aujourdhui = await screen.findByText("Aujourd'hui");
       expect(aujourdhui.closest("[role=button]")).toHaveTextContent("10/10/2026");
