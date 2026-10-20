@@ -14,6 +14,7 @@ from datetime import date
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import DomainError, NotFoundError
+from app.core.identity import identity_hash
 from app.core.season import season_of
 from app.core.time import utcnow
 from app.models.athlete import Athlete
@@ -24,6 +25,7 @@ from app.models.user import User
 from app.repositories import (
     athlete_repository,
     club_member_repository,
+    opposition_repository,
     participation_repository,
     result_claim_repository,
 )
@@ -77,6 +79,37 @@ def cancel_claim(db: Session, user: User, claim_id: int) -> None:
     if claim is None:
         raise NotFoundError("Réclamation introuvable.")
     result_claim_repository.delete_claim(db, claim)
+
+
+def is_team_record(athlete: Athlete) -> bool:
+    """Fiche d'équipe : un nom sans prénom (même règle que la recherche SQL)."""
+    return not athlete.prenom.strip() and bool(athlete.nom.strip())
+
+
+@dataclass(frozen=True)
+class TeamResultHit:
+    participation: Participation
+    team_name: str
+    teammates: list[str]
+
+
+def search_team_results(db: Session, user: User, term: str) -> list[TeamResultHit]:
+    """Relais à rejoindre (#1739), filtrés comme le classement public : rien d'une identité opposée."""
+    if user.athlete_id is None:
+        return []
+    rows = participation_repository.search_team_results(db, term=term, exclude_athlete_id=user.athlete_id)
+    opposed = opposition_repository.all_hashes(db)
+    hits = []
+    for row in rows:
+        people = [row.athlete, *row.teammates]
+        if any(identity_hash(person.nom, person.prenom) in opposed for person in people):
+            continue
+        hits.append(TeamResultHit(
+            participation=row,
+            team_name=row.team_name or row.athlete.nom,
+            teammates=[f"{mate.prenom} {mate.nom}".strip() for mate in row.teammates],
+        ))
+    return hits
 
 
 def list_mine(db: Session, user: User) -> list[ResultClaim]:

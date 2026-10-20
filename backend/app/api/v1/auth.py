@@ -15,7 +15,12 @@ from fastapi import APIRouter, Depends, Query, Request, Response
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
-from app.api.deps import authorize_rate_limit, current_user, require_site_access
+from app.api.deps import (
+    authorize_rate_limit,
+    current_user,
+    require_site_access,
+    team_search_rate_limit,
+)
 from app.core import permissions
 from app.core.analytics import capture_event, set_person_properties
 from app.core.config import Settings, get_settings
@@ -32,6 +37,7 @@ from app.schemas.athlete_claim import (
     ClaimedAthleteRead,
     ResultClaimCreate,
     ResultClaimRead,
+    TeamResultRead,
 )
 from app.schemas.auth import (
     AccountIdentityRead,
@@ -407,6 +413,32 @@ def request_result_claim(body: ResultClaimCreate, user: User = Depends(current_u
     claim = result_claims.request_claim(db, user, body.participation_id)
     db.commit()
     return _result_claim_read(claim)
+
+
+@router.get(
+    "/auth/me/team-results",
+    response_model=list[TeamResultRead],
+    dependencies=[Depends(require_site_access), Depends(team_search_rate_limit)],
+)
+def search_team_results(
+    q: str = Query(min_length=3, max_length=80),
+    user: User = Depends(current_user),
+    db: Session = Depends(get_db),
+):
+    """Relais publiés sous un nom d'équipe que l'adhérent peut demander à rejoindre (#1739) ; liste vide sans fiche rattachée."""
+    return [
+        TeamResultRead(
+            participation_id=hit.participation.id,
+            team_name=hit.team_name,
+            course_id=hit.participation.course_id,
+            course_name=hit.participation.course.name,
+            event_date=hit.participation.course.event_date.isoformat() if hit.participation.course.event_date else None,
+            rank_overall=hit.participation.rank_overall,
+            total_time=hit.participation.total_time,
+            teammates=hit.teammates,
+        )
+        for hit in result_claims.search_team_results(db, user, q)
+    ]
 
 
 @router.delete("/auth/me/result-claims/{claim_id}", status_code=204)

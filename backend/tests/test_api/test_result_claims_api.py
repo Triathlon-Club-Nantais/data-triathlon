@@ -3,10 +3,12 @@ from datetime import date
 
 import pytest
 
+from app.core.identity import identity_hash
 from app.models.athlete import Athlete
 from app.models.course import Course
-from app.models.participation import Participation
+from app.models.participation import Participation, ParticipationTeammate
 from app.models.user import User
+from app.repositories import opposition_repository
 
 from .test_admin_data_api import _session_etroite
 
@@ -103,3 +105,73 @@ def test_permissions_and_sessions(client, db_session):
     client.cookies.clear()
     assert client.get(MINE).status_code == 401
     assert client.post(MINE, json={"participation_id": 1}).status_code == 401
+
+
+TEAM_SEARCH = "/api/v1/auth/me/team-results"
+
+
+def _team_relay(db_session, *teammates: Athlete) -> Participation:
+    team = Athlete(nom="LES MOLLETS D'ACIER", prenom="")
+    db_session.add(team)
+    db_session.flush()
+    course = Course(name="Relais de Nantes", event_date=date(2026, 6, 1), event_type="triathlon-s", is_relay=True)
+    db_session.add(course)
+    db_session.flush()
+    row = Participation(course_id=course.id, athlete_id=team.id, bib_number="7", rank_overall=2,
+                        total_time="1:10:00", status="finisher", is_relay=True)
+    db_session.add(row)
+    db_session.flush()
+    for position, teammate in enumerate(teammates):
+        db_session.add(ParticipationTeammate(participation_id=row.id, athlete_id=teammate.id, position=position))
+    db_session.commit()
+    return row
+
+
+def _athlete(db_session, nom, prenom) -> Athlete:
+    athlete = Athlete(nom=nom, prenom=prenom)
+    db_session.add(athlete)
+    db_session.flush()
+    return athlete
+
+
+def test_search_team_results_returns_hits(client, db_session, setup):
+    row = _team_relay(db_session, _athlete(db_session, "DURAND", "Paul"))
+
+    response = client.get(TEAM_SEARCH, params={"q": "mollets d acier"})
+
+    assert response.status_code == 200
+    assert response.json() == [{
+        "participation_id": row.id,
+        "team_name": "LES MOLLETS D'ACIER",
+        "course_id": row.course_id,
+        "course_name": "Relais de Nantes",
+        "event_date": "2026-06-01",
+        "rank_overall": 2,
+        "total_time": "1:10:00",
+        "teammates": ["Paul DURAND"],
+    }]
+
+
+@pytest.mark.parametrize("q", ["", "ab", "x" * 81])
+def test_search_needs_three_characters(client, setup, q):
+    assert client.get(TEAM_SEARCH, params={"q": q}).status_code == 422
+
+
+def test_search_without_claimed_athlete_returns_empty(client, db_session):
+    _team_relay(db_session)
+    _session_etroite(client, db_session, email="nobody@exemple.fr", slug="sans-fiche")
+
+    response = client.get(TEAM_SEARCH, params={"q": "mollets"})
+
+    assert (response.status_code, response.json()) == (200, [])
+
+
+def test_search_hides_opposed_identities(client, db_session, setup):
+    _team_relay(db_session, _athlete(db_session, "DUPONT", "Jean"))
+    opposition_repository.create(
+        db_session, identity_hash=identity_hash("DUPONT", "Jean"), requested_on=date(2026, 9, 1),
+        applied_by_user_id=None,
+    )
+    db_session.commit()
+
+    assert client.get(TEAM_SEARCH, params={"q": "mollets"}).json() == []
