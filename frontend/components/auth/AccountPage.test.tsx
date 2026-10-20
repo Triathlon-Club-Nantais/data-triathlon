@@ -138,6 +138,17 @@ describe("AccountPage: account section", () => {
   });
 });
 
+describe("AccountPage: export my data (#1674)", () => {
+  it("offers the JSON export as a plain download", async () => {
+    afficher(SESSION);
+
+    expect(await screen.findByRole("heading", { name: "Mes données" })).toBeInTheDocument();
+    const lien = screen.getByRole("link", { name: "Télécharger mes données" });
+    expect(lien).toHaveAttribute("href", "/api/v1/auth/me/export");
+    expect(lien).toHaveAttribute("download");
+  });
+});
+
 describe("AccountPage: athlete record section", () => {
   it("shows the linked record, a link to Mon espace and detaches after confirmation", async () => {
     afficher({ ...SESSION, athlete: JEAN });

@@ -235,7 +235,10 @@ export const PRIVACY_POLICY: LegalDocument = {
               du club : écrivez alors au club ; seul le club peut ensuite lever l&apos;opposition ;
             </li>
             <li>
-              <strong>accéder</strong> aux données qui vous concernent et en obtenir une copie ;
+              <strong>accéder</strong> aux données qui vous concernent et en obtenir une copie dans un format
+              réutilisable (<strong>portabilité</strong>). Si vous avez un compte, téléchargez-la vous-même depuis
+              la page Mon compte (« Télécharger mes données ») : un fichier JSON avec votre compte, vos connexions,
+              vos demandes, vos objectifs, vos déclarations de bénévolat et les résultats de votre fiche ;
             </li>
             <li>
               <strong>faire rectifier</strong> une donnée inexacte (un nom mal orthographié, un club erroné) ;
