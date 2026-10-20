@@ -94,7 +94,7 @@ export function ClubDashboard({
           </CardHeader>
           <CardContent>
             <BreakdownTabs hasComposition={!gender}>
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto overflow-y-hidden">
                 <TabsList className="w-full">
                   <TabsTrigger value="type">Par discipline</TabsTrigger>
                   <TabsTrigger value="performance">Performance</TabsTrigger>
