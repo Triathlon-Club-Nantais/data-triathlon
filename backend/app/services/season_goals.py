@@ -136,7 +136,7 @@ class GoalProgress:
     #: Nombre d'épreuves de la saison (objectif nombre), sinon `None`.
     count: int | None
     reached: bool
-    outcome: Literal["upcoming", "awaiting_results", "reached", "missed"] = "upcoming"
+    outcome: Literal["upcoming", "awaiting_results", "reached", "missed"]
 
 
 def list_with_progress(db: Session, user: User, season: int) -> list[GoalProgress]:
@@ -170,7 +170,11 @@ def _race_progress(db: Session, athlete_id: int, goal: SeasonGoal) -> GoalProgre
 
 def _progress(db: Session, athlete_id: int | None, goal: SeasonGoal) -> GoalProgress:
     if athlete_id is None:
-        return GoalProgress(goal=goal, best_time=None, count=None, reached=False)
+        if goal.kind == KIND_RACE:
+            outcome = "upcoming" if goal.race_date >= season_clock.utcnow().date() else "missed"
+        else:
+            outcome = _closed(goal, False)
+        return GoalProgress(goal=goal, best_time=None, count=None, reached=False, outcome=outcome)
     if goal.kind == KIND_RACE:
         return _race_progress(db, athlete_id, goal)
     if goal.kind == KIND_TIME:
