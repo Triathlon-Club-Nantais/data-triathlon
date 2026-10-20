@@ -4,10 +4,19 @@ import { describe, it, expect } from "vitest";
 import { GUIDE_MEMBRE } from "./guide-content.membre";
 
 const IDS_ATTENDUS = ["dashboard", "club", "resultats", "fiche-athlete", "comparaison", "ajouter", "benevolat"];
+const IDS_GESTES = [
+  { id: "rattachement", libelle: "« C'est moi »" },
+  { id: "objectifs", libelle: "« Ajouter un objectif »" },
+  { id: "recap-saison", libelle: "« Récap de la saison passée »" },
+  { id: "carte-resultat", libelle: "« Ma carte résultat »" },
+  { id: "reclamer-resultat", libelle: "« Ce résultat est à moi »" },
+  { id: "supprimer-compte", libelle: "« Supprimer mon compte »" },
+];
+const IDS_COMPLETS = [...IDS_ATTENDUS, ...IDS_GESTES.map((geste) => geste.id)];
 
 describe("GUIDE_MEMBRE", () => {
-  it("expose exactement les 7 ids attendus, dans l'ordre", () => {
-    expect(GUIDE_MEMBRE.map((section) => section.id)).toEqual(IDS_ATTENDUS);
+  it("expose exactement les 13 ids attendus, dans l'ordre", () => {
+    expect(GUIDE_MEMBRE.map((section) => section.id)).toEqual(IDS_COMPLETS);
   });
 
   it.each(IDS_ATTENDUS)("la section « %s » a des étapes, un cas d'usage et une capture", (id) => {
@@ -16,6 +25,22 @@ describe("GUIDE_MEMBRE", () => {
     expect(section!.etapes.length).toBeGreaterThanOrEqual(1);
     expect(section!.casUsage.trim().length).toBeGreaterThan(0);
     expect(section!.captures.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it.each(IDS_GESTES)("la section « $id » a des étapes, un cas d'usage et cite $libelle", ({ id, libelle }) => {
+    const section = GUIDE_MEMBRE.find((s) => s.id === id);
+    expect(section).toBeDefined();
+    expect(section!.etapes.length).toBeGreaterThanOrEqual(1);
+    expect(section!.casUsage.trim().length).toBeGreaterThan(0);
+    expect(section!.etapes.join(" ")).toContain(libelle);
+  });
+
+  it("aucun texte ne parle de « course » ni de « coureur »", () => {
+    for (const geste of IDS_GESTES) {
+      const section = GUIDE_MEMBRE.find((s) => s.id === geste.id);
+      const texte = [section?.titre, section?.casUsage, ...(section?.etapes ?? [])].join(" ");
+      expect(texte).not.toMatch(/\bcourses?\b|coureur/i);
+    }
   });
 
   it("chaque `captures[].src` résout vers un fichier présent sous public/", () => {
