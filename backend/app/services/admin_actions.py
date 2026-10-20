@@ -26,7 +26,7 @@ from sqlalchemy.orm import Session
 
 from app.core.athlete_identity import athlete_identity_keys
 from app.core.exceptions import DomainError, DuplicateError, NotFoundError
-from app.core.season import season_quota_met
+from app.core.season import SEASON_QUOTA_EVENTS, season_quota_met
 from app.core.time import utcnow
 from app.models.athlete import Athlete
 from app.models.course import Course
@@ -879,4 +879,6 @@ def season_quota(db: Session, *, athlete_id: int, season: int) -> dict:
         )
         is not None,
         "quota_met": season_quota_met(validated_count, has_volunteer_action),
+        "season": season,
+        "required_events": SEASON_QUOTA_EVENTS,
     }

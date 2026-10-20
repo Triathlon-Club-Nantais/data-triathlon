@@ -32,6 +32,7 @@ from app.models.result_claim import ResultClaim
 from app.models.user import User
 from app.repositories import user_repository
 from app.schemas.account_export import AccountExport
+from app.schemas.admin import SeasonQuota
 from app.schemas.athlete_claim import (
     AthleteClaimCreate,
     AthleteClaimRead,
@@ -53,6 +54,7 @@ from app.schemas.teammate import Teammate
 from app.schemas.volunteer_action import MyVolunteerActionOut, MyVolunteerDeclarationOut
 from app.services import (
     account_export,
+    admin_actions,
     athlete_claims,
     membership,
     opposition_service,
@@ -516,6 +518,14 @@ def list_my_volunteer_actions(user: User = Depends(current_user), db: Session = 
 def list_my_volunteer_declarations(user: User = Depends(current_user), db: Session = Depends(get_db)):
     """Déclarations de bénévolat faites par mon compte (#1672), tous statuts, pour toute fiche."""
     return volunteer_action_service.list_declared_by(db, user_id=user.id)
+
+
+@router.get("/auth/me/season-quota", response_model=SeasonQuota | None)
+def get_my_season_quota(user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Ma progression vers la validation de la saison en cours (#1671) ; `null` sans fiche rattachée."""
+    if user.athlete_id is None:
+        return None
+    return admin_actions.season_quota(db, athlete_id=user.athlete_id, season=current_season())
 
 
 @router.get("/auth/me/teammates", response_model=list[Teammate])
