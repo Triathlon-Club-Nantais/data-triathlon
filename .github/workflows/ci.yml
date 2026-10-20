@@ -55,6 +55,9 @@ jobs:
               - 'frontend/**'
               - '.github/**'
 
+  # Matrice de deux runners (#1707) : pytest-split répartit les tests selon
+  # `backend/.test_durations` (rafraîchi par docs/tests-boucle.md). Comme pour
+  # `frontend-test`, `needs.backend.result` agrégé reste un seul résultat pour `ci-ok`.
   backend:
     needs: changes
     if: needs.changes.outputs.backend == 'true'
@@ -63,6 +66,10 @@ jobs:
     defaults:
       run:
         working-directory: backend
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [1, 2]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
@@ -77,10 +84,11 @@ jobs:
         run: uv sync --locked
 
       - name: Lint (ruff)
+        if: matrix.group == 1
         run: uv run ruff check .
 
-      - name: Tests (hors réseau)
-        run: uv run pytest -m "not integration" --migrations
+      - name: Tests (hors réseau, groupe ${{ matrix.group }}/2)
+        run: uv run pytest -m "not integration" --migrations --splits 2 --group ${{ matrix.group }} --splitting-algorithm least_duration
 
   # uv audit interroge OSV sur le uv.lock résolu : aucune dépendance de dev
   # supplémentaire (contrairement à pip-audit), en écho au Principe de

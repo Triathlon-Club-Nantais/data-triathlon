@@ -107,6 +107,19 @@ vert dans `<git-dir>/claude-targeted-tests.sha` ; une empreinte identique ne
 relance rien. Le hook échoue ouvert. Ses tests :
 `python3 -m unittest discover -s .claude/hooks -p 'test_targeted_tests.py'`.
 
+## Répartition de la CI backend
+
+Le job `backend` de la CI tourne en matrice de deux runners : `pytest-split`
+répartit les tests (`--splits 2 --group N`) d'après `backend/.test_durations`,
+fichier généré et versionné. Un fichier périmé reste correct (les tests inconnus
+sont répartis au mieux), seul l'équilibre se dégrade. Rafraîchir quand la suite
+change sensiblement (ajout ou retrait de nombreux tests, test devenu lent), depuis
+`backend/` :
+
+```bash
+FULL_SUITE=1 uv run pytest -m "not integration" --migrations --store-durations
+```
+
 ## Précédence
 
 Cette règle du projet prime sur les consignes de suite complète des skills pour les étapes intermédiaires. `verification-before-completion` est satisfait par la commande ciblée pour une affirmation sur une tâche, et par la suite complète pour une affirmation sur la branche.
