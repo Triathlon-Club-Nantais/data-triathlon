@@ -389,8 +389,8 @@ def cancel_athlete_claim(user: User = Depends(current_user), db: Session = Depen
 def _result_claim_read(claim: ResultClaim) -> ResultClaimRead:
     course = claim.participation.course
     return ResultClaimRead(
-        id=claim.id, participation_id=claim.participation_id, status=claim.status, created_at=claim.created_at,
-        course_id=course.id, course_name=course.name,
+        id=claim.id, participation_id=claim.participation_id, status=claim.status, kind=claim.kind,
+        created_at=claim.created_at, course_id=course.id, course_name=course.name,
         event_date=course.event_date.isoformat() if course.event_date else None,
     )
 
