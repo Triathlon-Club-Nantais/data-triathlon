@@ -38,6 +38,8 @@ TARGETED = [
     "uv run pytest tests/test_api -n 0",
     "uv run pytest tests/test_x.py::test_y",
     "uv run pytest -k raceresult",
+    "uv run pytest --testmon",
+    'uv run pytest -m "not integration" --testmon',
     "uv run pytest --lf",
     "uv run pytest --sw",
     "uv run pytest -m integration -n 0",

@@ -50,12 +50,34 @@ uv run pytest tests/test_migrations.py --migrations -n 0
 
 La CI passe toujours `--migrations`.
 
+## testmon
+
+`pytest-testmon` (groupe `dev`) est un opt-in local pour le backend : il rejoue
+seulement les tests dont le code exécuté a changé. Jamais en CI, où la suite
+complète tourne (`merge_group`).
+
+```bash
+uv run pytest --testmon --testmon-forceselect -m "not integration"
+```
+
+- `-m` seul coupe la sélection (testmon passe en `noselect` et rejoue tout) :
+  `--testmon-forceselect` la garde avec `-m "not integration"`, et sans `-m`
+  les tests réseau tourneraient.
+- La première passe, ou toute passe après `rm .testmondata*`, rejoue tout et
+  écrit `backend/.testmondata` (ignoré par le dépôt).
+- Compatible avec `-n 4` (défaut), avec le schéma SQLite partagé par worker et
+  avec le désélectionnement des migrations : aucun verrou rencontré.
+- Limite connue : une fixture non Python (HTML, JSON d'un scraper) modifiée
+  n'est pas suivie, aucun test n'est rejoué. Après un changement de fixture,
+  lancer le fichier de test à la main.
+- Le hook ci-dessous traite `--testmon` comme un test ciblé.
+
 ## Hooks
 
 Un hook `PreToolUse` (`.claude/hooks/test_gate.py`, branché dans
 `.claude/settings.json`) refuse dans Claude Code les suites complètes lancées
 depuis un outil Bash : `pytest` ou `npm test` / `vitest run` sans fichier, sans
-`-k`, `--lf`, `--sw`, `related` ni `--changed`, avec ou sans préfixe `rtk`,
+`-k`, `--lf`, `--sw`, `--testmon`, `related` ni `--changed`, avec ou sans préfixe `rtk`,
 `uv run` ou `npx`. Un test ciblé passe sans bruit.
 
 Pour une vraie suite complète (fin de branche), préfixer la commande par

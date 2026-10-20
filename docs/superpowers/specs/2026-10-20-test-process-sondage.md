@@ -87,3 +87,19 @@ Aucune exécution sous le seuil (load < 2,0) : la machine était occupée par un
 ### Essai 2 : happy-dom sur le projet `jsdom`
 
 **Non mesuré** : aucune fenêtre sous le seuil n'est venue, et mesurer à load 30+ n'aurait produit que du bruit. `happy-dom` n'a pas été installé (`package.json` et `package-lock.json` inchangés), `test/environments.test.ts` non touché. Décision : **à remesurer au repos** (A/B entrelacé, ≥ 3 répétitions, même nombre de tests passés exigé).
+
+## testmon
+
+pytest-testmon 2.2.0 (`uv add --dev pytest-testmon`), machine chargée (load ~30, durées non comparables, essai fonctionnel).
+
+Première passe `FULL_SUITE=1 uv run pytest -m "not integration" --testmon` (`-n 4`) : 7136 passés, 19 ignorés, 562 s, aucune erreur de verrou, `backend/.testmondata` (6,7 Mo) écrit. Constat : `-m` désactive la sélection (« selection automatically deactivated because -m was used »), la collecte reste faite. La forme utilisable est `--testmon --testmon-forceselect -m "not integration"`.
+
+| Cas | Sélection |
+| --- | --- |
+| Aucun changement | 0 test (`4 workers [0 items]`), 22 s |
+| Corps de `app/services/fftri_category.py` modifié (ligne neutre, puis annulée) | 66 tests rejoués : 19 `tests/test_services/test_fftri_category.py` (le service), 14 `test_training_session_service.py` et 1 `test_training_group_service.py` (services appelants), 16 `test_api/test_admin_training_sessions.py`, 15 `test_auth/test_admin_profiles_api.py`, 1 `test_api/test_admin_training_groups.py`. Ex. : `tests/test_services/test_fftri_category.py::test_the_season_switches_on_november_first`, `tests/test_auth/test_admin_profiles_api.py::test_the_list_carries_the_fftri_category_and_membership_end` |
+| Fixture `tests/fixtures/breizhchrono_live_classements.html` modifiée (ligne ajoutée, puis retirée) | 0 test (`changed files: 0`), alors que `tests/test_breizhchrono.py` la lit : limite connue |
+
+`git diff backend/app` vide après le cas 2. Le hook `test_gate.py` traite désormais `--testmon` comme ciblé (cas ajoutés dans `test_test_gate.py`).
+
+testmon_retenu: oui

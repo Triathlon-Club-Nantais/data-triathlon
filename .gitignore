@@ -80,3 +80,5 @@ frontend/.claude/
 backend/.claude/
 
 graphify-out/
+
+.testmondata*
