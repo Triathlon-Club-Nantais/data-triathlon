@@ -590,7 +590,7 @@ seul, `can_supervise` est indéfini et `/encadrement` refuse tout le monde.
 n'est rattaché à son compte ; la seconde rend `MyVolunteerActionOut`, sans
 identité de fiche ni auteur de la déclaration.
 
-`POST /auth/me/opposition` et sa prévisualisation (#1673) ne visent que la fiche rattachée à la session ; sans fiche, `403`.
+`POST /auth/me/opposition` et sa prévisualisation (#1673) ne visent que la fiche rattachée à la session ; sans fiche, `403` ; `409` quand le nom est partagé avec une autre personne connue du club, qui doit alors écrire au club.
 
 **Les sept ressources de `/admin/groups` (#197) n'ajoutent aucun mécanisme.**
 Elles reprennent `require_permission` à l'identique, route par route, et se

@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { DangerConfirm } from "@/components/admin/DangerConfirm";
@@ -7,8 +7,7 @@ import { nomComplet } from "@/components/layout/AthletePicker";
 import { ContactEmail } from "@/components/legal/blocks";
 import { Button, Card } from "@/components/tcn";
 import { Skeleton } from "@/components/ui/skeleton";
-import { apiClient } from "@/lib/api/client";
-import { messageApplique } from "@/lib/opposition";
+import { ApiError, apiClient } from "@/lib/api/client";
 import {
   useApplyMyOpposition,
   useCancelAthleteClaim,
@@ -19,11 +18,17 @@ import {
 } from "@/lib/queries/auth";
 import type { OppositionPreview, SessionUser } from "@/lib/types";
 import { formatDate } from "@/lib/utils/date";
+import { motCompte, plural } from "@/lib/utils/format";
 
 const TITRE = { fontFamily: "var(--tcn-font-display)", fontSize: 22, fontWeight: 400, color: "var(--tcn-ink)", margin: "0 0 12px" } as const;
 const DISCRET = { margin: 0, color: "var(--tcn-text-muted)" } as const;
 const ERREUR = { margin: 0, color: "var(--tcn-danger-text)" } as const;
 const LIEN = "font-semibold text-accent-ink hover:underline";
+
+function messageAnonymise(resultats: number): string {
+  if (resultats === 0) return "Vos résultats sont anonymisés.";
+  return `Vos résultats sont anonymisés. ${motCompte(resultats, "résultat")} ${plural(resultats, "ne porte", "ne portent")} plus votre nom.`;
+}
 
 /** Page « Mon compte » (#1663) : identité, fiche rattachée, suppression. */
 export function AccountPage() {
@@ -108,9 +113,17 @@ function Compte({
     }
   }
 
+  // Un 409 (homonyme, licencié au même nom rattaché ailleurs) se traite comme un aperçu qui renvoie au club.
+  const refusParLeClub = opposition.error instanceof ApiError && opposition.error.status === 409;
+  const versLeClub = apercu !== null && (apercu.athletes !== 1 || apercu.already_opposed || refusParLeClub);
   const erreurOpposition = apercuEchoue
     ? "Les résultats concernés n'ont pas pu être comptés. Fermez puis rouvrez pour réessayer."
-    : opposition.error?.message;
+    : refusParLeClub
+      ? undefined
+      : opposition.error?.message;
+  // Le bouton quitte le DOM avec la fiche : le focus va au message de succès, sinon il retomberait sur `<body>`.
+  const statut = useRef<HTMLParagraphElement>(null);
+  const anonymisee = useRef(false);
 
   return (
     <div className="space-y-6">
@@ -187,46 +200,54 @@ function Compte({
 
       <Card style={{ borderColor: "var(--tcn-danger-border)" }}>
         <h2 style={TITRE}>Zone sensible</h2>
-        <p role="status" className="mb-3 empty:mb-0">
-          {opposition.isSuccess && apercu ? messageApplique(apercu.results) : ""}
+        <p ref={statut} role="status" tabIndex={-1} className="mb-3 empty:mb-0">
+          {opposition.isSuccess && apercu ? messageAnonymise(apercu.results) : ""}
         </p>
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
           {session.athlete && (
-            <>
-              <Button variant="destructive" onClick={() => void ouvrirOpposition()}>
-                Masquer mes résultats
-              </Button>
-              <DangerConfirm
-                open={oppositionOuverte}
-                onOpenChange={setOppositionOuverte}
-                titre="Masquer vos résultats ?"
-                description={
-                  !apercu ? (
-                    !apercuEchoue && "Calcul des résultats concernés…"
-                  ) : apercu.athletes > 1 ? (
-                    <>
-                      Votre nom correspond à plusieurs fiches. Écrivez au club à <ContactEmail /> pour exercer
-                      votre droit d&apos;opposition.
-                    </>
-                  ) : (
-                    <>
-                      {apercu.results > 1
-                        ? `${apercu.results} résultats deviendront anonymes`
-                        : `${apercu.results} résultat deviendra anonyme`}
-                      {" "}: le temps et le rang restent dans les classements, sans votre nom. Votre fiche athlète est
-                      supprimée et votre compte n&apos;y est plus rattaché. Vous ne pourrez pas revenir en arrière
-                      vous-même : seul le club peut lever l&apos;opposition.
-                    </>
-                  )
-                }
-                avertissement={erreurOpposition && <span role="alert" style={ERREUR}>{erreurOpposition}</span>}
-                actionBloquee={!apercu || apercu.athletes !== 1}
-                libelleAction="Masquer définitivement"
-                enAttente={opposition.isPending}
-                onConfirm={() => opposition.mutate(undefined, { onSuccess: () => setOppositionOuverte(false) })}
-              />
-            </>
+            <Button variant="destructive" onClick={() => void ouvrirOpposition()}>
+              Anonymiser mes résultats
+            </Button>
           )}
+          <DangerConfirm
+            open={oppositionOuverte}
+            onOpenChange={setOppositionOuverte}
+            titre="Anonymiser vos résultats ?"
+            description={
+              !apercu ? (
+                !apercuEchoue && "Calcul des résultats concernés…"
+              ) : versLeClub ? (
+                <>
+                  {(apercu.athletes > 1 || refusParLeClub) &&
+                    "Votre nom est partagé avec une autre personne connue du club. "}
+                  Écrivez au club à <ContactEmail /> pour exercer votre droit d&apos;opposition.
+                </>
+              ) : (
+                <>
+                  Cette action est définitive.{" "}
+                  {apercu.results === 0
+                    ? "Aucun résultat publié à votre nom pour l'instant."
+                    : `${motCompte(apercu.results, "résultat")} ${plural(apercu.results, "devient anonyme", "deviennent anonymes")} : votre nom, votre club et votre catégorie disparaissent, le temps et le rang restent.`}{" "}
+                  Votre fiche athlète et son lien avec votre compte sont supprimés. Votre compte reste actif. La
+                  fiche et le nom ne peuvent pas être rétablis. Pour publier à nouveau vos prochains résultats,
+                  écrivez au club.
+                </>
+              )
+            }
+            avertissement={erreurOpposition && <span role="alert" style={ERREUR}>{erreurOpposition}</span>}
+            actionBloquee={!apercu || versLeClub}
+            libelleAction="Anonymiser définitivement"
+            enAttente={opposition.isPending}
+            onConfirm={() =>
+              opposition.mutate(undefined, {
+                onSuccess: () => {
+                  anonymisee.current = true;
+                  setOppositionOuverte(false);
+                },
+              })
+            }
+            finalFocus={() => (anonymisee.current ? (statut.current ?? true) : true)}
+          />
           <Button
             variant="destructive"
             onClick={() => {

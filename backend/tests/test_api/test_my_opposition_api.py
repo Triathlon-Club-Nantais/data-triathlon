@@ -14,7 +14,10 @@ from .test_admin_data_api import _session_etroite
 
 PREVIEW = "/api/v1/auth/me/opposition/preview"
 APPLY = "/api/v1/auth/me/opposition"
-HOMONYMS_MESSAGE = "Votre nom correspond à plusieurs fiches. Écrivez au club pour exercer votre droit d'opposition."
+HOMONYMS_MESSAGE = (
+    "Votre nom est partagé avec une autre personne connue du club. "
+    "Écrivez au club pour exercer votre droit d'opposition."
+)
 
 
 @pytest.fixture
