@@ -103,3 +103,21 @@ Première passe `FULL_SUITE=1 uv run pytest -m "not integration" --testmon` (`-n
 `git diff backend/app` vide après le cas 2. Le hook `test_gate.py` traite désormais `--testmon` comme ciblé (cas ajoutés dans `test_test_gate.py`).
 
 testmon_retenu: oui
+
+## Consolidation, lot 1 (`test_raceresult.py`)
+
+mutmut sur `app.scrapers.raceresult*` (2074 mutants, module entier, sous le
+budget de 30 min). Durées indicatives seulement : charge hors seuil, une
+exécution par bras.
+
+| Mesure | load au départ → à la fin | Durée murale | Tués / survivants / timeouts | Statut |
+| --- | --- | --- | --- | --- |
+| Avant (cartographie de la tâche 11 reprise) | 4,95 → 17,94 | 336 s | 1613 / 461 / 0 | non retenue (charge) |
+| Après (cartographie incrémentale des nouveaux tests) | 2,72 → 10,92 | 145 s | 1613 / 461 / 0 | non retenue (charge) |
+
+Verdict identique mutant par mutant. Couverture de lignes du fichier seul :
+672/703 avant et après, mêmes lignes manquées. Constat d'outillage : un `mutmut
+run` sans motif garde le verdict d'un mutant dont seul le test a changé (seules
+les fonctions source modifiées sont invalidées) ; avec un motif, tous les
+mutants désignés sont rejoués (`__main__.py`, « Rerun mutant if it's explicitly
+mentioned »). Détail du lot : `2026-10-20-test-consolidation-inventaire.md`.
