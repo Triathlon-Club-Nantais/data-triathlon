@@ -88,6 +88,10 @@ class ClaimedResultRead(BaseModel):
     total_time: str | None
     club: str | None
     category: str | None
+    #: Relais (#1739) : drapeau du résultat ou de l'épreuve, et sa composition actuelle, porteur compris.
+    is_relay: bool
+    team_name: str | None
+    teammates: list[ClaimedAthleteRead]
 
 
 class ResultClaimReviewRead(BaseModel):

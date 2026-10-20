@@ -10,7 +10,7 @@ from app.models.course import Course
 from app.models.participation import Participation
 from app.models.result_claim import STATUS_PENDING, STATUS_REJECTED, ResultClaim
 from app.models.user import SYSTEM_USER_EMAIL
-from app.repositories import user_repository
+from app.repositories import participation_repository, user_repository
 from app.services import athlete_claims, result_claims
 from app.services.auth import accounts
 
@@ -64,14 +64,16 @@ def test_a_request_is_pending(db_session, lea, homonym):
     assert result.athlete_id == homonym.id
 
 
-@pytest.mark.parametrize("case", ["own", "pending", "relay", "unknown"])
+@pytest.mark.parametrize("case", ["own", "pending", "already_in_team", "unknown"])
 def test_a_result_that_cannot_be_claimed_is_refused(db_session, lea, homonym, case):
     if case == "own":
         target = _result(db_session, db_session.get(Athlete, lea.athlete_id)).id
     elif case == "pending":
         target = _result(db_session, homonym, is_pending_validation=True).id
-    elif case == "relay":
-        target = _result(db_session, homonym, is_relay=True).id
+    elif case == "already_in_team":
+        relay = _result(db_session, homonym, is_relay=True)
+        participation_repository.replace_teammates(db_session, relay, [homonym.id, lea.athlete_id])
+        target = relay.id
     else:
         target = 999_999
 
@@ -210,3 +212,69 @@ def test_claims_go_with_the_account(db_session, lea, homonym):
     accounts.delete_account(db_session, lea, origin="request")
 
     assert db_session.get(ResultClaim, claim.id) is None
+
+
+@pytest.fixture
+def team(db_session):
+    """A relay filed under a record named after the team (#1739)."""
+    return _athlete(db_session, nom="Les Dauphins", prenom="")
+
+
+@pytest.mark.parametrize("flag", [{"is_relay": True}, {"course_relay": True}])
+def test_a_relay_result_can_be_claimed(db_session, lea, team, flag):
+    relay = _result(db_session, team, **flag)
+
+    assert result_claims.request_claim(db_session, lea, relay.id).status == STATUS_PENDING
+
+
+def test_approve_a_relay_without_team_makes_the_member_its_team(db_session, lea, team, reviewer):
+    relay = _result(db_session, team, is_relay=True)
+    claim = result_claims.request_claim(db_session, lea, relay.id)
+
+    result_claims.approve(db_session, claim.id, actor_id=reviewer.id)
+
+    db_session.refresh(relay)
+    assert relay.athlete_id == lea.athlete_id
+    assert participation_repository.teammate_athlete_ids(db_session, relay.id) == [lea.athlete_id]
+    assert relay.team_name == "Les Dauphins"
+    assert db_session.get(Athlete, team.id) is None
+    assert db_session.query(ResultClaim).count() == 0
+    assert "result_claim.approve" in {log.action for log in db_session.query(AdminActionLog)}
+
+
+def test_approve_a_relay_keeps_its_published_team_name(db_session, lea, team, reviewer):
+    relay = _result(db_session, team, is_relay=True, team_name="Dauphins du Lac")
+    claim = result_claims.request_claim(db_session, lea, relay.id)
+
+    result_claims.approve(db_session, claim.id, actor_id=reviewer.id)
+
+    assert relay.team_name == "Dauphins du Lac"
+
+
+def test_approve_a_relay_with_a_team_waits_for_the_admin_to_complete_it(db_session, lea, homonym, reviewer):
+    partner = _athlete(db_session, nom="Durand", prenom="Paul")
+    relay = _result(db_session, homonym, is_relay=True)
+    participation_repository.replace_teammates(db_session, relay, [homonym.id, partner.id])
+    claim = result_claims.request_claim(db_session, lea, relay.id)
+
+    with pytest.raises(result_claims.TeamToCompleteError):
+        result_claims.approve(db_session, claim.id, actor_id=reviewer.id)
+
+    assert claim.status == STATUS_PENDING
+    assert participation_repository.teammate_athlete_ids(db_session, relay.id) == [homonym.id, partner.id]
+
+
+def test_approve_closes_the_claim_once_the_member_is_in_the_team(db_session, lea, homonym, reviewer):
+    partner = _athlete(db_session, nom="Durand", prenom="Paul")
+    relay = _result(db_session, homonym, is_relay=True)
+    participation_repository.replace_teammates(db_session, relay, [homonym.id, partner.id])
+    claim = result_claims.request_claim(db_session, lea, relay.id)
+    participation_repository.replace_teammates(db_session, relay, [homonym.id, partner.id, lea.athlete_id])
+
+    result_claims.approve(db_session, claim.id, actor_id=reviewer.id)
+
+    assert db_session.query(ResultClaim).count() == 0
+    assert participation_repository.teammate_athlete_ids(db_session, relay.id) == [
+        homonym.id, partner.id, lea.athlete_id,
+    ]
+    assert [log.action for log in db_session.query(AdminActionLog)] == ["result_claim.approve"]
