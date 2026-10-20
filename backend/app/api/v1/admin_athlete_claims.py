@@ -68,7 +68,7 @@ def list_result_claims(
                 total_time=review.participation.total_time,
                 club=review.participation.club,
                 category=review.participation.category,
-                is_relay=review.participation.is_relay or review.participation.course.is_relay,
+                is_relay=review.participation.counts_as_relay,
                 team_name=review.participation.team_name,
                 teammates=[ClaimedAthleteRead.model_validate(a) for a in review.participation.teammates],
             ),

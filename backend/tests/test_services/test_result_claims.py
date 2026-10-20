@@ -10,9 +10,10 @@ from app.models.course import Course
 from app.models.participation import Participation
 from app.models.result_claim import STATUS_PENDING, STATUS_REJECTED, ResultClaim
 from app.models.user import SYSTEM_USER_EMAIL
-from app.repositories import participation_repository, user_repository
-from app.services import athlete_claims, result_claims
+from app.repositories import lock_repository, participation_repository, user_repository
+from app.services import athlete_claims, opposition_service, result_claims
 from app.services.auth import accounts
+from app.services.course_locks import CourseRescrapeAlreadyRunningError
 
 _NUMBER = iter(range(1, 10_000))
 
@@ -64,21 +65,33 @@ def test_a_request_is_pending(db_session, lea, homonym):
     assert result.athlete_id == homonym.id
 
 
-@pytest.mark.parametrize("case", ["own", "pending", "already_in_team", "unknown"])
+@pytest.mark.parametrize("case", ["own", "already_in_team", "anonymised"])
 def test_a_result_that_cannot_be_claimed_is_refused(db_session, lea, homonym, case):
     if case == "own":
         target = _result(db_session, db_session.get(Athlete, lea.athlete_id)).id
-    elif case == "pending":
-        target = _result(db_session, homonym, is_pending_validation=True).id
     elif case == "already_in_team":
         relay = _result(db_session, homonym, is_relay=True)
         participation_repository.replace_teammates(db_session, relay, [homonym.id, lea.athlete_id])
         target = relay.id
     else:
-        target = 999_999
+        target = _result(db_session, _athlete(db_session, nom="Anonyme 12-34", prenom="")).id
 
-    with pytest.raises((NotFoundError, result_claims.UnclaimableResultError)):
+    with pytest.raises(result_claims.UnclaimableResultError) as refused:
         result_claims.request_claim(db_session, lea, target)
+    assert refused.value.message == (
+        "Ce résultat ne peut pas être réclamé : il est déjà sur votre fiche, ou vous figurez déjà dans l'équipe."
+    )
+
+
+@pytest.mark.parametrize("hidden", [{"is_pending_validation": True}, {"is_pending_validation": True, "is_rejected": True}])
+def test_a_pending_or_rejected_result_answers_like_an_unknown_one(db_session, lea, homonym, hidden):
+    target = _result(db_session, homonym, **hidden).id
+
+    with pytest.raises(NotFoundError) as unknown:
+        result_claims.request_claim(db_session, lea, 999_999)
+    with pytest.raises(NotFoundError) as refused:
+        result_claims.request_claim(db_session, lea, target)
+    assert refused.value.message == unknown.value.message == "Résultat introuvable."
 
 
 def test_a_request_needs_a_claimed_athlete(db_session, homonym):
@@ -227,8 +240,13 @@ def test_a_relay_result_can_be_claimed(db_session, lea, team, flag):
     assert result_claims.request_claim(db_session, lea, relay.id).status == STATUS_PENDING
 
 
-def test_approve_a_relay_without_team_makes_the_member_its_team(db_session, lea, team, reviewer):
-    relay = _result(db_session, team, is_relay=True)
+def _approve_log(db) -> dict:
+    return db.query(AdminActionLog).filter_by(action="result_claim.approve").one().payload
+
+
+@pytest.mark.parametrize("flag", [{"is_relay": True}, {"course_relay": True}])
+def test_approve_a_relay_filed_under_a_team_label_replaces_the_label(db_session, lea, team, reviewer, flag):
+    relay = _result(db_session, team, **flag)
     claim = result_claims.request_claim(db_session, lea, relay.id)
 
     result_claims.approve(db_session, claim.id, actor_id=reviewer.id)
@@ -239,7 +257,56 @@ def test_approve_a_relay_without_team_makes_the_member_its_team(db_session, lea,
     assert relay.team_name == "Les Dauphins"
     assert db_session.get(Athlete, team.id) is None
     assert db_session.query(ResultClaim).count() == 0
-    assert "result_claim.approve" in {log.action for log in db_session.query(AdminActionLog)}
+    assert _approve_log(db_session) == {
+        "user_id": lea.id, "athlete_id": lea.athlete_id, "claim_id": claim.id, "mode": "replaced_team_label",
+        "carrier": {"nom": "Les Dauphins", "prenom": ""}, "former_team_name": None,
+    }
+
+
+@pytest.mark.parametrize("protected", [False, True])
+def test_approve_a_relay_carried_by_a_person_adds_the_member_beside_them(db_session, lea, reviewer, protected):
+    carrier = _athlete(db_session, nom="Durand", prenom="Paul")
+    if protected:
+        user_repository.create(db_session, email="paul@exemple.fr", display_name="Paul").athlete_id = carrier.id
+        db_session.flush()
+    relay = _result(db_session, carrier, is_relay=True)
+    claim = result_claims.request_claim(db_session, lea, relay.id)
+
+    result_claims.approve(db_session, claim.id, actor_id=reviewer.id)
+
+    db_session.refresh(relay)
+    assert relay.athlete_id == carrier.id
+    assert participation_repository.teammate_athlete_ids(db_session, relay.id) == [carrier.id, lea.athlete_id]
+    assert db_session.get(Athlete, carrier.id) is not None
+    assert db_session.query(ResultClaim).count() == 0
+    payload = _approve_log(db_session)
+    assert (payload["mode"], payload["carrier"]) == ("joined_with_carrier", {"nom": "Durand", "prenom": "Paul"})
+
+
+def test_the_approve_log_forgets_a_carrier_who_opposes(db_session, lea, reviewer):
+    carrier = _athlete(db_session, nom="Durand", prenom="Paul")
+    relay = _result(db_session, carrier, is_relay=True, team_name="Durand Paul / Martin Léa")
+    claim = result_claims.request_claim(db_session, lea, relay.id)
+    result_claims.approve(db_session, claim.id, actor_id=reviewer.id)
+    assert str(_approve_log(db_session)).lower().count("durand") == 2
+
+    opposition_service._redact_log(db_session, "Durand", "Paul")
+
+    assert "durand" not in str(_approve_log(db_session)).lower()
+
+
+def test_approve_waits_for_the_race_lock_before_reading_the_team(db_session, lea, team, reviewer, monkeypatch):
+    relay = _result(db_session, team, is_relay=True)
+    claim = result_claims.request_claim(db_session, lea, relay.id)
+    monkeypatch.setattr(lock_repository, "try_lock_course", lambda db, course_id: False)
+    monkeypatch.setattr(
+        participation_repository, "teammate_athlete_ids", lambda *args: pytest.fail("team read before the lock")
+    )
+
+    with pytest.raises(CourseRescrapeAlreadyRunningError):
+        result_claims.approve(db_session, claim.id, actor_id=reviewer.id)
+
+    assert claim.status == STATUS_PENDING
 
 
 def test_approve_a_relay_keeps_its_published_team_name(db_session, lea, team, reviewer):
@@ -278,3 +345,4 @@ def test_approve_closes_the_claim_once_the_member_is_in_the_team(db_session, lea
         homonym.id, partner.id, lea.athlete_id,
     ]
     assert [log.action for log in db_session.query(AdminActionLog)] == ["result_claim.approve"]
+    assert _approve_log(db_session)["mode"] == "team_completed"
