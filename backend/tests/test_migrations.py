@@ -1595,6 +1595,7 @@ def test_season_goals_table_up_and_down(sqlite_url):
     command.upgrade(cfg, "head")
     assert _columns(sqlite_url, "season_goals") == {
         "id", "user_id", "season", "kind", "event_type", "target", "created_at",
+        "course_id", "race_name", "race_date", "major",
     }
 
     command.downgrade(cfg, "2901789fc3c8")

@@ -463,6 +463,9 @@ def _goal_read(progress: season_goals.GoalProgress) -> SeasonGoalRead:
     return SeasonGoalRead(
         id=goal.id, season=goal.season, kind=goal.kind, event_type=goal.event_type, target=goal.target,
         best_time=progress.best_time, count=progress.count, reached=progress.reached,
+        course_id=goal.course_id, race_name=goal.race_name,
+        race_date=goal.race_date.isoformat() if goal.race_date else None, major=goal.major,
+        outcome="reached" if progress.reached else "upcoming",
     )
 
 
@@ -483,9 +486,7 @@ def list_goals(
 
 @router.post("/auth/me/goals", response_model=SeasonGoalRead, status_code=201)
 def create_goal(body: SeasonGoalWrite, user: User = Depends(current_user), db: Session = Depends(get_db)):
-    goal = season_goals.create(
-        db, user, season=current_season(), kind=body.kind, event_type=body.event_type, target=body.target
-    )
+    goal = season_goals.create(db, user, body)
     db.commit()
     return _progress_of(db, user, goal)
 
@@ -494,7 +495,7 @@ def create_goal(body: SeasonGoalWrite, user: User = Depends(current_user), db: S
 def update_goal(
     goal_id: DbId, body: SeasonGoalWrite, user: User = Depends(current_user), db: Session = Depends(get_db)
 ):
-    goal = season_goals.update(db, user, goal_id, kind=body.kind, event_type=body.event_type, target=body.target)
+    goal = season_goals.update(db, user, goal_id, body)
     db.commit()
     return _progress_of(db, user, goal)
 

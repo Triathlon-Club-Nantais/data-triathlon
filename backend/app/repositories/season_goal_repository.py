@@ -1,16 +1,25 @@
 """Accès données des objectifs de saison (#1373). Toujours par compte : un
 objectif ne se lit jamais sans son propriétaire."""
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from app.models.season_goal import SeasonGoal
 
 
-def create(db: Session, *, user_id: int, season: int, kind: str, event_type: str | None, target: int) -> SeasonGoal:
-    goal = SeasonGoal(user_id=user_id, season=season, kind=kind, event_type=event_type, target=target)
+def create(db: Session, *, user_id: int, **fields) -> SeasonGoal:
+    goal = SeasonGoal(user_id=user_id, **fields)
     db.add(goal)
     db.flush()
     return goal
+
+
+def clear_major(db: Session, user_id: int, season: int, *, except_id: int | None) -> None:
+    stmt = update(SeasonGoal).where(
+        SeasonGoal.user_id == user_id, SeasonGoal.season == season, SeasonGoal.major.is_(True)
+    )
+    if except_id is not None:
+        stmt = stmt.where(SeasonGoal.id != except_id)
+    db.execute(stmt.values(major=False))
 
 
 def list_for(db: Session, user_id: int, season: int) -> list[SeasonGoal]:
