@@ -42,7 +42,6 @@ describe("gridMinWidth", () => {
 describe("plancher de bascule grille/cartes (#461)", () => {
   const ECRANS = [
     { nom: "classement (RaceFinishers)", minWidth: 1080, seuil: 1237 },
-    { nom: "fiche athlète (EventsTable)", minWidth: 988, seuil: 1145 },
     { nom: "/resultats (EventList)", minWidth: 948, seuil: 1105 },
     { nom: "/ajouter (recents)", minWidth: 480, seuil: 640 },
   ];

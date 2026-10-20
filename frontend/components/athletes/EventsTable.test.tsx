@@ -465,8 +465,16 @@ describe("rendu carte sous md", () => {
       />,
     );
 
-    expect(screen.getByTestId("epreuves-grille").className).toContain("hidden min-[1145px]:block");
-    expect(screen.getByTestId("epreuves-cartes").className).toContain("min-[1145px]:hidden");
+    expect(screen.getByTestId("epreuves-grille").className).toContain("hidden @min-[988px]:block");
+    expect(screen.getByTestId("epreuves-cartes").className).toContain("@min-[988px]:hidden");
+  });
+
+  it("mesure la largeur de la carte et non celle du viewport (#1720)", () => {
+    render(
+      <EventsTable participations={[participation(1, { name: "Triathlon de Nantes" })]} athleteId={7} athleteName="Jean DUPONT" />,
+    );
+
+    expect(screen.getByTestId("epreuves-grille").closest(".\\@container")).not.toBeNull();
   });
 
   it.each([
