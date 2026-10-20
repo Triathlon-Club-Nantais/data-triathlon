@@ -5,7 +5,9 @@ Fails open: any internal error or timeout warns on stderr and never blocks.
 """
 import hashlib
 import json
+import os
 import re
+import signal
 import subprocess
 import sys
 import time
@@ -66,8 +68,16 @@ def backend_targets(files, tests_root):
 
 
 def default_runner(argv, cwd, timeout):
-    result = subprocess.run(argv, cwd=cwd, capture_output=True, text=True, timeout=timeout)
-    return result.returncode, result.stdout + result.stderr
+    # Own session so a timeout can kill the whole tree (npx, uv spawn workers).
+    proc = subprocess.Popen(argv, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                            text=True, start_new_session=True)
+    try:
+        output, _ = proc.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        os.killpg(proc.pid, signal.SIGKILL)
+        proc.communicate()
+        raise
+    return proc.returncode, output
 
 
 def _commands(repo, files):
@@ -100,14 +110,17 @@ def main(stdin_text, repo, runner, out, err):
         if cache.is_file() and cache.read_text().strip() == current:
             return 0
         deadline = time.monotonic() + BUDGET_SECONDS
-        for argv, cwd in commands:
+        for index, (argv, cwd) in enumerate(commands):
             remaining = deadline - time.monotonic()
             try:
                 if remaining <= 0:
                     raise subprocess.TimeoutExpired(argv, BUDGET_SECONDS)
                 code, output = runner(argv, cwd, remaining)
             except subprocess.TimeoutExpired:
-                err.write(f"targeted_tests: timeout after {BUDGET_SECONDS}s, tests not verified\n")
+                skipped = ", ".join(c.name for _, c in commands[index + 1:]) or "none"
+                err.write(f"targeted_tests: timeout after {BUDGET_SECONDS}s in {cwd.name}, "
+                          f"tests not verified (skipped: {skipped})\n")
+                cache.write_text(current)  # no retry until the content changes
                 return 0
             if code != 0:
                 tail = "\n".join(output.splitlines()[-TAIL_LINES:])

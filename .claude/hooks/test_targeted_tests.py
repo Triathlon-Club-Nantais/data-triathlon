@@ -1,8 +1,10 @@
 import io
 import json
+import os
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -126,6 +128,39 @@ class TargetedTestsTest(unittest.TestCase):
         code, out, err = self.run_hook(runner)
         self.assertEqual((code, out), (0, ""))
         self.assertIn("timeout", err.lower())
+
+    def test_timeout_records_fingerprint(self):
+        self.write("backend/app/services/foo.py", "x = 2\n")
+        self.run_hook(Runner(exc=subprocess.TimeoutExpired("uv", 1)))
+        follow_up = Runner()
+        self.run_hook(follow_up)
+        self.assertEqual(follow_up.calls, [])
+
+    def test_timeout_warning_names_skipped_step(self):
+        self.write("backend/app/services/foo.py", "x = 2\n")
+        self.write("frontend/lib/b.ts", "export const b = 1\n")
+        runner = Runner(exc=subprocess.TimeoutExpired("uv", 1))
+        _, _, err = self.run_hook(runner)
+        self.assertEqual(len(runner.calls), 1)
+        self.assertIn("backend", err)
+        self.assertIn("skipped: frontend", err)
+
+    def test_default_runner_kills_grandchildren_on_timeout(self):
+        pidfile = Path(self._tmp.name) / "grandchild.pid"
+        script = f"sleep 30 & echo $! > {pidfile}; sleep 30"
+        started = time.monotonic()
+        with self.assertRaises(subprocess.TimeoutExpired):
+            tt.default_runner(["sh", "-c", script], self.repo, 1)
+        self.assertLess(time.monotonic() - started, 3)
+        grandchild = int(pidfile.read_text())
+        for _ in range(20):
+            try:
+                os.kill(grandchild, 0)
+            except ProcessLookupError:
+                return
+            time.sleep(0.1)
+        os.kill(grandchild, 9)
+        self.fail("grandchild survived the timeout")
 
 
 if __name__ == "__main__":

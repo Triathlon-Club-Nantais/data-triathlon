@@ -96,8 +96,11 @@ seulement). Commandes :
   directement les modules modifiés ;
 - frontend : `npx vitest related --run <fichiers>`.
 
-Budget total de 180 s : au dépassement, un avertissement sur stderr et aucun
-blocage. Un test rouge bloque la fin du tour (sortie tronquée aux 40 dernières
+Budget total de 180 s partagé entre les étapes : au dépassement, les processus de
+test sont tués (groupe entier), un avertissement sur stderr nomme l'étape
+interrompue et celles sautées (le frontend l'est si le backend épuise le budget),
+l'empreinte est enregistrée (pas de nouvel essai tant que le contenu ne change
+pas) et rien ne bloque. Un test rouge bloque la fin du tour (sortie tronquée aux 40 dernières
 lignes). Garde `stop_hook_active` : pas de second passage dans la foulée d'un
 blocage. L'empreinte du contenu des fichiers modifiés est écrite après un passage
 vert dans `<git-dir>/claude-targeted-tests.sha` ; une empreinte identique ne
