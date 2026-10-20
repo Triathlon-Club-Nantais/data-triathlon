@@ -52,7 +52,8 @@ def session_view(db: Session, user: User) -> tuple[Athlete | None, AthleteClaim 
 def request_claim(db: Session, user: User, athlete_id: int) -> AthleteClaim:
     if user.athlete_id is not None:
         raise AlreadyLinkedError()
-    if athlete_repository.get(db, athlete_id) is None:
+    # La réponse nomme la fiche : une fiche masquée au public le reste ici (#1615).
+    if athlete_repository.get(db, athlete_id, hide_pending_only=True) is None:
         raise NotFoundError("Fiche athlète introuvable.")
     claim = athlete_claim_repository.replace_pending(db, user_id=user.id, athlete_id=athlete_id)
     logger.info("Athlete claim requested: user=%s athlete=%s", user.id, athlete_id)

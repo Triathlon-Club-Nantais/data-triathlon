@@ -13,7 +13,7 @@ d'épreuves, par une lecture distincte (`awaiting_validation_clause`) qui ne
 sert jamais à compter.
 """
 
-from sqlalchemy import and_
+from sqlalchemy import and_, exists
 
 
 def validated_clause(column):
@@ -45,3 +45,17 @@ def is_actionable_pending(participation) -> bool:
     agrégats publics malgré le rejet.
     """
     return bool(participation.is_pending_validation) and not bool(participation.is_rejected)
+
+
+def pending_only_clause(involves, pending_column):
+    """Clause SQLAlchemy : les résultats que désigne `involves` existent, et aucun
+    n'est validé (#1615). Ce que seules des saisies en attente ou refusées font exister.
+
+    `involves` relie `Participation` à la fiche ou à l'épreuve examinée ;
+    `pending_column` est `Participation.is_pending_validation`. Une ligne sans
+    aucun résultat n'est pas visée : un membre sans résultat reste trouvable (#562).
+    """
+    return and_(
+        exists().where(involves, pending_column.is_(True)),
+        ~exists().where(involves, validated_clause(pending_column)),
+    )

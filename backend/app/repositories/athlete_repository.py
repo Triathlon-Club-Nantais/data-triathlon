@@ -30,7 +30,7 @@ from app.core.club import _normalize_sql, tcn_clause
 from app.core.discipline import federal_clause
 from app.core.gender import gender_podium_clause
 from app.core.text import deaccent
-from app.core.validation import validated_clause
+from app.core.validation import pending_only_clause, validated_clause
 from app.models.athlete import Athlete
 from app.models.athlete_alias import AthleteAlias
 from app.models.challenge import ChallengeResult
@@ -105,8 +105,34 @@ def name_filter(term: str, *, also=None):
     return and_(*clauses)
 
 
-def get(db: Session, athlete_id: int) -> Athlete | None:
-    return db.get(Athlete, athlete_id)
+def get(db: Session, athlete_id: int, *, hide_pending_only: bool = False) -> Athlete | None:
+    """`hide_pending_only` : une fiche que seules des saisies en attente font exister
+    se lit comme une absente, pour le public (#1615)."""
+    athlete = db.get(Athlete, athlete_id)
+    if athlete is not None and hide_pending_only and db.scalar(select(pending_only(athlete_id))):
+        return None
+    return athlete
+
+
+def pending_only(athlete_id) -> ColumnElement[bool]:
+    """Une fiche que seules des saisies en attente ou refusées font exister (#1615) :
+    porteuse ou équipière de relais, sans aucun résultat validé ni autre référence.
+
+    Masquée au public : sinon elle trahit qu'une saisie a été gardée, là où celle
+    d'une personne opposée est annulée (#1514). Une fiche liée à un compte, un
+    bénévolat ou un challenge existe par autre chose et reste visible.
+    """
+    involves = or_(
+        Participation.athlete_id == athlete_id,
+        exists().where(
+            ParticipationTeammate.participation_id == Participation.id,
+            ParticipationTeammate.athlete_id == athlete_id,
+        ),
+    )
+    return and_(
+        pending_only_clause(involves, Participation.is_pending_validation),
+        ~referenced_outside_results(athlete_id),
+    )
 
 
 IdentityKey = tuple[str | None, str | None]
@@ -501,12 +527,15 @@ def search(
     club_only: bool = False,
     page: int = 1,
     page_size: int = 50,
+    hide_pending_only: bool = False,
 ) -> list[Athlete]:
     q = db.query(Athlete)
     if name:
         q = q.filter(name_filter(name))
     if club_only:
         q = q.filter(_club_record())
+    if hide_pending_only:
+        q = q.filter(~pending_only(Athlete.id))
     offset = (page - 1) * page_size
     return q.order_by(Athlete.nom, Athlete.prenom).offset(offset).limit(page_size).all()
 
@@ -849,7 +878,7 @@ def _relevance_rank(term: str):
 
 
 def search_by_relevance(
-    db: Session, *, term: str, club_only: bool = False, limit: int = 12
+    db: Session, *, term: str, club_only: bool = False, limit: int = 12, hide_pending_only: bool = False
 ) -> list[tuple[Athlete, int]]:
     """Classement pour la palette `⌘K` (#484, NAV-8) : pertinence puis volume.
 
@@ -892,6 +921,8 @@ def search_by_relevance(
     query = db.query(Athlete, result_count).filter(name_filter(term))
     if club_only:
         query = query.filter(_club_record())
+    if hide_pending_only:
+        query = query.filter(~pending_only(Athlete.id))
     return (
         query.order_by(relevance, result_count.desc(), Athlete.nom, Athlete.prenom)
         .limit(limit)

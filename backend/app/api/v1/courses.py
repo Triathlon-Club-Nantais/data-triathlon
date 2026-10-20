@@ -91,6 +91,7 @@ def list_courses(
     page: int = Query(1, ge=1, le=MAX_PAGE),
     page_size: int = Query(50, ge=1, le=500),
     db: Session = Depends(get_db),
+    volunteer: bool = Depends(is_volunteer),
 ):
     """Le catalogue d'épreuves, filtrable.
 
@@ -105,6 +106,9 @@ def list_courses(
     utile quand on part d'un identifiant lu ailleurs (URL publique, journal
     d'administration). Il se cumule avec les autres filters comme eux tous,
     même si en pratique une seule épreuve porte un `id` donné.
+
+    Une épreuve que seules des saisies en attente font exister n'est listée
+    qu'aux bénévoles (#1615), ici comme dans `GET /courses/count`.
     """
     return course_repository.list_all(
         db,
@@ -118,6 +122,7 @@ def list_courses(
         awaiting_review=awaiting_review,
         page=page,
         page_size=page_size,
+        hide_pending_only=not volunteer,
     )
 
 
@@ -140,6 +145,7 @@ def count_courses(
         description="Ne garde que les épreuves calculées non fiables sans avis humain (#1232).",
     ),
     db: Session = Depends(get_db),
+    volunteer: bool = Depends(is_volunteer),
 ):
     """Combien d'épreuves `GET /courses` rendrait aux mêmes filters.
 
@@ -160,6 +166,7 @@ def count_courses(
             date_to=_parse_date(date_to),
             unreliable=unreliable,
             awaiting_review=awaiting_review,
+            hide_pending_only=not volunteer,
         )
     )
 
@@ -197,14 +204,16 @@ def _resolve_page_size(page_size: int | Literal["all"]) -> int | None:
 
 
 @router.get("/courses/{course_id}/summary", response_model=CourseSummary)
-def get_course_summary(course_id: DbId, db: Session = Depends(get_db)):
+def get_course_summary(
+    course_id: DbId, db: Session = Depends(get_db), volunteer: bool = Depends(is_volunteer)
+):
     """Synthèse d'une épreuve **entière** (#163).
 
     N'accepte aucun paramètre, et c'est structurant : les agrégats ne dépendent
     ni de la recherche ni de la portée club en cours, sans quoi chercher un nom
     ferait tomber l'histogramme à une barre.
     """
-    if not course_repository.get(db, course_id):
+    if not course_repository.get(db, course_id, hide_pending_only=not volunteer):
         raise NotFoundError("Course introuvable")
     summary = stats_service.course_summary(db, course_id)
     summary["challenges"] = challenge_service.for_course(db, course_id)
@@ -212,7 +221,9 @@ def get_course_summary(course_id: DbId, db: Session = Depends(get_db)):
 
 
 @router.get("/courses/{course_id}/sources", response_model=list[CourseSourceOut])
-def list_course_sources(course_id: DbId, db: Session = Depends(get_db)):
+def list_course_sources(
+    course_id: DbId, db: Session = Depends(get_db), volunteer: bool = Depends(is_volunteer)
+):
     """Les sources de chronométrage de l'épreuve, **non authentifié** (#284, D4).
 
     Ouverte comme le reste de l'API de lecture : savoir qu'une épreuve a deux
@@ -227,7 +238,7 @@ def list_course_sources(course_id: DbId, db: Session = Depends(get_db)):
     préalable de l'épreuve, sur le patron des deux routes voisines ; sans elle,
     un identifiant inventé rendrait `[]` et se lirait comme « aucune source ».
     """
-    if not course_repository.get(db, course_id):
+    if not course_repository.get(db, course_id, hide_pending_only=not volunteer):
         raise NotFoundError("Course introuvable")
     return course_source_repository.list_for_course(db, course_id)
 
@@ -275,7 +286,8 @@ def get_course(
     `gender` (#1645) restreint au sexe demandé et pose `gender_place` sur les
     finishers classés, rangés en tête ; les autres lignes du sexe suivent.
     """
-    course = course_repository.get(db, course_id)
+    # Une épreuve que seules des saisies en attente font exister : 404 au public (#1615).
+    course = course_repository.get(db, course_id, hide_pending_only=not volunteer)
     if not course:
         raise NotFoundError("Course introuvable")
     resolved_page_size = _resolve_page_size(page_size)

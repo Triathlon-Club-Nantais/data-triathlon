@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session, load_only, selectinload
 
 from app.core.text import deaccent
 from app.core.time import utcnow
-from app.core.validation import validated_clause
+from app.core.validation import pending_only_clause, validated_clause
 from app.models.absorbed_course import AbsorbedCourse
 from app.models.course import Course
 from app.models.course_source import CourseSource
@@ -19,8 +19,23 @@ from app.repositories.athlete_repository import escape_like, unaccent_like
 from app.repositories.dialect import is_postgres
 
 
-def get(db: Session, course_id: int) -> Course | None:
-    return db.get(Course, course_id)
+def get(db: Session, course_id: int, *, hide_pending_only: bool = False) -> Course | None:
+    """`hide_pending_only` : une épreuve que seules des saisies en attente font exister
+    se lit comme une absente, pour le public (#1615)."""
+    course = db.get(Course, course_id)
+    if course is not None and hide_pending_only and db.scalar(select(pending_only(course_id))):
+        return None
+    return course
+
+
+def pending_only(course_id):
+    """Une épreuve dont tous les résultats sont en attente ou refusés (#1615).
+
+    Masquée au public, comme la fiche (`athlete_repository.pending_only`) : sinon
+    elle trahit qu'une saisie a été gardée, là où celle d'une personne opposée
+    est annulée (#1514).
+    """
+    return pending_only_clause(Participation.course_id == course_id, Participation.is_pending_validation)
 
 
 def get_fresh(db: Session, course_id: int) -> Course | None:
@@ -579,6 +594,7 @@ def _filtered(
     date_to: date | None,
     unreliable: bool = False,
     awaiting_review: bool = False,
+    hide_pending_only: bool = False,
 ):
     """Les filtres du catalogue, en un seul endroit — `list_all` et `count_all`.
 
@@ -621,6 +637,8 @@ def _filtered(
                 )
             )
         )
+    if hide_pending_only:
+        q = q.filter(~pending_only(Course.id))
     return q
 
 
@@ -637,6 +655,7 @@ def list_all(
     awaiting_review: bool = False,
     page: int = 1,
     page_size: int = 50,
+    hide_pending_only: bool = False,
 ) -> list[Course]:
     q = _filtered(
         db,
@@ -648,6 +667,7 @@ def list_all(
         date_to=date_to,
         unreliable=unreliable,
         awaiting_review=awaiting_review,
+        hide_pending_only=hide_pending_only,
     )
     offset = (page - 1) * page_size
     # `selectinload` et non `_filtered` : le catalogue sérialise `CourseBrief`,
@@ -674,6 +694,7 @@ def count_all(
     date_to: date | None = None,
     unreliable: bool = False,
     awaiting_review: bool = False,
+    hide_pending_only: bool = False,
 ) -> int:
     """Combien d'épreuves la liste rendrait sans pagination — le « sur 7 »."""
     return _filtered(
@@ -686,6 +707,7 @@ def count_all(
         date_to=date_to,
         unreliable=unreliable,
         awaiting_review=awaiting_review,
+        hide_pending_only=hide_pending_only,
     ).count()
 
 
