@@ -1492,6 +1492,13 @@ export interface MyVolunteerActionOut {
   created_at: string;
 }
 
+// Miroir de MyVolunteerDeclarationOut backend (#1672) : déclarations faites par mon compte.
+export interface MyVolunteerDeclarationOut extends MyVolunteerActionOut {
+  athlete_id: number;
+  athlete_nom: string;
+  athlete_prenom: string;
+}
+
 // Miroir de SeasonValidationOut backend (#709).
 export interface SeasonValidation {
   athlete_id: number;

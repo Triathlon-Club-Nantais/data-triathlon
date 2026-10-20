@@ -160,6 +160,16 @@ export function useMyVolunteerActions(enabled: boolean) {
   });
 }
 
+/** Déclarations de bénévolat faites par mon compte (#1672), tous statuts. */
+export function useMyVolunteerDeclarations(enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.myVolunteerDeclarations(),
+    queryFn: () => apiClient.getMyVolunteerDeclarations(),
+    enabled,
+    retry: false,
+  });
+}
+
 /** Objectifs de saison du compte rattaché (#1373) ; `enabled` faux sans fiche. */
 export function useSeasonGoals(enabled: boolean, season: number) {
   return useQuery({

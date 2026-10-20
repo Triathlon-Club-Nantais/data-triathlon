@@ -2,7 +2,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { AthleteBrief } from "@/lib/types";
+import { queryKeys } from "@/lib/queries/keys";
+import type { AthleteBrief, ClaimedAthlete } from "@/lib/types";
 
 const { searchAthletesConnected, createVolunteerAction } = vi.hoisted(() => ({
   searchAthletesConnected: vi.fn(),
@@ -25,8 +26,9 @@ import { currentSeason, seasonLabel } from "@/lib/utils/season";
 
 const CIBLE: AthleteBrief = { id: 2, nom: "KERMARREC", prenom: "Hadrien", gender: "M", club: "TCN" };
 
-function afficher() {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+function afficher(maFiche?: ClaimedAthlete) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+  if (maFiche) client.setQueryData(queryKeys.session(), { id: 1, permissions: [], athlete: maFiche });
   return render(
     <QueryClientProvider client={client}>
       <VolunteerActionForm />
@@ -226,5 +228,35 @@ describe("VolunteerActionForm", () => {
         "Enregistrement impossible pour le moment. Réessayez dans un instant.",
       ),
     );
+  });
+
+  describe("membre rattaché à sa fiche (#1672)", () => {
+    const MOI: ClaimedAthlete = { id: 7, prenom: "Léa", nom: "Martin" };
+
+    it("présélectionne sa fiche et la déclare sans recherche", async () => {
+      createVolunteerAction.mockResolvedValue({ id: 1, season: 2026 });
+      afficher(MOI);
+
+      expect(await screen.findByText("Léa Martin")).toBeInTheDocument();
+      await userEvent.type(screen.getByLabelText("Titre"), "Buvette");
+      await userEvent.type(screen.getByLabelText("Description"), "Stand du club");
+      await userEvent.click(screen.getByRole("button", { name: /déclarer/i }));
+
+      await waitFor(() =>
+        expect(createVolunteerAction).toHaveBeenCalledWith({ athlete_id: 7, title: "Buvette", description: "Stand du club" }),
+      );
+      expect(await screen.findByText("Léa Martin")).toBeInTheDocument();
+    });
+
+    it("laisse déclarer pour un autre athlète", async () => {
+      searchAthletesConnected.mockResolvedValue([CIBLE]);
+      afficher(MOI);
+      await userEvent.click(await screen.findByRole("button", { name: /changer d'athlète/i }));
+      await userEvent.type(screen.getByLabelText(/athlète/i), "Ker");
+      await userEvent.click(await screen.findByText(/Hadrien KERMARREC/));
+
+      expect(screen.getByText("Hadrien KERMARREC")).toBeInTheDocument();
+      expect(screen.queryByText("Léa Martin")).not.toBeInTheDocument();
+    });
   });
 });
