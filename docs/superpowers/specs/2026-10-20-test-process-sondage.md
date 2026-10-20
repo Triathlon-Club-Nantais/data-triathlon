@@ -121,3 +121,18 @@ run` sans motif garde le verdict d'un mutant dont seul le test a changé (seules
 les fonctions source modifiées sont invalidées) ; avec un motif, tous les
 mutants désignés sont rejoués (`__main__.py`, « Rerun mutant if it's explicitly
 mentioned »). Détail du lot : `2026-10-20-test-consolidation-inventaire.md`.
+
+## Consolidation, lot 2 (`test_import_service.py`)
+
+mutmut sur `app.services.import_service*` (389 mutants, module entier, sous le
+budget de 30 min). Durées indicatives seulement : charge hors seuil, une
+exécution par bras.
+
+| Mesure | load au départ → à la fin | Durée murale | Tués / survivants / timeouts | Statut |
+| --- | --- | --- | --- | --- |
+| Avant (cartographie reprise du lot 1) | 3,31 → 21,67 | 505 s | 225 / 164 / 0 | non retenue (charge) |
+| Après (cartographie incrémentale des nouveaux tests) | 11,22 → 10,11 | 281 s | 225 / 164 / 0 | non retenue (charge) |
+
+Verdict identique mutant par mutant (`import_service.py.meta` comparé). Couverture
+de lignes du fichier seul : 101/105 avant et après, mêmes lignes manquées ;
+couverture de tout `app/` par ce fichier : lignes manquées identiques.
