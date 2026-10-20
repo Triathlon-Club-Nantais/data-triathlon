@@ -147,7 +147,7 @@ describe("Politique de confidentialité (#333)", () => {
   it("lets a linked member oppose from Mon compte, the club alone lifting it (#1673)", () => {
     const texte = rendre();
     expect(texte).toMatch(/depuis la page Mon compte \(« Anonymiser mes résultats »\)/);
-    expect(texte).toMatch(/si votre nom est partagé avec une autre personne connue du club, écrivez au club/);
+    expect(texte).toMatch(/sauf si votre nom est partagé avec une autre personne connue du club : écrivez alors au club/);
     expect(texte).toMatch(/seul le club peut ensuite lever l.opposition/);
   });
 
