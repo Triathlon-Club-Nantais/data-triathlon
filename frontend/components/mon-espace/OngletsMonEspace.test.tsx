@@ -111,7 +111,7 @@ describe("OngletsMonEspace", () => {
     searchParams = new URLSearchParams("onglet=objectifs");
     afficher();
 
-    expect(screen.getByTestId("goals")).toBeInTheDocument();
+    expect(screen.getByTestId("goals")).toHaveTextContent("2026");
   });
 
   it("moves with the arrow keys and replaces the URL (no history entry per tab), keeping other params", async () => {

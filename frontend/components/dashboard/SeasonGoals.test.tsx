@@ -57,7 +57,7 @@ describe("SeasonGoals (#1373)", () => {
     const temps = (await screen.findByText("Triathlon M en moins de 2:30:00")).closest("li") as HTMLElement;
     expect(temps).toHaveTextContent("Meilleur temps : 2:35:10");
     expect(temps).not.toHaveTextContent("Atteint");
-    const nombre = screen.getByText("6 épreuves cette saison").closest("li") as HTMLElement;
+    const nombre = screen.getByText("6 épreuves").closest("li") as HTMLElement;
     expect(nombre).toHaveTextContent("6 sur 6");
     expect(nombre).toHaveTextContent("Atteint");
   });
@@ -104,8 +104,8 @@ describe("SeasonGoals (#1373)", () => {
     deleteSeasonGoal.mockResolvedValue(null);
     afficher();
 
-    const ligne = (await screen.findByText("6 épreuves cette saison")).closest("li") as HTMLElement;
-    await userEvent.click(within(ligne).getByRole("button", { name: "Supprimer l'objectif « 6 épreuves cette saison »" }));
+    const ligne = (await screen.findByText("6 épreuves")).closest("li") as HTMLElement;
+    await userEvent.click(within(ligne).getByRole("button", { name: "Supprimer l'objectif « 6 épreuves »" }));
     await userEvent.click(await screen.findByRole("button", { name: "Supprimer l'objectif" }));
 
     await waitFor(() => expect(deleteSeasonGoal).toHaveBeenCalledWith(2));
@@ -124,7 +124,7 @@ describe("SeasonGoals (#1373)", () => {
     afficher([passee]);
 
     expect(await screen.findByRole("heading", { level: 2, name: `Objectifs, ${seasonLabel(passee)}` })).toBeInTheDocument();
-    expect(await screen.findByText("6 épreuves cette saison")).toBeInTheDocument();
+    expect(await screen.findByText("6 épreuves")).toBeInTheDocument();
     expect(getSeasonGoals).toHaveBeenCalledWith(passee);
     expect(screen.queryByRole("button", { name: "Ajouter un objectif" })).toBeNull();
     expect(screen.queryByRole("button", { name: /Modifier|Supprimer/ })).toBeNull();
@@ -137,6 +137,14 @@ describe("SeasonGoals (#1373)", () => {
     expect(screen.getByText(/Plusieurs saisons sont sélectionnées/)).toBeInTheDocument();
     expect(getSeasonGoals).toHaveBeenCalledWith(currentSeason());
     expect(await screen.findByRole("button", { name: "Ajouter un objectif" })).toBeInTheDocument();
+  });
+
+  it("does not announce several seasons for an empty selection", async () => {
+    afficher([]);
+
+    expect(await screen.findByRole("heading", { level: 2, name: `Objectifs, ${seasonLabel(currentSeason())}` })).toBeInTheDocument();
+    expect(screen.queryByText(/Plusieurs saisons/)).toBeNull();
+    expect(getSeasonGoals).toHaveBeenCalledWith(currentSeason());
   });
 
   it("shows nothing without a claimed athlete", async () => {
