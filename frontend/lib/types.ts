@@ -1085,6 +1085,9 @@ export type SeasonGoalWrite = Pick<SeasonGoal, "kind" | "event_type" | "target">
 export interface ResultClaim {
   id: number;
   participation_id: number;
+  course_id: number;
+  course_name: string;
+  event_date: string | null;
   status: "pending" | "rejected";
   created_at: string;
 }
