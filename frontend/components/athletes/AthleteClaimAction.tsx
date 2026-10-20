@@ -59,9 +59,14 @@ export function AthleteClaimAction({ athlete, session }: { athlete: ClaimedAthle
 export function LinkedAthleteMark({ athlete, linked }: { athlete: ClaimedAthlete; linked: ClaimedAthlete }) {
   if (linked.id === athlete.id) {
     return (
-      <MetaPill accent dot>
-        Votre fiche
-      </MetaPill>
+      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10 }}>
+        <MetaPill accent dot>
+          Votre fiche
+        </MetaPill>
+        <Link href="/mon-espace" style={texteDiscret} className="underline underline-offset-2">
+          Gérer dans Mon espace
+        </Link>
+      </div>
     );
   }
   return (

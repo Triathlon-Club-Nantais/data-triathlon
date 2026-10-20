@@ -156,6 +156,7 @@ describe("AthleteHeaderActions, rattachement de la fiche (#1325)", () => {
 
     expect(await screen.findByText(/votre fiche/i)).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /me comparer/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Gérer dans Mon espace" })).toHaveAttribute("href", "/mon-espace");
     expect(screen.queryByRole("button", { name: /choisir cet athlète/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /c'est moi/i })).not.toBeInTheDocument();
   });

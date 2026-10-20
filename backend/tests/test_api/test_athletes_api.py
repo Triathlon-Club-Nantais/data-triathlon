@@ -479,3 +479,20 @@ def test_fiche_athlete_saisons_non_parsables_valent_toutes_saisons(client, db_se
 
     assert resp.status_code == 200
     assert len(resp.json()["participations"]) == 3
+
+
+def test_athlete_detail_says_whether_a_member_account_claims_it(client, db_session):
+    """#1693: a public boolean only, nothing about the account itself."""
+    from app.repositories import athlete_repository, user_repository
+
+    athlete = athlete_repository.get_or_create(db_session, nom="TENUE", prenom="Léa")
+    db_session.commit()
+    assert client.get(f"/api/v1/athletes/{athlete.id}").json()["claimed"] is False
+
+    user = user_repository.create(db_session, email="lea@exemple.fr", display_name="Léa")
+    user_repository.set_athlete(db_session, user, athlete.id)
+    db_session.commit()
+    response = client.get(f"/api/v1/athletes/{athlete.id}")
+
+    assert response.json()["claimed"] is True
+    assert "lea@exemple.fr" not in response.text

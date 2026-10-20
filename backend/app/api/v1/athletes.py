@@ -12,6 +12,7 @@ from app.repositories import (
     athlete_repository,
     participation_repository,
     season_validation_repository,
+    user_repository,
     volunteer_action_repository,
 )
 from app.schemas.athlete import AthleteBrief, AthleteSearchResult, AthleteSeasonActivity
@@ -164,6 +165,7 @@ def get_athlete(
         "athlete": AthleteBrief.model_validate(athlete),
         "participations": items,
         "challenges": challenge_service.for_athlete(db, athlete_id),
+        "claimed": bool(user_repository.ids_linked_to_athlete(db, athlete_id)),
     }
 
 
