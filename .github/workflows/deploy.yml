@@ -17,13 +17,18 @@ concurrency:
 # (constat A08-3, docs/superpowers/specs/2026-08-16-securite-owasp-audit.md).
 # Aucun step de ce fichier n'écrit avec ce jeton : Render et Vercel sont
 # appelés avec leurs propres secrets (`RENDER_API_KEY`, `VERCEL_TOKEN`).
-# `contents: read` couvre le seul besoin réel des trois jobs, `actions/checkout`.
+# `contents: read` couvre le seul besoin réel des jobs de déploiement, `actions/checkout`
+# (le job `ci` ajoute `pull-requests: read`, voir plus bas).
 permissions:
   contents: read
 
 jobs:
   # Contrôles qualité (réutilise ci.yml) — aucun déploiement sans CI verte.
   ci:
+    # Un workflow appelé ne peut pas élever ses permissions : `changes` (ci.yml) demande `pull-requests: read`.
+    permissions:
+      contents: read
+      pull-requests: read
     uses: ./.github/workflows/ci.yml
 
   # ---- PREVIEW : déclenchement manuel seulement (#1572) ----

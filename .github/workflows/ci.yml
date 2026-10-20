@@ -18,7 +18,9 @@ on:
 # (constat A08-3, docs/superpowers/specs/2026-08-16-securite-owasp-audit.md) :
 # `pull_request` exécute du code de contributeur. Aucun step d'aucun job ne
 # pousse de commit, ne commente une PR ni ne crée de check run — `contents:
-# read` couvre le seul besoin réel, `actions/checkout`.
+# read` couvre le seul besoin réel, `actions/checkout`. Seul `changes` ajoute
+# `pull-requests: read` (liste des fichiers de la PR) ; deploy.yml, qui appelle
+# ce fichier, doit donc l'accorder à son job `ci`.
 permissions:
   contents: read
 
@@ -267,5 +269,7 @@ jobs:
             backend-postgres=${{ needs.backend-postgres.result }}
             frontend=${{ needs.frontend.result }}
             frontend-test=${{ needs.frontend-test.result }}
+          BACKEND_CHANGED: ${{ needs.changes.outputs.backend }}
+          FRONTEND_CHANGED: ${{ needs.changes.outputs.frontend }}
           FILTERED_JOBS: backend backend-postgres frontend frontend-test
         run: bash .github/scripts/ci-ok.sh
