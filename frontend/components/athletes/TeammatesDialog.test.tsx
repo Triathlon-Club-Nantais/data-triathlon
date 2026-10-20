@@ -34,11 +34,11 @@ const PAUL = fiche(11, "MARTIN", "Paul");
 
 const RESULTAT = { id: 314, epreuve: "Relais de Nantes", date: "2026-06-01" };
 
-function afficher(equipiers: AthleteBrief[] = [], onClose = vi.fn()) {
+function afficher(equipiers: AthleteBrief[] = [], onClose = vi.fn(), onAttribue?: () => Promise<unknown>) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={client}>
-      <TeammatesDialog resultat={RESULTAT} equipiers={equipiers} onClose={onClose} />
+      <TeammatesDialog resultat={RESULTAT} equipiers={equipiers} onClose={onClose} onAttribue={onAttribue} />
     </QueryClientProvider>,
   );
   return onClose;
@@ -93,6 +93,18 @@ describe("TeammatesDialog", () => {
     expect(toastSuccess).toHaveBeenCalledWith("Relais attribué à 2 athlètes.");
     expect(refresh).toHaveBeenCalled();
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it("enchaîne le geste de l'appelant après l'attribution, avant de fermer (#1739)", async () => {
+    setParticipationTeammates.mockResolvedValue({});
+    const onAttribue = vi.fn().mockResolvedValue(null);
+    const onClose = afficher([JEAN, PAUL], vi.fn(), onAttribue);
+
+    await userEvent.click(screen.getByRole("button", { name: "Attribuer" }));
+
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(onAttribue).toHaveBeenCalledTimes(1);
+    expect(setParticipationTeammates.mock.invocationCallOrder[0]).toBeLessThan(onAttribue.mock.invocationCallOrder[0]);
   });
 
   it("part de la composition actuelle et permet d'en retirer un coureur", async () => {

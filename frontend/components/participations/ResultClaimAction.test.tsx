@@ -80,12 +80,26 @@ describe("ResultClaimAction (#1637)", () => {
     ["the member's own result", session(LEA), { ...RESULTAT, athlete: LEA }],
     ["an account without a claimed record", session(null), RESULTAT],
     ["a pending result", session(LEA), { ...RESULTAT, is_pending_validation: true }],
-    ["a relay", session(LEA), { ...RESULTAT, is_relay: true }],
+    ["a relay the member is already in", session(LEA), { ...RESULTAT, is_relay: true, teammates: [HOMONYME, LEA] }],
   ])("offers nothing on %s", async (_, user, participation) => {
     getSession.mockResolvedValue(user);
     afficher(participation as Participation);
 
     await waitFor(() => expect(getSession).toHaveBeenCalled());
+    expect(screen.queryByRole("button", { name: /à moi|équipe/ })).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ["a relay result", { ...RESULTAT, is_relay: true }],
+    ["a result of a relay race", { ...RESULTAT, course: { ...RESULTAT.course, is_relay: true } }],
+  ])("offers « Je faisais partie de cette équipe » on %s (#1739)", async (_, participation) => {
+    requestResultClaim.mockResolvedValue({});
+    afficher(participation as Participation);
+
+    await userEvent.click(await screen.findByRole("button", { name: "Je faisais partie de cette équipe" }));
+
+    await waitFor(() => expect(requestResultClaim).toHaveBeenCalledWith(5));
+    expect(screen.getByText(/le club vérifie puis ajoute votre fiche à l'équipe/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Ce résultat est à moi" })).not.toBeInTheDocument();
   });
 });
