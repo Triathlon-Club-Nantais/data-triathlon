@@ -740,7 +740,7 @@ def test_natation_seed_downgrade_removes_only_its_row(sqlite_url):
     sql = "SELECT value FROM counter_scope_entries WHERE kind = 'non_federal_discipline'"
     assert ("natation",) in _lignes(sqlite_url, sql)
 
-    command.downgrade(cfg, "a1745e7c0b2d")
+    command.downgrade(cfg, "c84cbf6533c4")
     restantes = {valeur for (valeur,) in _lignes(sqlite_url, sql)}
     assert "natation" not in restantes
     assert {"trail", "cyclisme", "course-a-pied-marathon"} <= restantes
@@ -751,7 +751,7 @@ def test_natation_seed_downgrade_removes_only_its_row(sqlite_url):
 
 def test_natation_seed_is_idempotent_when_the_row_already_exists(sqlite_url):
     cfg = _alembic_config()
-    command.upgrade(cfg, "a1745e7c0b2d")
+    command.upgrade(cfg, "c84cbf6533c4")
     engine = sa.create_engine(sqlite_url)
     with engine.begin() as connexion:
         connexion.execute(sa.text(
