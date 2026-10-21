@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import Settings
 from app.core.exceptions import DomainError, NotFoundError, ScraperError
+from app.models.course import EVENT_TYPE_ORIGIN_MANUAL
 from app.repositories import (
     admin_action_log_repository,
     athlete_repository,
@@ -194,6 +195,7 @@ def _stream_switch_course_source(
                 ),
                 emit,
             )
+            _adopt_manual_event_type(db, course_id, results)
             _require_same_event(results, expected)
             for attempt in deadlock_retries(db, label=f"bascule de source de l'épreuve {course_id}"):
                 with attempt:
@@ -279,6 +281,21 @@ def _require_course_unchanged(db: Session, course_id: int, expected: dict) -> No
             "Cette épreuve a été modifiée pendant la récupération des résultats : "
             "rien n'a été enregistré. Relancez l'opération."
         )
+
+
+def _adopt_manual_event_type(db: Session, course_id: int, results: list) -> None:
+    """Un type corrigé à la main (#1745) n'est pas une divergence : le scrape le prend."""
+    course = course_repository.get(db, course_id)
+    if course is None or course.event_type_origin != EVENT_TYPE_ORIGIN_MANUAL:
+        return
+    same = [
+        scraped for scraped in results
+        if (scraped.event_name, scraped.event_date, bool(scraped.is_relay))
+        == (course.name, course.event_date, course.is_relay)
+    ]
+    if len({scraped.event_type for scraped in same}) == 1:
+        for scraped in same:
+            scraped.event_type = course.event_type
 
 
 def _require_same_event(results: list, expected: dict) -> None:
@@ -400,6 +417,7 @@ def _stream_rescrape(
                 ),
                 emit,
             )
+            _adopt_manual_event_type(db, course_id, results)
             _require_same_event(results, expected)
             for attempt in deadlock_retries(db, label=f"re-scrape de l'épreuve {course_id}"):
                 with attempt:

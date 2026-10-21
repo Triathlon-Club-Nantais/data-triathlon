@@ -17,7 +17,7 @@ from app.core.club import canonical_club_key, is_significant_club
 from app.core.gender import normalize_gender
 from app.core.text import deaccent
 from app.models.athlete import Athlete
-from app.models.course import Course
+from app.models.course import EVENT_TYPE_ORIGIN_MANUAL, Course
 from app.models.course_source import CourseSource
 from app.models.participation import Participation
 from app.repositories import (
@@ -1371,6 +1371,31 @@ def _reclassify_heats(db: Session, event_url: str, results: list[ScrapedResult])
             course_repository.reclassify(db, course, event_type)
 
 
+def attach_manual_heats(db: Session, event_url: str, results: list[ScrapedResult]) -> None:
+    """Donne aux résultats d'une épreuve au type corrigé à la main (#1745) ce type-là.
+
+    Avant l'appariement : le scrape se rattache à l'épreuve corrigée au lieu d'en
+    créer une jumelle, et `_reclassify_heats` n'a plus rien à réaligner. Comme
+    `_reclassify_heats`, seulement quand le scrape ne publie qu'une classification
+    pour la clé (sinon ce sont des heats distincts).
+    """
+    groups: dict[tuple[str, str, object, bool], list[ScrapedResult]] = {}
+    for scraped in results:
+        url = scraped.source_url or event_url
+        if url:
+            key = (url, scraped.event_name, scraped.event_date, bool(scraped.is_relay))
+            groups.setdefault(key, []).append(scraped)
+    for (url, name, event_date, is_relay), group in groups.items():
+        if len({scraped.event_type for scraped in group}) != 1:
+            continue
+        course = course_repository.get_by_active_source(
+            db, source_url=url, name=name, event_date=event_date, is_relay=is_relay
+        )
+        if course is not None and course.event_type_origin == EVENT_TYPE_ORIGIN_MANUAL:
+            for scraped in group:
+                scraped.event_type = course.event_type
+
+
 CourseIdentity = tuple[str, object, str, bool]
 
 
@@ -1673,6 +1698,7 @@ def _prepare_batch(db: Session, url: str, results: list[ScrapedResult]) -> None:
     """Les rattrapages de lot, dans leur ordre, avant la première ligne écrite."""
     _redate_heats(db, results)
     _relay_heats(db, results)
+    attach_manual_heats(db, url, results)
     _reclassify_heats(db, url, results)
     _reidentify_heats(db, url, results)
     _renumber_duplicate_ranks(results)

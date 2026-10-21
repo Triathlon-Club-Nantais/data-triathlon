@@ -24,7 +24,7 @@ depuis #289, mais elle gardait le verdict de son *premier* scrape.
 from datetime import date
 
 from app.core.config import Settings
-from app.models.course import Course
+from app.models.course import EVENT_TYPE_ORIGIN_MANUAL, Course
 from app.scrapers.base import ScrapedResult
 from app.services import import_service
 
@@ -163,3 +163,19 @@ def test_une_collision_didentite_laisse_lepreuve_intacte(db_session, patch_scrap
 
     assert db_session.get(Course, reclassee_id).event_type == "swimrun-s"
     assert db_session.query(Course).count() == 2
+
+
+def test_a_manually_corrected_event_type_survives_a_reimport(db_session, patch_scraper):
+    """#1745 : l'import rattache le scrape à l'épreuve corrigée, il ne la reclasse pas."""
+    _importer(db_session, patch_scraper, WICLAX, [_mesquer("1", "swimrun-s")])
+    epreuve = db_session.query(Course).one()
+    epreuve.event_type = "duathlon-s"
+    epreuve.event_type_origin = EVENT_TYPE_ORIGIN_MANUAL
+    db_session.flush()
+
+    _importer(db_session, patch_scraper, WICLAX, [_mesquer("1", "triathlon-s")], force=True)
+    _importer(db_session, patch_scraper, WICLAX, [_mesquer("2", "triathlon-s")], force=True)
+
+    epreuve = db_session.query(Course).one()
+    assert epreuve.event_type == "duathlon-s"
+    assert {p.bib_number for p in epreuve.participations} == {"1", "2"}
