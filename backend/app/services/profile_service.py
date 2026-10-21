@@ -22,7 +22,7 @@ from app.repositories import (
     training_group_repository,
     training_session_repository,
 )
-from app.services.fftri_category import fftri_category, fftri_season_bounds
+from app.services.fftri_category import fftri_category, fftri_season_to_date
 
 #: Sentinelle de `update_profile` : le champ n'a pas été fourni, distinct d'un `None` qui efface.
 UNCHANGED = object()
@@ -108,7 +108,7 @@ def profile_detail_view(
             "log_entries": None,
             "attendance": None,
         }
-    date_from, date_to = fftri_season_bounds(utcnow().date())
+    date_from, date_to = fftri_season_to_date(utcnow().date())
     history = training_session_repository.presence_history_of_profile(
         db, profile.id, date_from=date_from, date_to=date_to
     )

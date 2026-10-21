@@ -263,7 +263,8 @@ def test_the_detail_lists_the_groups_of_the_profile(client, ouvrir_session, prof
 
 def test_detail_reports_the_season_attendance(client, profile, db_session, monkeypatch):
     monkeypatch.setattr(profile_service, "utcnow", lambda: datetime(2026, 10, 15, 12, 0))
-    for day, present in ((date(2026, 9, 2), True), (date(2026, 9, 9), False)):
+    upcoming = date(2026, 10, 22)
+    for day, present in ((date(2026, 9, 2), True), (date(2026, 9, 9), False), (upcoming, False)):
         session = training_session_repository.create(db_session, date=day)
         training_session_repository.add_participant(
             db_session, training_session_id=session.id, profile_id=profile["id"], present=present

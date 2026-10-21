@@ -63,11 +63,12 @@ def test_list_reports_the_season_attendance_of_each_group(client, db_session, pr
     monkeypatch.setattr(training_group_service, "utcnow", lambda: datetime(2026, 10, 15, 12, 0))
     group_id = client.post(BASE, json={"name": "Benjamins"}).json()["id"]
     group = training_group_repository.get(db_session, group_id)
-    session = training_session_repository.create(db_session, date=date(2026, 9, 2))
-    training_session_repository.set_groups(db_session, session, [group])
-    training_session_repository.add_participant(
-        db_session, training_session_id=session.id, profile_id=profile_id, present=True
-    )
+    for day, present in ((date(2026, 9, 2), True), (date(2026, 10, 22), False)):
+        session = training_session_repository.create(db_session, date=day)
+        training_session_repository.set_groups(db_session, session, [group])
+        training_session_repository.add_participant(
+            db_session, training_session_id=session.id, profile_id=profile_id, present=present
+        )
     db_session.commit()
 
     (item,) = client.get(BASE).json()
