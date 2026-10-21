@@ -331,6 +331,21 @@ def test_awaiting_review_keeps_only_courses_without_a_human_verdict(client, db_s
     assert counted == badge == {"total": 1}
 
 
+def test_event_type_to_review_keeps_only_fallback_typed_courses(client, db_session):
+    """#1744: the review queue lists what the triathlon fallback typed."""
+    fallback = _epreuve(db_session, name="Repli", event_type_origin="fallback")
+    _epreuve(db_session, name="Classée", event_type_origin="classified")
+    _epreuve(db_session, name="Confirmée", event_type_origin="manual")
+
+    listed = client.get("/api/v1/courses", params={"event_type_to_review": "true"}).json()
+    counted = client.get("/api/v1/courses/count", params={"event_type_to_review": "true"}).json()
+    everything = client.get("/api/v1/courses").json()
+
+    assert [c["id"] for c in listed] == [fallback.id]
+    assert counted == {"total": 1}
+    assert sorted(c["event_type_origin"] for c in everything) == ["classified", "fallback", "manual"]
+
+
 def test_la_file_est_triee_par_date_la_plus_recente(client, db_session):
     """AC1 — le tri vient de `list_all`, ce test le verrouille au niveau route."""
     ancienne = _epreuve(

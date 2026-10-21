@@ -88,6 +88,10 @@ def list_courses(
         False,
         description="Ne garde que les épreuves calculées non fiables sans avis humain (#1232).",
     ),
+    event_type_to_review: bool = Query(
+        False,
+        description="Ne garde que les épreuves dont le type vient du repli triathlon, à vérifier (#1744).",
+    ),
     page: int = Query(1, ge=1, le=MAX_PAGE),
     page_size: int = Query(50, ge=1, le=500),
     db: Session = Depends(get_db),
@@ -120,6 +124,7 @@ def list_courses(
         date_to=_parse_date(date_to),
         unreliable=unreliable,
         awaiting_review=awaiting_review,
+        event_type_to_review=event_type_to_review,
         page=page,
         page_size=page_size,
         hide_pending_only=not volunteer,
@@ -144,6 +149,10 @@ def count_courses(
         False,
         description="Ne garde que les épreuves calculées non fiables sans avis humain (#1232).",
     ),
+    event_type_to_review: bool = Query(
+        False,
+        description="Ne garde que les épreuves dont le type vient du repli triathlon, à vérifier (#1744).",
+    ),
     db: Session = Depends(get_db),
     volunteer: bool = Depends(is_volunteer),
 ):
@@ -166,6 +175,7 @@ def count_courses(
             date_to=_parse_date(date_to),
             unreliable=unreliable,
             awaiting_review=awaiting_review,
+            event_type_to_review=event_type_to_review,
             hide_pending_only=not volunteer,
         )
     )
