@@ -52,8 +52,13 @@ const nextConfig: NextConfig = {
   },
   // #1725 : l'ancien tableau de bord vit sous /mon-espace (#1618). Les signets
   // et liens externes continuent d'atterrir au bon endroit, query string comprise.
+  // #1783 : même garantie pour les écrans que #1336 a déplacés vers /encadrement.
   async redirects() {
-    return [{ source: "/dashboard", destination: "/mon-espace", permanent: true }];
+    return [
+      { source: "/dashboard", destination: "/mon-espace", permanent: true },
+      { source: "/admin/jeunes/:path*", destination: "/encadrement/jeunes/:path*", permanent: true },
+      { source: "/admin/benevolat/:path*", destination: "/encadrement/benevolat/:path*", permanent: true },
+    ];
   },
   async rewrites() {
     return [

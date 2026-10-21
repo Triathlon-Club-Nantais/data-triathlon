@@ -113,7 +113,8 @@ de la ligne concernée **avant** de toucher à ce qu'elle nomme.
   pour son garde-fou de brouillon sale jusqu'à #490 (revue UI/UX), qui l'a
   corrigé et a monté un second `DangerConfirmProvider` propre à cette route
   (`app/benevoles/layout.tsx`) — celui d'`app/admin/layout.tsx` ne couvre que
-  le back-office.
+  le back-office. Tout layout d'espace dont un écran appelle `useDangerConfirm`
+  monte le sien : `/encadrement` l'avait perdu en quittant `/admin` (#1783).
 
   Quand le serveur refusera le geste et que le front le sait, **le dire avant
   le clic** : bouton inerte et raison visible, patron de `GroupsTable` et de

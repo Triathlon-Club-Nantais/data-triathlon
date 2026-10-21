@@ -70,7 +70,7 @@ export type DangerConfirmProps = {
  * exception depuis #739 : `CourseSourcesPanel` (`components/courses/`)
  * importe `DangerConfirm` — jamais `useDangerConfirm` — parce qu'il se rend
  * aussi sur la page publique de l'épreuve, hors de tout `DangerConfirmProvider`
- * (monté seulement sous `/admin` et `/benevoles`) ; la forme déclarative ne
+ * (monté seulement sous `/admin`, `/encadrement`, `/benevoles` et `/benevolat`) ; la forme déclarative ne
  * dépend d'aucun provider, donc aucun second mécanisme n'est ajouté.
  */
 export function DangerConfirm({
