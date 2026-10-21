@@ -1346,6 +1346,55 @@ export function useAddProfileLogEntry() {
   });
 }
 
+export function useAddProfileMeasurement() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      ...body
+    }: {
+      id: number;
+      measured_on: string;
+      event: string;
+      duration_tenths: number;
+      training_session_id: number | null;
+    }) => apiClient.addProfileMeasurement(id, body),
+    onSuccess: (_donnees, { id }) => {
+      qc.invalidateQueries({ queryKey: queryKeys.profile(id) });
+      qc.invalidateQueries({ queryKey: queryKeys.measurementEvents() });
+    },
+  });
+}
+
+export function useDeleteProfileMeasurement() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, measurementId }: { id: number; measurementId: number }) =>
+      apiClient.deleteProfileMeasurement(id, measurementId),
+    onSuccess: (_donnees, { id }) => {
+      qc.invalidateQueries({ queryKey: queryKeys.profile(id) });
+      qc.invalidateQueries({ queryKey: queryKeys.measurementEvents() });
+    },
+  });
+}
+
+/** Les épreuves déjà saisies, proposées en suggestions du champ « Épreuve ». */
+export function useMeasurementEvents() {
+  return useQuery({
+    queryKey: queryKeys.measurementEvents(),
+    queryFn: () => apiClient.listMeasurementEvents(),
+  });
+}
+
+/** Les séances du jour auxquelles ce jeune est inscrit, pour rattacher un test. */
+export function useTrainingSessionsOn(profileId: number, date: string) {
+  return useQuery({
+    queryKey: queryKeys.trainingSessionsOn(profileId, date),
+    queryFn: () => apiClient.listTrainingSessions({ profileId, date }),
+    enabled: date !== "",
+  });
+}
+
 // ── Composition des rôles (#115, écran #240) ─────────────────────────────────
 
 /**

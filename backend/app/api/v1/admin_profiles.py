@@ -1,6 +1,6 @@
 """Router d'administration des profils individuels (#867, epic #863).
 
-Cinq ressources, chacune gardée individuellement par `jeunes:read` ou
+Huit ressources, chacune gardée individuellement par `jeunes:read` ou
 `jeunes:write` (FR-007 de spec.md) — jamais par préfixe, patron
 `admin_groups.py`. Le schéma est générique (research.md D1), la restriction
 « jeunes uniquement » pour cette itération vit **entièrement** ici, dans la
@@ -11,7 +11,7 @@ comme l'attribution d'un rôle et la création d'un groupe : `ProfileCreate` ne
 porte pas de champ `organisation_id`, une seule organisation existant à ce
 jour (research.md, assumptions de spec.md).
 """
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Response
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_permission
@@ -24,6 +24,7 @@ from app.schemas.profile import (
     ProfileCreate,
     ProfileDetailRead,
     ProfileLogEntryCreate,
+    ProfileMeasurementCreate,
     ProfileRead,
     ProfileUpdate,
 )
@@ -50,6 +51,16 @@ def list_profiles(
     _: User = Depends(require_permission(P.YOUTH_READ)),
 ):
     return [profile_service.profile_view(p) for p in profile_service.list_profiles(db)]
+
+
+@router.get("/admin/profiles/measurement-events", response_model=list[str])
+def list_measurement_events(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_permission(P.YOUTH_READ)),
+):
+    """Les épreuves déjà saisies, pour la suggestion à la saisie ; déclarée avant
+    `/{profile_id}` pour ne pas être prise pour un identifiant."""
+    return profile_service.list_measurement_events(db)
 
 
 @router.get("/admin/profiles/{profile_id}", response_model=ProfileDetailRead)
@@ -131,3 +142,42 @@ def add_log_entry(
     view = _detail_for(db, actor, profile)
     db.commit()
     return view
+
+
+@router.post(
+    "/admin/profiles/{profile_id}/measurements",
+    response_model=ProfileDetailRead,
+    status_code=201,
+)
+def add_measurement(
+    profile_id: DbId,
+    body: ProfileMeasurementCreate,
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_permission(P.YOUTH_WRITE)),
+):
+    profile = profile_service.get_profile_or_404(db, profile_id)
+    profile_service.add_measurement(
+        db,
+        actor,
+        profile,
+        measured_on=body.measured_on,
+        event=body.event,
+        duration_tenths=body.duration_tenths,
+        training_session_id=body.training_session_id,
+    )
+    view = _detail_for(db, actor, profile)
+    db.commit()
+    return view
+
+
+@router.delete("/admin/profiles/{profile_id}/measurements/{measurement_id}", status_code=204)
+def delete_measurement(
+    profile_id: DbId,
+    measurement_id: DbId,
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_permission(P.YOUTH_WRITE)),
+):
+    profile = profile_service.get_profile_or_404(db, profile_id)
+    profile_service.delete_measurement(db, actor, profile, measurement_id)
+    db.commit()
+    return Response(status_code=204)

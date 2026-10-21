@@ -467,3 +467,15 @@ def test_a_manual_enrolment_is_flagged(client, profile_id):
 
 def test_an_unknown_group_is_a_404(client):
     assert client.post(BASE, json={"date": _upcoming(), "group_ids": [9999]}).status_code == 404
+
+
+def test_the_list_filters_by_profile_and_date(client, profile_id):
+    enrolled = client.post(BASE, json={"date": "2026-10-03"}).json()
+    client.post(BASE, json={"date": "2026-10-03"})
+    other_day = client.post(BASE, json={"date": "2026-10-04"}).json()
+    for session in (enrolled, other_day):
+        client.post(f"{BASE}/{session['id']}/participants", json={"profile_id": profile_id})
+
+    body = client.get(BASE, params={"profile_id": profile_id, "date": "2026-10-03"}).json()
+
+    assert [session["id"] for session in body] == [enrolled["id"]]

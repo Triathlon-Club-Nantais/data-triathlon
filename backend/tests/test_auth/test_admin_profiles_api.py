@@ -4,6 +4,7 @@ Trois volets : lecture (US1/US2), écriture (US3), journal de bord (US4), plus
 les gardes de chacun. Patron `test_admin_groups_api.py`.
 """
 from datetime import date, datetime
+from unittest.mock import ANY
 
 import pytest
 
@@ -13,6 +14,8 @@ from app.services import profile_service
 from app.services.fftri_category import fftri_category
 
 BASE = "/api/v1/admin/profiles"
+SESSIONS = "/api/v1/admin/training-sessions"
+MEASUREMENT = {"measured_on": "2026-10-03", "event": "50 m nage", "duration_tenths": 423}
 
 
 @pytest.fixture
@@ -54,12 +57,15 @@ def test_an_unknown_profile_returns_404(client, ouvrir_session):
     assert client.get(f"{BASE}/9999").status_code == 404
 
 
-@pytest.mark.parametrize("path", [BASE, f"{BASE}/1"])
+READS = [BASE, f"{BASE}/1", f"{BASE}/measurement-events"]
+
+
+@pytest.mark.parametrize("path", READS)
 def test_a_read_refuses_the_anonymous(client, path):
     assert client.get(path).status_code == 401
 
 
-@pytest.mark.parametrize("path", [BASE, f"{BASE}/1"])
+@pytest.mark.parametrize("path", READS)
 def test_a_read_refuses_a_session_without_privilege(client, ouvrir_session, path):
     ouvrir_session()
 
@@ -136,6 +142,8 @@ WRITES = [
     ("POST", BASE, {"first_name": "X", "last_name": "Y"}),
     ("PATCH", f"{BASE}/1", {"notes": "x"}),
     ("POST", f"{BASE}/1/log-entries", {"text": "x"}),
+    ("POST", f"{BASE}/1/measurements", {"measured_on": "2026-10-03", "event": "x", "duration_tenths": 1}),
+    ("DELETE", f"{BASE}/1/measurements/1", None),
 ]
 
 
@@ -279,7 +287,7 @@ def test_detail_reports_the_season_attendance(client, profile, db_session, monke
 # --- #1472 : sans `jeunes:read`, les écritures taisent les données personnelles ---
 
 
-PERSONAL_FIELDS = ("emergency_contact", "notes", "log_entries", "attendance")
+PERSONAL_FIELDS = ("emergency_contact", "notes", "log_entries", "attendance", "measurements")
 
 
 @pytest.fixture
@@ -311,6 +319,7 @@ def _profile_writes(client, profile_id: int):
         ),
         client.patch(f"{BASE}/{profile_id}", json={}),
         client.post(f"{BASE}/{profile_id}/log-entries", json={"text": "Autre séance"}),
+        client.post(f"{BASE}/{profile_id}/measurements", json=MEASUREMENT),
     ]
 
 
@@ -323,7 +332,7 @@ def test_writes_hide_personal_data_from_a_session_without_jeunes_read(
 
     responses = _profile_writes(client, profile_with_personal_data["id"])
 
-    assert [response.status_code for response in responses] == [201, 200, 201]
+    assert [response.status_code for response in responses] == [201, 200, 201, 201]
     for response in responses:
         body = response.json()
         for field in PERSONAL_FIELDS:
@@ -342,10 +351,103 @@ def test_writes_show_personal_data_with_jeunes_read(
 ):
     ouvrir_session(*session["codes"], superutilisateur=session.get("superutilisateur", False))
 
-    created, patched, logged = _profile_writes(client, profile_with_personal_data["id"])
+    created, patched, logged, _ = _profile_writes(client, profile_with_personal_data["id"])
 
     assert created.json()["emergency_contact"] == "Père 06 98 76 54 32"
     assert created.json()["notes"] == "Allergie"
     assert patched.json()["emergency_contact"] == "Mère 06 12 34 56 78"
     assert patched.json()["notes"] == "Asthme"
     assert [entry["text"] for entry in logged.json()["log_entries"]] == ["Autre séance", "Bonne séance"]
+
+
+# --- #1365 : tests chronométrés ---------------------------------------------
+
+
+def _session_on(client, day: str, profile_id: int | None = None) -> int:
+    created = client.post(SESSIONS, json={"date": day}).json()
+    if profile_id is not None:
+        client.post(f"{SESSIONS}/{created['id']}/participants", json={"profile_id": profile_id})
+    return created["id"]
+
+
+def test_a_measurement_appears_in_the_detail(client, profile):
+    response = client.post(
+        f"{BASE}/{profile['id']}/measurements", json=MEASUREMENT | {"event": " 50 m nage "}
+    )
+
+    assert response.status_code == 201
+    assert response.json()["measurements"] == [
+        {
+            "id": ANY,
+            "measured_on": "2026-10-03",
+            "event": "50 m nage",
+            "duration_tenths": 423,
+            "training_session_id": None,
+            "created_at": ANY,
+        }
+    ]
+
+
+@pytest.mark.parametrize(
+    "override",
+    [{"duration_tenths": 0}, {"duration_tenths": 864001}, {"event": ""}, {"event": "x" * 101}],
+)
+def test_a_measurement_with_an_invalid_value_is_refused(client, profile, override):
+    response = client.post(f"{BASE}/{profile['id']}/measurements", json=MEASUREMENT | override)
+
+    assert response.status_code == 422
+
+
+def test_a_measurement_tied_to_a_session_of_the_youth_that_day(client, profile):
+    session_id = _session_on(client, "2026-10-03", profile["id"])
+
+    response = client.post(
+        f"{BASE}/{profile['id']}/measurements", json=MEASUREMENT | {"training_session_id": session_id}
+    )
+
+    assert response.status_code == 201
+    assert response.json()["measurements"][0]["training_session_id"] == session_id
+
+
+@pytest.mark.parametrize("case", ["other-date", "not-enrolled"])
+def test_a_measurement_tied_to_a_foreign_session_is_refused(client, profile, case):
+    if case == "other-date":
+        session_id = _session_on(client, "2026-10-04", profile["id"])
+    else:
+        session_id = _session_on(client, "2026-10-03")
+
+    response = client.post(
+        f"{BASE}/{profile['id']}/measurements", json=MEASUREMENT | {"training_session_id": session_id}
+    )
+
+    assert response.status_code == 422
+    assert client.get(f"{BASE}/{profile['id']}").json()["measurements"] == []
+
+
+def test_deleting_a_measurement(client, profile):
+    created = client.post(f"{BASE}/{profile['id']}/measurements", json=MEASUREMENT).json()
+    measurement_id = created["measurements"][0]["id"]
+
+    response = client.delete(f"{BASE}/{profile['id']}/measurements/{measurement_id}")
+
+    assert response.status_code == 204
+    assert client.get(f"{BASE}/{profile['id']}").json()["measurements"] == []
+
+
+def test_deleting_a_measurement_of_another_profile_returns_404(client, profile):
+    other = client.post(BASE, json={"first_name": "Bo", "last_name": "Durand"}).json()
+    created = client.post(f"{BASE}/{profile['id']}/measurements", json=MEASUREMENT).json()
+    measurement_id = created["measurements"][0]["id"]
+
+    response = client.delete(f"{BASE}/{other['id']}/measurements/{measurement_id}")
+
+    assert response.status_code == 404
+    assert len(client.get(f"{BASE}/{profile['id']}").json()["measurements"]) == 1
+
+
+def test_measurement_events_are_suggested(client, profile):
+    other = client.post(BASE, json={"first_name": "Bo", "last_name": "Durand"}).json()
+    client.post(f"{BASE}/{profile['id']}/measurements", json=MEASUREMENT)
+    client.post(f"{BASE}/{other['id']}/measurements", json=MEASUREMENT | {"event": "1000 m"})
+
+    assert client.get(f"{BASE}/measurement-events").json() == ["1000 m", "50 m nage"]

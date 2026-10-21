@@ -62,6 +62,10 @@ export const queryKeys = {
   // Même distinction que `groups`/`group` — la liste porte un `TrainingSession[]`,
   // le détail un `TrainingSessionDetail` (participants compris).
   trainingSessions: () => ["admin-training-sessions"] as const,
+  // Sous le préfixe de `trainingSessions` : toute invalidation du calendrier la rafraîchit.
+  trainingSessionsOn: (profileId: number, date: string) =>
+    ["admin-training-sessions", "on", profileId, date] as const,
+  measurementEvents: () => ["admin-measurement-events"] as const,
   trainingSession: (id: number) => ["admin-training-session", id] as const,
   trainingGroups: () => ["admin-training-groups"] as const,
   trainingGroup: (id: number) => ["admin-training-group", id] as const,

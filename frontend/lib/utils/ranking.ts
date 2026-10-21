@@ -90,9 +90,9 @@ export function bestRanking(parts: Participation[]): BestRanking | null {
 }
 
 export interface ProgressionPoint {
-  participationId: number;
+  id: number;
   eventDate: string;
-  percent: number;
+  value: number;
 }
 
 /**
@@ -110,9 +110,9 @@ export function progressionSeries(parts: Participation[]): ProgressionPoint[] {
     )
     .sort((a, b) => a.participation.course.event_date!.localeCompare(b.participation.course.event_date!))
     .map((entry) => ({
-      participationId: entry.participation.id,
+      id: entry.participation.id,
       eventDate: entry.participation.course.event_date!,
-      percent: entry.ratio.percent,
+      value: entry.ratio.percent,
     }));
 }
 

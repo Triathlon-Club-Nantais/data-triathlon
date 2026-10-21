@@ -52,3 +52,7 @@ class PersonalProfile(Base):
     log_entries: Mapped[list["ProfileLogEntry"]] = relationship(  # noqa: F821
         back_populates="profile", cascade="all, delete-orphan"
     )
+    #: Même cascade ORM que `log_entries` : la purge de rétention les emporte.
+    measurements: Mapped[list["ProfileMeasurement"]] = relationship(  # noqa: F821
+        back_populates="profile", cascade="all, delete-orphan"
+    )

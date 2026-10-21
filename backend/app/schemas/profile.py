@@ -6,6 +6,7 @@ from datetime import date
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.schemas.ids import DbId
 from app.schemas.utc_datetime import UtcDatetime
 
 
@@ -30,6 +31,28 @@ class ProfileLogEntryCreate(BaseModel):
 
     text: str = Field(min_length=1)
     entry_date: date | None = None
+
+
+class ProfileMeasurementRead(BaseModel):
+    """Un test chronométré, durée en dixièmes de seconde."""
+
+    id: int
+    measured_on: date
+    event: str
+    duration_tenths: int
+    training_session_id: int | None
+    created_at: UtcDatetime
+
+
+class ProfileMeasurementCreate(BaseModel):
+    """Corps de `POST /admin/profiles/{id}/measurements` (24 h au plus : 864000 dixièmes)."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    measured_on: date
+    event: str = Field(min_length=1, max_length=100)
+    duration_tenths: int = Field(ge=1, le=864000)
+    training_session_id: DbId | None = None
 
 
 class ProfileRead(BaseModel):
@@ -71,6 +94,7 @@ class ProfileDetailRead(ProfileRead):
     groups: list[ProfileGroupRead]
     log_entries: list[ProfileLogEntryRead] | None
     attendance: ProfileAttendanceRead | None
+    measurements: list[ProfileMeasurementRead] | None
 
 
 class ProfileCreate(BaseModel):

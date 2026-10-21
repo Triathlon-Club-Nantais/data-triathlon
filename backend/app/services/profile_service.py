@@ -42,6 +42,11 @@ class NoOrganisationError(DomainError):
     message = "Aucune organisation n'existe."
 
 
+class MeasurementSessionError(DomainError):
+    status_code = 422
+    message = "Cette séance n'est pas une séance de ce jeune à cette date."
+
+
 def default_organisation_id(db: Session) -> int:
     organisation = role_repository.default_organisation(db)
     if organisation is None:
@@ -63,6 +68,17 @@ def _log_entry_view(entry) -> dict:
         "text": entry.text,
         "created_by_name": entry.created_by.display_name if entry.created_by else None,
         "created_at": entry.created_at,
+    }
+
+
+def _measurement_view(measurement) -> dict:
+    return {
+        "id": measurement.id,
+        "measured_on": measurement.measured_on,
+        "event": measurement.event,
+        "duration_tenths": measurement.duration_tenths,
+        "training_session_id": measurement.training_session_id,
+        "created_at": measurement.created_at,
     }
 
 
@@ -107,6 +123,7 @@ def profile_detail_view(
             "groups": groups,
             "log_entries": None,
             "attendance": None,
+            "measurements": None,
         }
     date_from, date_to = fftri_season_to_date(utcnow().date())
     history = training_session_repository.presence_history_of_profile(
@@ -120,6 +137,10 @@ def profile_detail_view(
         "log_entries": [
             _log_entry_view(entry)
             for entry in profile_repository.list_log_entries(db, profile.id)
+        ],
+        "measurements": [
+            _measurement_view(measurement)
+            for measurement in profile_repository.list_measurements(db, profile.id)
         ],
     }
 
@@ -209,3 +230,58 @@ def add_log_entry(
         "Profile log entry added: actor=%s profile=%s", actor.id, profile.id
     )
     return profile
+
+
+def add_measurement(
+    db: Session,
+    actor: User,
+    profile: PersonalProfile,
+    *,
+    measured_on: date,
+    event: str,
+    duration_tenths: int,
+    training_session_id: int | None = None,
+) -> PersonalProfile:
+    """Enregistre un test chronométré. Une séance liée doit se tenir le jour du
+    test et compter le jeune parmi ses inscrits."""
+    if training_session_id is not None:
+        training_session = training_session_repository.get(db, training_session_id)
+        if (
+            training_session is None
+            or training_session.date != measured_on
+            or training_session_repository.find_participant(
+                db, training_session_id=training_session_id, profile_id=profile.id
+            )
+            is None
+        ):
+            raise MeasurementSessionError()
+    profile_repository.add_measurement(
+        db,
+        profile_id=profile.id,
+        measured_on=measured_on,
+        event=event,
+        duration_tenths=duration_tenths,
+        training_session_id=training_session_id,
+        created_by_user_id=actor.id,
+    )
+    logger.info("Profile measurement added: actor=%s profile=%s", actor.id, profile.id)
+    return profile
+
+
+def delete_measurement(
+    db: Session, actor: User, profile: PersonalProfile, measurement_id: int
+) -> None:
+    measurement = profile_repository.get_measurement(db, profile.id, measurement_id)
+    if measurement is None:
+        raise NotFoundError("Ce test n'existe pas.")
+    profile_repository.delete_measurement(db, measurement)
+    logger.info(
+        "Profile measurement deleted: actor=%s profile=%s measurement=%s",
+        actor.id,
+        profile.id,
+        measurement_id,
+    )
+
+
+def list_measurement_events(db: Session) -> list[str]:
+    return profile_repository.list_measurement_events(db, default_organisation_id(db))

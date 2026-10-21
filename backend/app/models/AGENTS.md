@@ -481,3 +481,7 @@ déjà, la réclamation se clôt seule. Le journal porte `mode`
 (`joined_with_carrier`, `replaced_team_label`, `joined_team`, `team_completed`), le couple `carrier.nom`/`carrier.prenom` et l'ancien
 `team_name`, que l'opposition efface. Un résultat en attente ou refusé répond
 comme un id inconnu (404) ; un porteur `Anonyme …` ne se réclame pas.
+
+## Tests chronométrés d'un jeune (#1365)
+
+`profile_measurements` (`id`, `profile_id`, `measured_on`, `event`, `duration_tenths`, `training_session_id`, `created_by_user_id`, `created_at`) : un test daté d'un profil, épreuve libre, durée en dixièmes de seconde. Seul point de passage : `profile_repository`. **Possédé** par le profil (cascade ORM `PersonalProfile.measurements`, la purge de rétention l'emporte). `training_session_id` est un repère facultatif sans `ondelete` : `training_session_repository.delete_training_session` le remet à NULL.

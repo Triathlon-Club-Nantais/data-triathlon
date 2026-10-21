@@ -12,6 +12,7 @@ from sqlalchemy import update as sql_update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
+from app.models.profile_measurement import ProfileMeasurement
 from app.models.training_group import TrainingGroup, TrainingGroupMember
 from app.models.training_participant import TrainingParticipant
 from app.models.training_recurrence import training_session_groups
@@ -22,19 +23,34 @@ def get(db: Session, training_session_id: int) -> TrainingSession | None:
     return db.get(TrainingSession, training_session_id)
 
 
-def list_all(db: Session) -> list[TrainingSession]:
+def list_all(
+    db: Session, *, profile_id: int | None = None, on: date_ | None = None
+) -> list[TrainingSession]:
     """Les entraînements, triés par date puis heure de début.
 
     Une séance sans heure renseignée sort en **fin** de sa date : l'ordre
     `TrainingSession.start_time.is_(None)` place d'abord les séances à heure
     connue (`False` < `True`), sur le même patron que l'ordre de finisseurs de
     `participation_repository._display_order`.
+
+    `profile_id` ne garde que les séances où ce profil est inscrit, `on` celles
+    de ce jour.
     """
+    query = select(TrainingSession).options(selectinload(TrainingSession.groups))
+    if profile_id is not None:
+        query = query.where(
+            select(TrainingParticipant.id)
+            .where(
+                TrainingParticipant.training_session_id == TrainingSession.id,
+                TrainingParticipant.profile_id == profile_id,
+            )
+            .exists()
+        )
+    if on is not None:
+        query = query.where(TrainingSession.date == on)
     return list(
         db.scalars(
-            select(TrainingSession)
-            .options(selectinload(TrainingSession.groups))
-            .order_by(
+            query.order_by(
                 TrainingSession.date,
                 TrainingSession.start_time.is_(None),
                 TrainingSession.start_time,
@@ -125,7 +141,13 @@ def update(
 
 def delete_training_session(db: Session, training_session: TrainingSession) -> None:
     """Supprime la séance ; ses inscriptions partent avec elle par la cascade
-    ORM `delete-orphan` de `TrainingSession.participants`."""
+    ORM `delete-orphan` de `TrainingSession.participants`. Les tests chronométrés
+    rattachés restent, sans séance."""
+    db.execute(
+        sql_update(ProfileMeasurement)
+        .where(ProfileMeasurement.training_session_id == training_session.id)
+        .values(training_session_id=None)
+    )
     db.delete(training_session)
     db.flush()
 

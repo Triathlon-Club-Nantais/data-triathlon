@@ -22,6 +22,7 @@ import { formatDate, localToday } from "@/lib/utils/date";
 import { useDangerConfirm } from "@/components/admin/DangerConfirm";
 import { calculerAge } from "@/lib/utils/age";
 import { profilePurgeDate } from "@/lib/utils/season";
+import { ProfileMeasurements } from "@/components/admin/jeunes/ProfileMeasurements";
 import { EmergencyContact } from "@/components/admin/jeunes/EmergencyContact";
 import { PresenceDuProfil } from "@/components/admin/jeunes/PresenceDuProfil";
 
@@ -275,6 +276,14 @@ export function ProfileDetail({ profileId }: { profileId: number }) {
           </ul>
         )}
       </Card>
+
+      {data.measurements !== null && (
+        <ProfileMeasurements
+          profileId={profileId}
+          measurements={data.measurements}
+          peutEcrire={peutEcrire}
+        />
+      )}
     </div>
   );
 }

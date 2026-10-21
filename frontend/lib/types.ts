@@ -759,6 +759,16 @@ export interface ProfileLogEntry {
   created_at: string;
 }
 
+/** Un test chronométré d'un jeune (#1365) ; `duration_tenths` en dixièmes de seconde. */
+export interface ProfileMeasurement {
+  id: number;
+  measured_on: string;
+  event: string;
+  duration_tenths: number;
+  training_session_id: number | null;
+  created_at: string;
+}
+
 /** Un profil **et** son journal — ce que rend le détail. */
 export interface ProfileDetail extends Profile {
   /** Ces trois champs valent `null` sans le pouvoir `jeunes:read` (#1472). */
@@ -768,6 +778,8 @@ export interface ProfileDetail extends Profile {
   log_entries: ProfileLogEntry[] | null;
   /** `null` sans le pouvoir `jeunes:read` (#1364). */
   attendance: ProfileAttendance | null;
+  /** `null` sans le pouvoir `jeunes:read`, comme `log_entries`. */
+  measurements: ProfileMeasurement[] | null;
 }
 
 /** Assiduité de la saison FFTri en cours, sur les seules séances pointées (#1364). */

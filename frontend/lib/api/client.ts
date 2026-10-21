@@ -676,7 +676,10 @@ export const apiClient = {
   // ── Calendrier des entraînements jeunes (#868, epic #863) ─────────────────
   // Lecture sous `jeunes:read`, écriture sous `jeunes:write` — deux pouvoirs
   // réellement distincts (cf. `contracts/api.md` de la feature).
-  listTrainingSessions: () => request<TrainingSession[]>("/admin/training-sessions"),
+  listTrainingSessions: (filtre?: { profileId: number; date: string }) =>
+    request<TrainingSession[]>(
+      `/admin/training-sessions${toQuery(filtre ? { profile_id: filtre.profileId, date: filtre.date } : {})}`,
+    ),
   getTrainingSession: (id: number) =>
     request<TrainingSessionDetail>(`/admin/training-sessions/${id}`),
   createTrainingSession: (body: {
@@ -806,6 +809,22 @@ export const apiClient = {
       method: "POST",
       body: JSON.stringify({ text, entry_date: entryDate }),
     }),
+  addProfileMeasurement: (
+    id: number,
+    body: {
+      measured_on: string;
+      event: string;
+      duration_tenths: number;
+      training_session_id: number | null;
+    },
+  ) =>
+    request<ProfileDetail>(`/admin/profiles/${id}/measurements`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  deleteProfileMeasurement: (id: number, measurementId: number) =>
+    request<null>(`/admin/profiles/${id}/measurements/${measurementId}`, { method: "DELETE" }),
+  listMeasurementEvents: () => request<string[]>("/admin/profiles/measurement-events"),
   // ── Composition des rôles (#115, écran #240) ───────────────────────────────
   // Lecture sous `roles:read`, écriture sous `roles:write`. `listRoles` est
   // celle de l'attribution ci-dessus — même ressource, même cache.

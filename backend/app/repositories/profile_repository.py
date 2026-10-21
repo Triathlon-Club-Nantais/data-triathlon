@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.models.personal_profile import PersonalProfile
 from app.models.profile_log_entry import ProfileLogEntry
+from app.models.profile_measurement import ProfileMeasurement
 
 
 def get(db: Session, profile_id: int) -> PersonalProfile | None:
@@ -97,13 +98,81 @@ def add_log_entry(
     return entry
 
 
+def list_measurements(db: Session, profile_id: int) -> list[ProfileMeasurement]:
+    """Les tests d'un profil, groupés par épreuve puis du plus ancien au plus récent."""
+    return list(
+        db.scalars(
+            select(ProfileMeasurement)
+            .where(ProfileMeasurement.profile_id == profile_id)
+            .order_by(
+                ProfileMeasurement.event,
+                ProfileMeasurement.measured_on,
+                ProfileMeasurement.created_at,
+            )
+        )
+    )
+
+
+def add_measurement(
+    db: Session,
+    *,
+    profile_id: int,
+    measured_on: date,
+    event: str,
+    duration_tenths: int,
+    training_session_id: int | None = None,
+    created_by_user_id: int | None = None,
+) -> ProfileMeasurement:
+    measurement = ProfileMeasurement(
+        profile_id=profile_id,
+        measured_on=measured_on,
+        event=event,
+        duration_tenths=duration_tenths,
+        training_session_id=training_session_id,
+        created_by_user_id=created_by_user_id,
+    )
+    db.add(measurement)
+    db.flush()
+    return measurement
+
+
+def get_measurement(
+    db: Session, profile_id: int, measurement_id: int
+) -> ProfileMeasurement | None:
+    """None si l'id existe sous un autre profil."""
+    return db.scalar(
+        select(ProfileMeasurement).where(
+            ProfileMeasurement.id == measurement_id,
+            ProfileMeasurement.profile_id == profile_id,
+        )
+    )
+
+
+def delete_measurement(db: Session, measurement: ProfileMeasurement) -> None:
+    db.delete(measurement)
+    db.flush()
+
+
+def list_measurement_events(db: Session, organisation_id: int) -> list[str]:
+    """Les épreuves déjà saisies dans l'organisation, distinctes et triées."""
+    return list(
+        db.scalars(
+            select(ProfileMeasurement.event)
+            .join(PersonalProfile, PersonalProfile.id == ProfileMeasurement.profile_id)
+            .where(PersonalProfile.organisation_id == organisation_id)
+            .distinct()
+            .order_by(ProfileMeasurement.event)
+        )
+    )
+
+
 def list_membership_ended_before(db: Session, cutoff: date) -> list[PersonalProfile]:
     """Profils dont l'adhésion a pris fin avant `cutoff` (#1158)."""
     return list(db.scalars(select(PersonalProfile).where(PersonalProfile.membership_ended_on < cutoff)))
 
 
 def delete(db: Session, profile: PersonalProfile) -> None:
-    """Supprime le profil ; son journal part par la cascade ORM. Les présences
+    """Supprime le profil ; son journal et ses tests partent par la cascade ORM. Les présences
     aux séances et les appartenances de groupe, sans cascade, sont à retirer avant
     (`training_session_repository`, `training_group_repository`)."""
     db.delete(profile)
