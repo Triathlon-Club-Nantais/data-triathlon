@@ -17,13 +17,14 @@ from app.core.discipline import federal_clause
 from app.core.gender import GENDERS
 from app.core.gender import gender_places as core_gender_places
 from app.core.season import season_bounds, season_of
+from app.core.text import deaccent
 from app.core.validation import awaiting_validation_clause, validated_clause
 from app.core.youth import is_youth
 from app.models.athlete import Athlete
 from app.models.course import Course
 from app.models.participation import Participation, ParticipationTeammate
 from app.repositories import club_alias_repository, course_repository
-from app.repositories.athlete_repository import credits, name_filter, unaccent_like
+from app.repositories.athlete_repository import credits, escape_like, name_filter, unaccent_like
 from app.repositories.dialect import is_postgres
 from app.scrapers.base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, STATUS_FINISHER
 from app.scrapers.classify import CANONICAL_TYPES
@@ -1054,6 +1055,48 @@ def _relay_name_matches(pattern: str) -> list:
             or_(unaccent_like(teammate.nom, pattern), unaccent_like(teammate.prenom, pattern)),
         ),
     ]
+
+
+def search_team_results(db: Session, *, term: str, exclude_athlete_id: int, limit: int = 10) -> list[Participation]:
+    """Relais validés qu'un adhérent peut demander à rejoindre (#1739), trouvés
+    par le nom d'équipe ou le nom de la fiche d'équipe qui les porte.
+
+    Mot à mot, comme `name_filter` : « mollets d acier » trouve « LES MOLLETS
+    D'ACIER ». Les relais découpés sur des fiches de personnes sans composition
+    sont exclus, chacun y a déjà sa ligne.
+    """
+    words = deaccent(term).split()
+    if not words:
+        return []
+    # Anonymised fiches ("Anonyme ...", cf. result_claims._is_anonymous) are not team records.
+    team_record = and_(
+        func.trim(Athlete.prenom) == "", func.trim(Athlete.nom) != "", ~Athlete.nom.startswith("Anonyme ")
+    )
+    links = ParticipationTeammate.participation_id == Participation.id
+    matches = []
+    for word in words:
+        pattern = f"%{escape_like(word).lower()}%"
+        matches.append(or_(
+            unaccent_like(Participation.team_name, pattern),
+            and_(team_record, unaccent_like(Athlete.nom, pattern)),
+        ))
+    query = (
+        select(Participation)
+        .join(Participation.course)
+        .join(Participation.athlete)
+        .options(contains_eager(Participation.course), contains_eager(Participation.athlete))
+        .where(
+            or_(Participation.is_relay.is_(True), Course.is_relay.is_(True)),
+            validated_clause(Participation.is_pending_validation),
+            Participation.athlete_id != exclude_athlete_id,
+            ~exists().where(links, ParticipationTeammate.athlete_id == exclude_athlete_id),
+            or_(team_record, exists().where(links)),
+            *matches,
+        )
+        .order_by(Course.event_date.desc().nullslast(), Participation.id.desc())
+        .limit(limit)
+    )
+    return list(db.scalars(query))
 
 
 def summary_rows_for_course(db: Session, course_id: int) -> list[tuple]:
