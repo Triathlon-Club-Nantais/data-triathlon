@@ -28,7 +28,17 @@ tag.
   main (**Actions** → *CI* → **Run workflow** → branche) quand elle ne s'est pas
   déclenchée seule ; l'exécution porte alors sur la branche, pas sur sa fusion
   avec `main`.
-  - Backend : `uv run ruff check .` + `uv run pytest -m "not integration"` (Python 3.13).
+  - `changes` : filtre de chemins (#1705). Sur `pull_request` seulement, une
+    PR ne lance que les jobs de l'application touchée (`backend/**` ou
+    `frontend/**`, `.github/**` lançant les deux) ; tout autre événement
+    (`merge_group`, `workflow_dispatch`, `workflow_call` de `deploy.yml`) lance
+    tout. Le même job exécute les tests des hooks Claude (`.claude/hooks`) et de
+    `ci-ok.sh` (`.github/scripts/test-ci-ok.sh`), sur tout événement.
+  - Backend : `uv run ruff check .` + `uv run pytest -m "not integration"
+    --migrations --splits 2 --group N` (Python 3.13), en matrice de deux
+    runners que `pytest-split` équilibre d'après `backend/.test_durations`
+    (#1707) ; `--migrations` réintègre les tests Alembic désélectionnés en
+    local. Détail : `docs/tests-boucle.md`.
   - `backend-audit` : `uv audit` sur `uv.lock`, en `continue-on-error` et hors
     du check requis (#920). Une advisory publiée après coup le rend rouge sur
     toutes les PR sans bloquer la merge queue, ni les bumps Dependabot qui la
@@ -42,8 +52,10 @@ tag.
     tests (#1249) : recréé à chaque test, il coûtait l'essentiel du job.
   - Frontend : `npm run lint` (eslint) + `npm test` (vitest) + `npm run build`
     (typecheck TS strict + build Next/RSC).
-  - `ci-ok` : agrégateur, en échec dès qu'un job amont (hors audit) n'est pas
-    `success`. **C'est le seul check requis** (voir « Merge queue » plus bas).
+  - `ci-ok` : agrégateur (`.github/scripts/ci-ok.sh`), en échec dès qu'un job
+    amont (hors audit) n'est pas `success`, avec une seule tolérance :
+    `skipped` sur une `pull_request` pour un job dont l'application n'a pas
+    changé. **C'est le seul check requis** (voir « Merge queue » plus bas).
 - **`.github/workflows/deploy.yml`** : déclenché sur `push` de tags `v*` et sur
   `workflow_dispatch` (plus sur `main` depuis #1572). Appelle `ci.yml` puis,
   **seulement si la CI passe** (`needs: ci`), lance `deploy-preview` (sur
@@ -1162,7 +1174,9 @@ git push origin v0.1.0
 
 ## Vérification
 
-1. Ouvrir une PR → les jobs `backend` et `frontend` passent, puis `ci-ok`.
+1. Ouvrir une PR → `changes`, puis les jobs de l'application touchée
+   (`backend` ou `frontend`, les deux si `.github/**` change) passent, les
+   autres sont `skipped`, puis `ci-ok`.
 2. Lancer un `workflow_dispatch` de *Deploy* sur `main` → `deploy.yml` enchaîne
    `ci` puis `deploy-preview` : hook Render preview, attente de `live` et de la
    version (#921), puis déploiement sur l'URL fixe de `data-triathlon-preview`.
