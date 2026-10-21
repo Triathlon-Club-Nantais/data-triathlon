@@ -125,7 +125,7 @@ describe("GroupesList", () => {
     ]);
     afficher();
     const brut = { normalizer: (texte: string) => texte }; // garde l'espace insécable
-    expect(await screen.findByText("Assiduité : 75 %", brut)).toBeInTheDocument();
+    expect(await screen.findByText("Assiduité : 75\u202f%", brut)).toBeInTheDocument();
     expect(screen.getByText("Assiduité : aucun appel")).toBeInTheDocument();
   });
 
