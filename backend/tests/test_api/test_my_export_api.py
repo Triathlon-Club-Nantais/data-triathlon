@@ -9,6 +9,7 @@ from app.models.athlete_claim import AthleteClaim
 from app.models.course import Course
 from app.models.identity import Identity
 from app.models.participation import Participation, ParticipationTeammate
+from app.models.public_page_settings import PublicPageSettings
 from app.models.result_claim import ResultClaim
 from app.models.season_goal import SeasonGoal
 from app.models.user import User
@@ -147,7 +148,7 @@ def test_unlinked_account_exports_its_declarations_for_others(client, db_session
 EXCLUDED_OWNED_TABLES = {"user_sessions", "user_roles", "user_groups"}
 EXPORTED_OWNED_TABLES = {
     "identities": "identities", "athlete_claims": "athlete_claim", "member_requests": "member_request",
-    "season_goals": "season_goals", "result_claims": "result_claims",
+    "season_goals": "season_goals", "result_claims": "result_claims", "public_page_settings": "public_page",
 }
 
 
@@ -158,3 +159,16 @@ def test_every_owned_table_is_exported_or_explicitly_excluded(client, db_session
 
     assert user_repository._OWNED_TABLES == EXCLUDED_OWNED_TABLES | EXPORTED_OWNED_TABLES.keys()
     assert set(EXPORTED_OWNED_TABLES.values()) <= body.keys()
+
+
+def test_export_holds_the_public_page_settings(client, db_session):
+    me = _session_etroite(client, db_session, email="moi@exemple.fr", slug="moi")
+    assert client.get(URL).json()["public_page"] is None
+
+    db_session.add(PublicPageSettings(user_id=me.id, hide_comparison=True, links=["https://strava.com/a"]))
+    db_session.commit()
+
+    assert client.get(URL).json()["public_page"] == {
+        "hide_best_times": False, "hide_progression": False, "hide_comparison": True,
+        "links": ["https://strava.com/a"], "pinned_participation_id": None,
+    }
