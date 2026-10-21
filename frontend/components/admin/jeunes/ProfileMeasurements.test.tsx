@@ -194,4 +194,44 @@ describe("ProfileMeasurements", () => {
       ),
     );
   });
+
+  it("sous trois tests d'une épreuve, une ligne discrète remplace la courbe", () => {
+    afficher([test(1, "Cooper", "2026-09-10", 4623), test(2, "Cooper", "2026-10-11", 4500)]);
+
+    expect(screen.getByText("Courbe à partir de trois tests.")).toBeInTheDocument();
+    expect(screen.queryByText("Pas encore assez de tests")).not.toBeInTheDocument();
+  });
+
+  it("graduations de l'axe arrondies à la seconde", () => {
+    const { container } = afficher([
+      test(1, "Cooper", "2026-09-10", 4623),
+      test(2, "Cooper", "2026-10-10", 4500),
+      test(3, "Cooper", "2026-10-11", 4400),
+    ]);
+
+    const ticks = container.querySelectorAll("[data-tick]");
+    expect(ticks.length).toBeGreaterThan(0);
+    for (const tick of ticks) expect(tick.textContent).not.toContain(",");
+  });
+
+  it("refuse une épreuve faite de blancs sans appeler l'API", async () => {
+    const user = userEvent.setup();
+    afficher([]);
+
+    await user.type(screen.getByLabelText("Épreuve"), "   ");
+    await user.type(screen.getByLabelText("Durée"), "42,3");
+    await user.click(screen.getByRole("button", { name: "Enregistrer le test" }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Indiquez l'épreuve.");
+    const champ = screen.getByLabelText("Épreuve");
+    expect(champ).toHaveAttribute("aria-invalid", "true");
+    expect(champ.getAttribute("aria-describedby")).toBeTruthy();
+    expect(addProfileMeasurement).not.toHaveBeenCalled();
+  });
+
+  it("aide de durée et cible tactile du bouton", () => {
+    afficher([]);
+    expect(screen.getByText("En secondes (42,3), min:s (7:42) ou h:min:s (1:02:05)")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Enregistrer le test" })).toHaveClass("tcn-cible-tactile");
+  });
 });

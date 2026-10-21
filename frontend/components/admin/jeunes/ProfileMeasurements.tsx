@@ -20,7 +20,8 @@ import type { ProfileMeasurement } from "@/lib/types";
 // Une durée n'a pas de plafond naturel : la marge de la courbe ne se rabat sur rien.
 const DURATION_AXIS: ProgressionAxis = {
   max: Infinity,
-  tick: formatDuration,
+  // La gouttière gauche du graphique tient 40 px : « 7:42 », pas « 7:42,3 ».
+  tick: (value) => formatDuration(Math.round(value / 10) * 10),
   label: formatDuration,
   spoken: formatDuration,
   caption: "Durée à chaque test, plus haut, plus rapide.",
@@ -28,6 +29,8 @@ const DURATION_AXIS: ProgressionAxis = {
   emptyTitle: "Pas encore assez de tests",
   emptyDescription: "Trois tests de cette épreuve sont nécessaires pour tracer une progression.",
 };
+
+const MIN_TESTS_POUR_COURBE = 3;
 
 /** Les tests chronométrés du jeune (#1365), groupés par épreuve dans l'ordre de l'API. */
 export function ProfileMeasurements({
@@ -79,14 +82,18 @@ export function ProfileMeasurements({
         [...parEpreuve].map(([epreuve, tests]) => (
           <section key={epreuve} className="space-y-2 border-t pt-3 first:border-t-0 first:pt-0">
             <h3 className="font-semibold">{epreuve}</h3>
-            <ProgressionChart
-              axis={DURATION_AXIS}
-              points={tests.map((test) => ({
-                id: test.id,
-                eventDate: test.measured_on,
-                value: test.duration_tenths,
-              }))}
-            />
+            {tests.length < MIN_TESTS_POUR_COURBE ? (
+              <p className="text-[var(--tcn-text-faint)] text-sm">Courbe à partir de trois tests.</p>
+            ) : (
+              <ProgressionChart
+                axis={DURATION_AXIS}
+                points={tests.map((test) => ({
+                  id: test.id,
+                  eventDate: test.measured_on,
+                  value: test.duration_tenths,
+                }))}
+              />
+            )}
             <ul className="divide-border divide-y">
               {tests.map((test) => (
                 <li key={test.id} className="flex items-center justify-between gap-2 py-2 text-sm">
@@ -123,12 +130,14 @@ function FormulaireTest({ profileId }: { profileId: number }) {
   const [duree, setDuree] = useState("");
   const [seance, setSeance] = useState("");
   const [illisible, setIllisible] = useState(false);
+  const [epreuveVide, setEpreuveVide] = useState(false);
   const seances = useTrainingSessionsOn(profileId, date);
 
   async function enregistrer(evenement: React.SyntheticEvent) {
     evenement.preventDefault();
     const dixiemes = parseDuration(duree);
     setIllisible(dixiemes === null);
+    setEpreuveVide(!epreuve.trim());
     if (dixiemes === null || !epreuve.trim()) return;
     try {
       await ajouter.mutateAsync({
@@ -168,9 +177,16 @@ function FormulaireTest({ profileId }: { profileId: number }) {
           id="test-epreuve"
           required
           list="test-epreuves"
+          aria-invalid={epreuveVide}
+          aria-describedby={epreuveVide ? "test-epreuve-erreur" : undefined}
           value={epreuve}
           onChange={(e) => setEpreuve(e.target.value)}
         />
+        {epreuveVide && (
+          <p id="test-epreuve-erreur" role="alert" className="text-destructive text-sm">
+            Indiquez l&apos;épreuve.
+          </p>
+        )}
         <datalist id="test-epreuves">
           {(suggestions.data ?? []).map((nom) => (
             <option key={nom} value={nom} />
@@ -189,7 +205,7 @@ function FormulaireTest({ profileId }: { profileId: number }) {
           onChange={(e) => setDuree(e.target.value)}
         />
         <p id="test-duree-aide" className="text-[var(--tcn-text-faint)] text-xs">
-          42,3 ou 7:42 ou 1:02:05
+          En secondes (42,3), min:s (7:42) ou h:min:s (1:02:05)
         </p>
         {illisible && (
           <p role="alert" className="text-destructive text-sm">
@@ -217,7 +233,7 @@ function FormulaireTest({ profileId }: { profileId: number }) {
           </select>
         </div>
       )}
-      <Button type="submit" size="sm" disabled={ajouter.isPending}>
+      <Button type="submit" size="sm" className="tcn-cible-tactile" disabled={ajouter.isPending}>
         Enregistrer le test
       </Button>
     </form>
