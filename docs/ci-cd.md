@@ -217,8 +217,8 @@ connexions.
 | `DB_POOL_SIZE` | absente (défaut du code, `15`) | `3` | défaut du code |
 | `DB_MAX_OVERFLOW` | absente (défaut du code, `10`) | `3` | défaut du code |
 
-Le budget, au pire moment d'un déploiement, pour une instance à `3 + 3 = 6`
-connexions :
+Le budget pendant l'`alembic upgrade head` d'un déploiement, pour une instance à
+`3 + 3 = 6` connexions :
 
 | Qui | Connexions |
 |---|---|
@@ -229,11 +229,21 @@ connexions :
 
 Une fois la nouvelle instance en ligne, avant l'arrêt de l'ancienne : les 3
 connexions que l'ancienne garde au repos (le débordement se referme à la
-restitution, pas le pool), les 6 de la nouvelle et le batch font **14**. Ce
-réglage borne aussi le pool de threads des routes synchrones à 6
-(`_thread_limit_for`, `backend/app/main.py`) : une rafale attend un thread au
-lieu de se voir refuser une connexion. Relever l'un des deux suppose de refaire
-ce compte, et un `--max-concurrent-hosts` plus haut sur la preview aussi.
+restitution, pas le pool), les 6 de la nouvelle et le batch font **14**. Le
+compte suppose l'ancienne instance au repos : si elle sert encore une rafale
+pendant que la nouvelle en sert une autre et qu'un batch tourne, on atteint
+6 + 6 + 5 = 17, et le pooler refuse le surplus. Cas jugé trop rare sur une
+preview pour descendre plus bas. Le batch, lui, n'a pas de `DB_POOL_SIZE` : ses
+5 connexions ne tiennent qu'à `--max-concurrent-hosts`, et le relever sur la
+preview impose de refaire ce compte. Les connexions manuelles (`psql` vers le
+pooler) comptent aussi.
+
+Ce réglage borne enfin le pool de threads des routes synchrones à 6
+(`_thread_limit_for`, `backend/app/main.py`) : une rafale de lectures attend un
+thread au lieu de se voir refuser une connexion. Les imports en cours y
+échappent (leurs threads ouvrent leur propre session) : quelques imports longs
+peuvent occuper tout le pool, et une lecture rend alors 500 après
+`DB_POOL_TIMEOUT_SECONDS` (5 s). Acceptable sur la preview.
 
 ### Rester sous les 750 h du plan free — la décision (#530)
 
