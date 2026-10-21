@@ -9,7 +9,6 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-
 revision: str = 'a3a874392e03'
 down_revision: Union[str, None] = 'c84cbf6533c4'
 branch_labels: Union[str, Sequence[str], None] = None
@@ -17,7 +16,6 @@ depends_on: Union[str, Sequence[str], None] = None
 
 # Contrat lu par réflexion par Alembic (cf. `script.py.mako`), jamais référencé ici.
 __all__ = ["revision", "down_revision", "branch_labels", "depends_on", "upgrade", "downgrade"]
-
 
 def upgrade() -> None:
     op.create_table('public_page_settings',
@@ -34,7 +32,6 @@ def upgrade() -> None:
     )
     with op.batch_alter_table('season_goals', schema=None) as batch_op:
         batch_op.add_column(sa.Column('public', sa.Boolean(), server_default=sa.false(), nullable=False))
-
 
 
 def downgrade() -> None:
