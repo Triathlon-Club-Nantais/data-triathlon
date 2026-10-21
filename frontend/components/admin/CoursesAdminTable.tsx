@@ -21,6 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { EVENT_TYPE_OPTIONS, eventTypeLabel } from "@/lib/constants";
@@ -95,7 +96,11 @@ export function CoursesAdminTable({
 
   function naviguer(valeurs: FiltresCourses, versLaPage: number) {
     const qs = new URLSearchParams();
-    Object.entries(valeurs).forEach(([cle, valeur]) => valeur && qs.set(cle, String(valeur)));
+    Object.entries(valeurs).forEach(
+      ([cle, valeur]) =>
+        valeur &&
+        qs.set(cle === "event_type_to_review" ? "type_a_verifier" : cle, valeur === true ? "1" : String(valeur)),
+    );
     // La page 1 ne s'écrit pas : `?page=1` est du bruit dans une URL partagée.
     if (versLaPage > 1) qs.set("page", String(versLaPage));
     router.push(qs.size ? `${chemin}?${qs}` : chemin);
@@ -181,6 +186,11 @@ export function CoursesAdminTable({
                 <TableCell className="max-w-xs truncate">
                   <span className="tabular-nums text-xs text-muted-foreground">n° {course.id}</span>{" "}
                   {course.name}
+                  {course.event_type_origin === "fallback" && (
+                    <Badge variant="outline" className="ml-2">
+                      Type à vérifier
+                    </Badge>
+                  )}
                 </TableCell>
                 <TableCell>{formatDate(course.event_date)}</TableCell>
                 {/* Le slug reste affiché tel quel s'il est inconnu de la table :
@@ -364,11 +374,14 @@ function CatalogueFilters({
   const [type, setType] = useState(valeurs.event_type ?? "");
   const [du, setDu] = useState(valeurs.date_from ?? "");
   const [au, setAu] = useState(valeurs.date_to ?? "");
+  const [aVerifier, setAVerifier] = useState(valeurs.event_type_to_review ?? false);
 
   const actifs = Object.values(valeurs).some(Boolean);
 
   function appliquer() {
-    onFiltrer({ id, name: nom, event_type: type, date_from: du, date_to: au });
+    onFiltrer({ id, name: nom, event_type: type, date_from: du, date_to: au,
+      event_type_to_review: aVerifier || undefined,
+    });
   }
 
   function reinitialiser() {
@@ -377,6 +390,7 @@ function CatalogueFilters({
     setType("");
     setDu("");
     setAu("");
+    setAVerifier(false);
     onFiltrer({});
   }
 
@@ -442,6 +456,15 @@ function CatalogueFilters({
             value={au}
             onChange={(e) => setAu(e.target.value)}
             className="w-full sm:w-40"
+          />
+        </Champ>
+        <Champ label="Type à vérifier" htmlFor="filtre-type-a-verifier">
+          <input
+            id="filtre-type-a-verifier"
+            type="checkbox"
+            checked={aVerifier}
+            onChange={(e) => setAVerifier(e.target.checked)}
+            className="size-9 sm:size-5"
           />
         </Champ>
         <div className="flex gap-2">

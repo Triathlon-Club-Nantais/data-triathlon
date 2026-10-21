@@ -47,6 +47,8 @@ export interface CourseBrief {
   provider: string;
   source_url: string;
   is_relay: boolean;
+  // Provenance du type : « fallback » = deviné par défaut, à vérifier.
+  event_type_origin?: "classified" | "manual" | "fallback";
   // Précision libre du format (« Autre » du formulaire manuel, #270).
   format_label?: string | null;
   distance_km?: number | null;

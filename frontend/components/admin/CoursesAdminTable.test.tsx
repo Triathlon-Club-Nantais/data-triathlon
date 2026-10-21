@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ApiError } from "@/lib/api/client";
@@ -81,6 +81,7 @@ function afficher(url = "") {
           event_type: sp.get("event_type") ?? undefined,
           date_from: sp.get("date_from") ?? undefined,
           date_to: sp.get("date_to") ?? undefined,
+          event_type_to_review: sp.get("type_a_verifier") === "1" ? true : undefined,
         }}
       />
     </QueryClientProvider>,
@@ -320,6 +321,51 @@ describe("CoursesAdminTable", () => {
     // Rester en page 3 d'un catalogue qui vient de fondre n'afficherait rien.
     // Et `page=1` ne s'écrit pas : c'est du bruit dans une URL partagée.
     expect(push).toHaveBeenCalledWith("/admin/courses?name=vertou");
+  });
+
+  it("pushes type_a_verifier=1 and queries with event_type_to_review when the box is checked", async () => {
+    listCourses.mockResolvedValue([EPREUVE]);
+
+    const { unmount } = afficher();
+    await screen.findByText("Triathlon de Nantes");
+    await userEvent.click(screen.getByLabelText("Type à vérifier"));
+    await userEvent.click(screen.getByRole("button", { name: "Filtrer" }));
+    expect(push).toHaveBeenCalledWith("/admin/courses?type_a_verifier=1");
+    unmount();
+
+    afficher("type_a_verifier=1");
+    await waitFor(() =>
+      expect(listCourses).toHaveBeenCalledWith(
+        expect.objectContaining({ event_type_to_review: true }),
+      ),
+    );
+    expect(countCourses).toHaveBeenCalledWith(
+      expect.objectContaining({ event_type_to_review: true }),
+    );
+  });
+
+  it("clears the type to review filter on reset", async () => {
+    listCourses.mockResolvedValue([EPREUVE]);
+
+    afficher("type_a_verifier=1");
+    await screen.findByText("Triathlon de Nantes");
+    await userEvent.click(screen.getByRole("button", { name: /réinitialiser/i }));
+
+    expect(push).toHaveBeenCalledWith("/admin/courses");
+  });
+
+  it("badges only the courses whose type came from the fallback", async () => {
+    listCourses.mockResolvedValue([
+      { ...EPREUVE, event_type_origin: "fallback" },
+      { ...EPREUVE, id: 13, name: "Duathlon de Rezé", event_type_origin: "classified" },
+    ]);
+
+    afficher();
+    await screen.findByText("Duathlon de Rezé");
+
+    expect(screen.getAllByText("Type à vérifier")).toHaveLength(2); // checkbox label + one badge
+    const ligne = screen.getByText("Duathlon de Rezé").closest("tr")!;
+    expect(within(ligne).queryByText("Type à vérifier")).toBeNull();
   });
 
   it("réinitialiser vide l'URL de ses filtres", async () => {
