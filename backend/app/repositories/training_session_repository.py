@@ -7,7 +7,7 @@ La transaction reste portée par le service appelant
 """
 from datetime import date as date_
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import case, delete, func, select
 from sqlalchemy import update as sql_update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
@@ -297,3 +297,52 @@ def mark_detached(db: Session, training_session: TrainingSession) -> None:
 def unlink_from_recurrence(db: Session, training_session: TrainingSession) -> None:
     training_session.recurrence_id = None
     db.flush()
+
+
+def presence_history_of_profile(
+    db: Session, profile_id: int, *, date_from: date_, date_to: date_
+) -> list[bool]:
+    """Les pointages (présent ou absent) du jeune sur `[date_from, date_to]`,
+    du plus récent au plus ancien. Une séance sans heure est la plus tardive de
+    sa date, comme dans `list_all`."""
+    return list(
+        db.scalars(
+            select(TrainingParticipant.present)
+            .join(TrainingSession, TrainingSession.id == TrainingParticipant.training_session_id)
+            .where(
+                TrainingParticipant.profile_id == profile_id,
+                TrainingParticipant.present.is_not(None),
+                TrainingSession.date.between(date_from, date_to),
+            )
+            .order_by(
+                TrainingSession.date.desc(),
+                TrainingSession.start_time.is_(None).desc(),
+                TrainingSession.start_time.desc(),
+                TrainingSession.id.desc(),
+            )
+        )
+    )
+
+
+def attendance_by_group(
+    db: Session, *, date_from: date_, date_to: date_
+) -> dict[int, tuple[int, int]]:
+    """`groupe → (présents, pointés)` sur `[date_from, date_to]`. Le groupe est
+    celui visé par la séance, pas l'appartenance actuelle du jeune. Un groupe
+    sans pointage n'apparaît pas."""
+    rows = db.execute(
+        select(
+            training_session_groups.c.training_group_id,
+            func.sum(case((TrainingParticipant.present.is_(True), 1), else_=0)),
+            func.count(),
+        )
+        .select_from(training_session_groups)
+        .join(TrainingSession, TrainingSession.id == training_session_groups.c.training_session_id)
+        .join(TrainingParticipant, TrainingParticipant.training_session_id == TrainingSession.id)
+        .where(
+            TrainingParticipant.present.is_not(None),
+            TrainingSession.date.between(date_from, date_to),
+        )
+        .group_by(training_session_groups.c.training_group_id)
+    )
+    return {group_id: (int(attended), pointed) for group_id, attended, pointed in rows}

@@ -3,7 +3,7 @@ from datetime import date
 
 import pytest
 
-from app.services.fftri_category import fftri_category
+from app.services.fftri_category import fftri_category, fftri_season_bounds
 
 SEASON_2026 = date(2026, 3, 15)
 
@@ -43,3 +43,8 @@ def test_the_season_switches_on_november_first():
 
 def test_no_birth_date_gives_no_category():
     assert fftri_category(None, SEASON_2026) is None
+
+
+def test_fftri_season_bounds_switch_on_november_first():
+    assert fftri_season_bounds(date(2026, 10, 31)) == (date(2025, 11, 1), date(2026, 10, 31))
+    assert fftri_season_bounds(date(2026, 11, 1)) == (date(2026, 11, 1), date(2027, 10, 31))
