@@ -57,6 +57,7 @@ configure({
   defaultIgnore: 'script, style, [data-affichage="cartes"], [data-affichage="cartes"] *',
 });
 
+// Sert aussi à `project.provide("coverage", …)` dans `vitest.config.ts`.
 declare module "vitest" {
   interface ProvidedContext {
     coverage: boolean;
