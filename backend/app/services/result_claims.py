@@ -105,7 +105,8 @@ def approve(db: Session, claim_id: int, *, actor_id: int) -> None:
         raise _claim_not_pending()
     participation, target = claim.participation, claim.user.athlete_id
     lock_courses_or_409(db, participation.course_id)
-    if opposition_service.is_anonymous(participation.athlete.prenom, participation.athlete.nom):  # opposition appliquée depuis le dépôt
+    athlete = participation.athlete
+    if opposition_service.is_anonymous(athlete.prenom, athlete.nom):  # opposition appliquée depuis le dépôt
         raise UnclaimableResultError()
     payload = {"user_id": claim.user_id, "athlete_id": target, "claim_id": claim_id}
     if participation.counts_as_relay:

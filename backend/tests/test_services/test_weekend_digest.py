@@ -69,7 +69,38 @@ def test_opposed_athletes_and_youths_are_never_named(db_session):
 def test_a_gender_podium_needs_a_known_gender(db_session):
     _result(db_session, _course(db_session), "Alex", "Inconnu", gender=None, rank_gender=1)
 
-    assert collect(db_session, SAT, SUN) == []
+    (digest,) = collect(db_session, SAT, SUN)
+
+    assert digest.podiums == []
+
+
+def test_a_known_gender_gets_a_gender_podium(db_session):
+    _result(db_session, _course(db_session), "Alice", "Martin", gender="F", rank_gender=1)
+
+    (digest,) = collect(db_session, SAT, SUN)
+
+    assert digest.podiums == [DigestPodium("Alice Martin", 1, "gender")]
+
+
+def test_equal_ranks_are_ordered_by_name(db_session):
+    course = _course(db_session)
+    _result(db_session, course, "Zoe", "Zed", bib="1", rank_overall=1)
+    _result(db_session, course, "Abel", "Aron", bib="2", rank_category=1)
+
+    (digest,) = collect(db_session, SAT, SUN)
+
+    assert [podium.name for podium in digest.podiums] == ["Abel Aron", "Zoe Zed"]
+
+
+def test_a_course_without_classified_tcn_is_still_listed(db_session):
+    course = _course(db_session)
+    _result(db_session, course, "Carl", "Petit", status="DNF")
+
+    (digest,) = collect(db_session, SAT, SUN)
+    text = render([digest], saturday=SAT, sunday=SUN, base_url="")
+
+    assert digest.finishers == 0
+    assert "0 TCN classé" in text
 
 
 def test_pending_results_are_left_out(db_session):

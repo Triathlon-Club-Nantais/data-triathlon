@@ -64,9 +64,8 @@ def collect(db: Session, saturday: date, sunday: date) -> list[DigestCourse]:
                 continue
             scope, rank = best
             podiums.append(DigestPodium(f"{row.prenom} {row.nom}".strip(), rank, scope))
-        if finishers or podiums:
-            podiums.sort(key=lambda podium: (podium.rank, podium.name))
-            digest.append(DigestCourse(course.id, course.name, finishers, podiums))
+        podiums.sort(key=lambda podium: (podium.rank, podium.name))
+        digest.append(DigestCourse(course.id, course.name, finishers, podiums))
     return digest
 
 
