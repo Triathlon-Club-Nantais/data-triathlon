@@ -1785,3 +1785,59 @@ def test_member_requests_table_up_and_down(sqlite_url):
         )
         == []
     )
+
+
+def test_fallback_backfill_flags_only_uncorroborated_fallbacks(sqlite_url):
+    """#1744: only a neutral-named triathlon course without swim+bike splits is flagged."""
+    cfg = _alembic_config()
+    command.upgrade(cfg, "b1743c5d9e2f")
+    engine = sa.create_engine(sqlite_url)
+    try:
+        with engine.begin() as connection:
+            for name, event_type, origin in [
+                ("Course A", "triathlon-s", "classified"),
+                ("Course B", "triathlon-s", "classified"),
+                ("Triathlon M de X", "triathlon-m", "classified"),
+                ("Course D", "triathlon-s", "manual"),
+                ("Course E", "duathlon-s", "classified"),
+            ]:
+                connection.execute(
+                    sa.text(
+                        "INSERT INTO courses (name, event_type, event_type_origin, is_relay, created_at)"
+                        " VALUES (:n, :t, :o, 0, '2026-10-21')"
+                    ),
+                    {"n": name, "t": event_type, "o": origin},
+                )
+            connection.execute(
+                sa.text(
+                    "INSERT INTO athletes (nom, prenom, gender, created_at)"
+                    " VALUES ('Dupont', 'Jean', 'M', '2026-10-21')"
+                )
+            )
+            connection.execute(
+                sa.text(
+                    "INSERT INTO participations (athlete_id, course_id, status, splits, created_at)"
+                    " SELECT (SELECT id FROM athletes), id, 'finished', :s, '2026-10-21'"
+                    " FROM courses WHERE name = 'Course B'"
+                ),
+                {"s": '{"swim": {"time": 1}, "bike": {"time": 2}}'},
+            )
+    finally:
+        engine.dispose()
+
+    def origins() -> dict[str, str]:
+        return dict(_lignes(sqlite_url, "SELECT name, event_type_origin FROM courses"))
+
+    command.upgrade(cfg, "c1744a8f3b6d")
+    assert origins() == {
+        "Course A": "fallback",
+        "Course B": "classified",
+        "Triathlon M de X": "classified",
+        "Course D": "manual",
+        "Course E": "classified",
+    }
+
+    command.downgrade(cfg, "b1743c5d9e2f")
+    assert origins()["Course A"] == "classified"
+    assert origins()["Course D"] == "manual"
+    assert "fallback" not in origins().values()
