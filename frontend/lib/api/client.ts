@@ -40,6 +40,8 @@ import type {
   AthleteClaimReview,
   MemberRequest,
   MemberRequestInput,
+  PublicPageSettings,
+  PublicPageSettingsWrite,
   SeasonGoal,
   SeasonGoalWrite,
   Teammate,
@@ -990,6 +992,9 @@ export const apiClient = {
   deleteSeasonGoal: (id: number) => request<null>(`/auth/me/goals/${id}`, { method: "DELETE" }),
   getAthleteLinks: () => request<AthleteLink[]>("/admin/athlete-links"),
   // ── Réclamations de résultat (#1637) ────────────────────────────────────────
+  getPublicPageSettings: () => request<PublicPageSettings>("/auth/me/public-page"),
+  savePublicPageSettings: (body: PublicPageSettingsWrite) =>
+    request<PublicPageSettings>("/auth/me/public-page", { method: "PUT", body: JSON.stringify(body) }),
   getMySeasonQuota: () => request<SeasonQuota | null>("/auth/me/season-quota"),
   getMyResultClaims: () => request<ResultClaim[]>("/auth/me/result-claims"),
   requestResultClaim: (participationId: number) =>

@@ -4,10 +4,11 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SeasonGoal, SessionUser } from "@/lib/types";
 
-const { getSession, getSeasonGoals, createSeasonGoal, deleteSeasonGoal, listCourses } = vi.hoisted(() => ({
+const { getSession, getSeasonGoals, createSeasonGoal, updateSeasonGoal, deleteSeasonGoal, listCourses } = vi.hoisted(() => ({
   getSession: vi.fn(),
   getSeasonGoals: vi.fn(),
   createSeasonGoal: vi.fn(),
+  updateSeasonGoal: vi.fn(),
   deleteSeasonGoal: vi.fn(),
   listCourses: vi.fn(),
 }));
@@ -15,7 +16,7 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api/client")>();
   return {
     ...original,
-    apiClient: { ...original.apiClient, getSession, getSeasonGoals, createSeasonGoal, deleteSeasonGoal, listCourses },
+    apiClient: { ...original.apiClient, getSession, getSeasonGoals, createSeasonGoal, updateSeasonGoal, deleteSeasonGoal, listCourses },
   };
 });
 
@@ -77,7 +78,7 @@ describe("SeasonGoals (#1373)", () => {
     await userEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
 
     await waitFor(() =>
-      expect(createSeasonGoal).toHaveBeenCalledWith({ kind: "time", event_type: "triathlon-m", target: 9000, major: false }),
+      expect(createSeasonGoal).toHaveBeenCalledWith({ kind: "time", event_type: "triathlon-m", target: 9000, major: false, public: false }),
     );
   });
 
@@ -90,7 +91,7 @@ describe("SeasonGoals (#1373)", () => {
     await userEvent.type(screen.getByLabelText("Nombre d'épreuves visé"), "6");
     await userEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
 
-    await waitFor(() => expect(createSeasonGoal).toHaveBeenCalledWith({ kind: "count", event_type: null, target: 6, major: false }));
+    await waitFor(() => expect(createSeasonGoal).toHaveBeenCalledWith({ kind: "count", event_type: null, target: 6, major: false, public: false }));
   });
 
   it("refuses a malformed time without calling the server", async () => {
@@ -189,7 +190,7 @@ describe("SeasonGoals, épreuve cible (#1694)", () => {
       page_size: 8,
     });
     await waitFor(() =>
-      expect(createSeasonGoal).toHaveBeenCalledWith({ kind: "race", event_type: "triathlon-m", target: null, major: false, course_id: 7 }),
+      expect(createSeasonGoal).toHaveBeenCalledWith({ kind: "race", event_type: "triathlon-m", target: null, major: false, public: false, course_id: 7 }),
     );
   });
 
@@ -207,7 +208,7 @@ describe("SeasonGoals, épreuve cible (#1694)", () => {
 
     await waitFor(() =>
       expect(createSeasonGoal).toHaveBeenCalledWith({
-        kind: "race", event_type: null, target: null, major: true,
+        kind: "race", event_type: null, target: null, major: true, public: false,
         race_name: "Run du coin", race_date: `${currentSeason() + 1}-05-02`,
       }),
     );
@@ -276,6 +277,37 @@ describe("SeasonGoals, épreuve cible (#1694)", () => {
     const ligne = (await screen.findByText("6 épreuves")).closest("li") as HTMLElement;
     expect(within(ligne).getByText("Majeur")).toBeInTheDocument();
     expect(within((await screen.findByText("Triathlon M en moins de 2:30:00")).closest("li") as HTMLElement).queryByText("Majeur")).toBeNull();
+  });
+
+  it("sends public: true when the box is checked", async () => {
+    createSeasonGoal.mockResolvedValue(NOMBRE);
+    afficher();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Ajouter un objectif" }));
+    await userEvent.click(screen.getByLabelText("Nombre d'épreuves"));
+    await userEvent.type(screen.getByLabelText("Nombre d'épreuves visé"), "6");
+    await userEvent.click(screen.getByLabelText("Afficher sur ma fiche publique"));
+    await userEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
+
+    await waitFor(() => expect(createSeasonGoal).toHaveBeenCalledWith(expect.objectContaining({ kind: "count", public: true })));
+  });
+
+  it("keeps a public goal public when another field is edited", async () => {
+    getSeasonGoals.mockResolvedValue([{ ...NOMBRE, public: true }]);
+    updateSeasonGoal.mockResolvedValue(NOMBRE);
+    afficher();
+
+    const ligne = (await screen.findByText("6 épreuves")).closest("li") as HTMLElement;
+    expect(within(ligne).getByText("Public")).toBeInTheDocument();
+    await userEvent.click(within(ligne).getByRole("button", { name: /Modifier/ }));
+    const cible = screen.getByLabelText("Nombre d'épreuves visé");
+    await userEvent.clear(cible);
+    await userEvent.type(cible, "8");
+    await userEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
+
+    await waitFor(() =>
+      expect(updateSeasonGoal).toHaveBeenCalledWith(2, { kind: "count", event_type: null, target: 8, major: false, public: true }),
+    );
   });
 
   it("shows a neutral pill on a missed goal", async () => {

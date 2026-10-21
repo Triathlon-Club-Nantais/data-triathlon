@@ -7,6 +7,7 @@ import type { Participation } from "@/lib/types";
 import { compteMaSaison } from "@/lib/utils/ma-saison";
 import { currentSeason, seasonOf } from "@/lib/utils/season";
 import { DernierResultat } from "./DernierResultat";
+import { MaFichePublique } from "./MaFichePublique";
 import { MesDemandes } from "./MesDemandes";
 import { MaPlaceAuClub } from "./MaPlaceAuClub";
 import { MaSaisonAuClub } from "./MaSaisonAuClub";
@@ -71,6 +72,7 @@ export function ColonneDroite({
       <MaPlaceAuClub athleteId={athleteId} seasons={seasons} federalOnly={federalOnly} />
       <ProchainPalier palier={palier} />
       <MesCoequipiers athleteId={athleteId} seasons={seasons} federalOnly={federalOnly} />
+      <MaFichePublique athleteId={athleteId} />
       <MiniCarte courseIds={[...new Set(selection.map((p) => p.course.id))]} />
     </>
   );
