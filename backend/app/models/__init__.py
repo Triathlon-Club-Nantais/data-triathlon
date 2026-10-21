@@ -1,4 +1,5 @@
 """Modèles SQLAlchemy. Importer ce package enregistre toutes les tables sur Base.metadata."""
+
 from app.models.absorbed_course import AbsorbedCourse
 from app.models.admin_action_log import AdminActionLog
 from app.models.allowed_email import AllowedEmail
@@ -19,6 +20,7 @@ from app.models.ignored_athlete_pair import IgnoredAthletePair
 from app.models.ignored_course_duplicate import IgnoredCourseDuplicate
 from app.models.ignored_identity_case import IgnoredIdentityCase
 from app.models.member_email import MemberEmail
+from app.models.member_request import MemberRequest
 from app.models.organisation import Organisation
 from app.models.participation import Participation, ParticipationTeammate
 from app.models.pending_provider import PendingProvider
@@ -67,6 +69,7 @@ __all__ = [
     "IgnoredIdentityCase",
     "IgnoredCourseDuplicate",
     "MemberEmail",
+    "MemberRequest",
     "Organisation",
     "Participation",
     "ParticipationTeammate",

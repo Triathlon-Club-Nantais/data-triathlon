@@ -1618,7 +1618,7 @@ CLUB_ROLES = {
     "bureau": [
         "admin_log:read", "allowed_emails:manage", "athlete_claims:review", "benevole_access:manage",
         "club_members:manage", "feedback:manage", "feedback:read", "groups:assign", "groups:read",
-        "groups:write", "member_emails:manage", "oppositions:manage", "pages:preview", "roles:read",
+        "groups:write", "member_emails:manage", "member_requests:review", "oppositions:manage", "pages:preview", "roles:read",
         "site_access:manage", "users:read",
     ],
     "data": [
@@ -1697,3 +1697,58 @@ def test_downgrade_puis_upgrade_des_roles_du_club(sqlite_url):
 
     command.upgrade(cfg, "head")
     assert _compositions(sqlite_url, CLUB_ROLES) == CLUB_ROLES
+
+
+def test_member_requests_table_up_and_down(sqlite_url):
+    """#1785: join requests, and the review power for roles that manage member emails."""
+    cfg = _alembic_config()
+    command.upgrade(cfg, "c38bc1342485")
+    engine = sa.create_engine(sqlite_url)
+    try:
+        with engine.begin() as connection:
+            connection.execute(
+                sa.text(
+                    "INSERT INTO roles (slug, name, description, is_system, is_superuser, created_at) VALUES ('treso', 'Tresorerie', '', 0, 0, '2026-10-21')"
+                )
+            )
+            role_id = connection.execute(
+                sa.text("SELECT id FROM roles WHERE slug = 'treso'")
+            ).scalar_one()
+            connection.execute(
+                sa.text(
+                    "INSERT INTO role_permissions (role_id, permission_code) VALUES (:r, 'member_emails:manage')"
+                ),
+                {"r": role_id},
+            )
+    finally:
+        engine.dispose()
+
+    command.upgrade(cfg, "head")
+    assert _columns(sqlite_url, "member_requests") == {
+        "id",
+        "user_id",
+        "organisation_id",
+        "first_name",
+        "last_name",
+        "birth_date",
+        "phone",
+        "status",
+        "created_at",
+        "decided_at",
+    }
+    held = _lignes(
+        sqlite_url,
+        "SELECT permission_code FROM role_permissions JOIN roles ON roles.id = role_permissions.role_id"
+        " WHERE roles.slug = 'treso' ORDER BY permission_code",
+    )
+    assert held == [("member_emails:manage",), ("member_requests:review",)]
+
+    command.downgrade(cfg, "c38bc1342485")
+    assert "member_requests" not in _tables(sqlite_url)
+    assert (
+        _lignes(
+            sqlite_url,
+            "SELECT 1 FROM role_permissions WHERE permission_code = 'member_requests:review'",
+        )
+        == []
+    )
