@@ -222,7 +222,7 @@ describe("SiteAccessGate, connexion des adhérents (#1322)", () => {
     render(<SiteAccessGate connexion="non-adherent" />);
 
     expect(screen.getByText(/votre compte n'est pas reconnu comme adhérent/i)).toBeInTheDocument();
-    expect(screen.getByText(/demandez l'ajout de votre adresse/i)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "demandez à rejoindre le club" })).toHaveAttribute("href", "/mon-compte#adhesion");
     expect(screen.queryByRole("link", { name: /se connecter/i })).not.toBeInTheDocument();
     // Le code reste le moyen d'entrer.
     expect(screen.getByLabelText(/code d'accès/i)).toBeInTheDocument();

@@ -28,6 +28,7 @@ function session(permissions: string[]): SessionUser {
     created_at: "2026-01-01T00:00:00Z",
     permissions,
     roles: [],
+    is_member: true,
   } as unknown as SessionUser;
 }
 
@@ -124,7 +125,7 @@ describe("AthleteHeaderActions, rattachement de la fiche (#1325)", () => {
   const AUTRE = { id: 99, prenom: "Marie", nom: "Gaudin" };
 
   function avec(extra: Partial<SessionUser>): SessionUser {
-    return { ...session([]), athlete: null, athlete_claim: null, ...extra };
+    return { ...session([]), is_member: true, athlete: null, athlete_claim: null, ...extra };
   }
 
   it("propose « C'est moi » à un connecté sans rattachement, et envoie la demande", async () => {
@@ -138,6 +139,15 @@ describe("AthleteHeaderActions, rattachement de la fiche (#1325)", () => {
 
     expect(requestAthleteClaim).toHaveBeenCalledWith(12);
     expect(screen.getByText(/le club valide/i)).toBeInTheDocument();
+  });
+
+  it("ne propose pas « C'est moi » à un non-adhérent, mais le chemin vers l'adhésion", async () => {
+    getSession.mockResolvedValue(avec({ is_member: false }));
+    afficher();
+
+    const lien = await screen.findByRole("link", { name: "Rejoindre le club pour rattacher votre fiche" });
+    expect(lien).toHaveAttribute("href", "/mon-compte#adhesion");
+    expect(screen.queryByRole("button", { name: /c'est moi/i })).not.toBeInTheDocument();
   });
 
   it("dit qu'une demande sur cette fiche est en attente, sans la reproposer", async () => {

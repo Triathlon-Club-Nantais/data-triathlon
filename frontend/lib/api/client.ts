@@ -38,6 +38,8 @@ import type {
   AccountIdentity,
   AthleteClaim,
   AthleteClaimReview,
+  MemberRequest,
+  MemberRequestInput,
   SeasonGoal,
   SeasonGoalWrite,
   Teammate,
@@ -958,6 +960,10 @@ export const apiClient = {
       body: JSON.stringify({ athlete_id: athleteId }),
     }),
   cancelAthleteClaim: () => request<null>("/auth/me/athlete-claim", { method: "DELETE" }),
+  // Demande d'adhésion d'un connecté non adhérent (#1785).
+  requestMembership: (body: MemberRequestInput) =>
+    request<MemberRequest>("/auth/me/member-request", { method: "POST", body: JSON.stringify(body) }),
+  cancelMembershipRequest: () => request<null>("/auth/me/member-request", { method: "DELETE" }),
   detachAthlete: () => request<null>("/auth/me/athlete", { method: "DELETE" }),
   // Droit d'opposition exercé par le membre rattaché lui-même (#1673).
   previewMyOpposition: () => request<OppositionPreview>("/auth/me/opposition/preview", { method: "POST" }),

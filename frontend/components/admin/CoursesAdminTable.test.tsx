@@ -62,6 +62,7 @@ function session(permissions: string[]): SessionUser {
     is_member: false,
     athlete: null,
     athlete_claim: null,
+    member_request: null,
     can_supervise: false,
   };
 }

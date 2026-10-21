@@ -60,6 +60,7 @@ const SESSION: SessionUser = {
   is_member: false,
   athlete: null,
   athlete_claim: null,
+  member_request: null,
   can_supervise: false,
 };
 
@@ -135,6 +136,13 @@ describe("AccountPage: account section", () => {
 
     expect(await screen.findByText("Adhérent")).toBeInTheDocument();
     expect(screen.queryByText("Non adhérent")).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Adhésion au club" })).not.toBeInTheDocument();
+  });
+
+  it("offers the join request to a non-member only", async () => {
+    afficher({ ...SESSION, is_member: false, member_request: null });
+
+    expect(await screen.findByRole("heading", { name: "Adhésion au club" })).toBeInTheDocument();
   });
 });
 

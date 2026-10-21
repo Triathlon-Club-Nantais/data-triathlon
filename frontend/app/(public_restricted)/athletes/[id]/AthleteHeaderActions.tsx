@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useHydratedSession } from "@/lib/queries/auth";
 import type { AthleteAdminPanel as Panel, CoureurACorriger } from "@/components/athletes/AthleteAdminPanel";
@@ -45,7 +46,12 @@ export function AthleteHeaderActions({ athlete }: { athlete: CoureurACorriger })
   ) : (
     <>
       <AthleteSelection athlete={athlete} primary={!panneauEnTete} />
-      {session.data && <AthleteClaimAction athlete={athlete} session={session.data} />}
+      {session.data?.is_member && <AthleteClaimAction athlete={athlete} session={session.data} />}
+      {session.data && !session.data.is_member && (
+        <Link href="/mon-compte#adhesion" className="text-sm underline underline-offset-2">
+          Rejoindre le club pour rattacher votre fiche
+        </Link>
+      )}
     </>
   );
 

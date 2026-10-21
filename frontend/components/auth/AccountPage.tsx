@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { DangerConfirm } from "@/components/admin/DangerConfirm";
 import { nomComplet } from "@/components/layout/AthletePicker";
 import { ContactEmail } from "@/components/legal/blocks";
+import { MemberRequestCard } from "@/components/auth/MemberRequestCard";
 import { Button, Card } from "@/components/tcn";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError, apiClient } from "@/lib/api/client";
@@ -143,6 +144,8 @@ function Compte({
         </dl>
         <p style={{ ...DISCRET, marginTop: 16, fontSize: 14 }}>Compte créé le {formatDate(session.created_at)}</p>
       </Card>
+
+      {!session.is_member && <MemberRequestCard session={session} />}
 
       <Card>
         <h2 style={TITRE}>Fiche athlète</h2>

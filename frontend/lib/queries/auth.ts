@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useHydrated } from "@/hooks/useHydrated";
 import { ApiError, apiClient } from "@/lib/api/client";
-import type { AuthMethod, SeasonGoalWrite, SessionUser } from "@/lib/types";
+import type { AuthMethod, MemberRequestInput, SeasonGoalWrite, SessionUser } from "@/lib/types";
 import { queryKeys } from "./keys";
 
 /**
@@ -118,6 +118,14 @@ export function useRequestAthleteClaim() {
 
 export function useCancelAthleteClaim() {
   return useSessionMutation(() => apiClient.cancelAthleteClaim());
+}
+
+export function useRequestMembership() {
+  return useSessionMutation((body: MemberRequestInput) => apiClient.requestMembership(body));
+}
+
+export function useCancelMembershipRequest() {
+  return useSessionMutation(() => apiClient.cancelMembershipRequest());
 }
 
 export function useDetachAthlete() {
