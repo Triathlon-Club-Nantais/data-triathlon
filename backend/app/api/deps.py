@@ -1,4 +1,5 @@
 """Dépendances FastAPI partagées."""
+
 import logging
 import time
 from collections import deque
@@ -281,8 +282,8 @@ VOLUNTEER_LOGIN_RATE_LIMIT_WINDOW_SECONDS = 3600
 CSP_REPORT_RATE_LIMIT_MAX_PER_WINDOW = 120
 CSP_REPORT_RATE_LIMIT_WINDOW_SECONDS = 3600
 
-#: #1773, recherche d'un relais par nom d'équipe : lecture seule, mais tapée au
-#: fil de la saisie et sans index utilisable, d'où un seau à elle.
+#: #1773, recherche d'un relais par nom d'équipe : lecture seule, mais sans index
+#: utilisable et relancée à chaque recherche, d'où un seau à elle.
 TEAM_SEARCH_RATE_LIMIT_MAX_PER_WINDOW = 120
 TEAM_SEARCH_RATE_LIMIT_WINDOW_SECONDS = 3600
 

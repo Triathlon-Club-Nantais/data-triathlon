@@ -5,23 +5,19 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { queryKeys } from "@/lib/queries/keys";
 import type { ResultClaimReview } from "@/lib/types";
 
-const { getResultClaims, approveResultClaim, rejectResultClaim, setParticipationTeammates, searchAthletesAdmin } =
-  vi.hoisted(() => ({
-    getResultClaims: vi.fn(),
-    approveResultClaim: vi.fn(),
-    rejectResultClaim: vi.fn(),
-    setParticipationTeammates: vi.fn(),
-    searchAthletesAdmin: vi.fn(),
-  }));
+const { getResultClaims, approveResultClaim, rejectResultClaim } = vi.hoisted(() => ({
+  getResultClaims: vi.fn(),
+  approveResultClaim: vi.fn(),
+  rejectResultClaim: vi.fn(),
+}));
 vi.mock("@/lib/api/client", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api/client")>();
   return {
     ...original,
-    apiClient: { getResultClaims, approveResultClaim, rejectResultClaim, setParticipationTeammates, searchAthletesAdmin },
+    apiClient: { getResultClaims, approveResultClaim, rejectResultClaim },
   };
 });
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
-vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 
 import { ResultClaimsTable } from "./ResultClaimsTable";
 
@@ -132,7 +128,6 @@ describe("ResultClaimsTable, relais (#1739)", () => {
     await userEvent.click(within(ligne).getByRole("button", { name: "Ajouter à l'équipe la fiche de Léa M." }));
 
     await waitFor(() => expect(approveResultClaim).toHaveBeenCalledWith(4));
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("only validates when the member is already in the team", async () => {
@@ -143,7 +138,6 @@ describe("ResultClaimsTable, relais (#1739)", () => {
     afficher(["athlete_claims:review", "participations:reassign"]);
 
     const ligne = (await screen.findByText("lea@exemple.fr")).closest("tr") as HTMLElement;
-    expect(within(ligne).queryByRole("button", { name: /Attribuer aux équipiers/ })).not.toBeInTheDocument();
     await userEvent.click(within(ligne).getByRole("button", { name: "Valider la réclamation de Léa M." }));
 
     await waitFor(() => expect(approveResultClaim).toHaveBeenCalledWith(4));
@@ -160,6 +154,5 @@ describe("ResultClaimsTable, relais (#1739)", () => {
     await userEvent.click(within(ligne).getByRole("button", { name: "Ajouter à l'équipe la fiche de Léa M." }));
 
     await waitFor(() => expect(approveResultClaim).toHaveBeenCalledWith(4));
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });

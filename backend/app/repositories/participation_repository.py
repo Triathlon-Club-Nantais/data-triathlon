@@ -1,4 +1,5 @@
 """Accès données pour Participation, incluant les filtres de la liste publique."""
+
 from collections.abc import Iterable, Sequence
 from datetime import date, datetime
 from typing import Literal, NamedTuple
@@ -167,9 +168,7 @@ def reassign(
 def count_for_course(db: Session, course_id: int) -> int:
     """Nombre de participations d'une course — avec ou sans dossard."""
     return (
-        db.query(func.count(Participation.id))
-        .filter(Participation.course_id == course_id)
-        .scalar()
+        db.query(func.count(Participation.id)).filter(Participation.course_id == course_id).scalar()
         or 0
     )
 
@@ -304,9 +303,7 @@ def named_bibs_by_course(db: Session, course_ids: Sequence[int]) -> dict[int, se
     return bibs
 
 
-def count_bibs_absent_from(
-    db: Session, *, course_id: int, other_course_id: int
-) -> tuple[int, int]:
+def count_bibs_absent_from(db: Session, *, course_id: int, other_course_id: int) -> tuple[int, int]:
     """Participations de `course_id` sans jumeau de dossard dans `other_course_id`.
 
     Rend `(total, tcn)` : ce que la fusion de #287 perdrait, et **combien
@@ -362,17 +359,10 @@ def count_for_athlete(db: Session, athlete_id: int) -> int:
     collection entière pour n'en garder que la taille, et un coureur prolifique
     en porte des dizaines.
     """
-    return (
-        db.query(func.count(Participation.id))
-        .filter(carried_by(athlete_id))
-        .scalar()
-        or 0
-    )
+    return db.query(func.count(Participation.id)).filter(carried_by(athlete_id)).scalar() or 0
 
 
-def finishers_count_by_group(
-    db: Session, course_ids: Iterable[int]
-) -> dict[tuple[int, bool], int]:
+def finishers_count_by_group(db: Session, course_ids: Iterable[int]) -> dict[tuple[int, bool], int]:
     """Nombre de finishers classés par (course, solo/relais).
 
     Seule population comparable à `rank_overall` : les DNF/DNS/DSQ n'ont pas de
@@ -450,7 +440,9 @@ def _new_participation(fields: dict) -> Participation:
     return participation
 
 
-def update(db: Session, participation: Participation, *, flush: bool = True, **fields) -> Participation:
+def update(
+    db: Session, participation: Participation, *, flush: bool = True, **fields
+) -> Participation:
     """Écrit les `fields` fournis sur une participation existante.
 
     Ne touche que les colonnes passées : le persister a déjà décidé, champ par
@@ -534,9 +526,11 @@ def _apply_filters(
     kept = validated_clause(Participation.is_pending_validation)
     if include_pending:
         kept = or_(kept, _shown_awaiting(db))
-    q = q.join(Athlete, Participation.athlete_id == Athlete.id).join(
-        Course, Participation.course_id == Course.id
-    ).filter(kept)
+    q = (
+        q.join(Athlete, Participation.athlete_id == Athlete.id)
+        .join(Course, Participation.course_id == Course.id)
+        .filter(kept)
+    )
     if course_id is not None:
         q = q.filter(Participation.course_id == course_id)
     if name:
@@ -649,7 +643,10 @@ def list_pending(db: Session) -> list[Participation]:
     """
     return (
         db.query(Participation)
-        .options(joinedload(Participation.athlete), joinedload(Participation.course).selectinload(Course.sources))
+        .options(
+            joinedload(Participation.athlete),
+            joinedload(Participation.course).selectinload(Course.sources),
+        )
         .filter(Participation.is_pending_validation.is_(True), Participation.is_rejected.is_(False))
         .order_by(Participation.created_at.desc())
         .all()
@@ -669,7 +666,10 @@ def list_rejected(db: Session) -> list[Participation]:
     """Résultats signalés non conformes par un bénévole, tous clubs confondus (#437)."""
     return (
         db.query(Participation)
-        .options(joinedload(Participation.athlete), joinedload(Participation.course).selectinload(Course.sources))
+        .options(
+            joinedload(Participation.athlete),
+            joinedload(Participation.course).selectinload(Course.sources),
+        )
         .filter(Participation.is_pending_validation.is_(True), Participation.is_rejected.is_(True))
         .order_by(Participation.created_at.desc())
         .all()
@@ -718,7 +718,9 @@ def validation_queue_timestamps(db: Session) -> ValidationQueueTimestamps:
             Participation.rejected_at.isnot(None)
         )
     )
-    return ValidationQueueTimestamps(actionable_since=actionable_since, validated=validated, rejected=rejected)
+    return ValidationQueueTimestamps(
+        actionable_since=actionable_since, validated=validated, rejected=rejected
+    )
 
 
 def has_pending_for_course(db: Session, course_id: int) -> bool:
@@ -741,7 +743,9 @@ def has_pending_for_course(db: Session, course_id: int) -> bool:
     )
 
 
-def categories_and_clubs_for_course(db: Session, course_id: int) -> list[tuple[str | None, str | None]]:
+def categories_and_clubs_for_course(
+    db: Session, course_id: int
+) -> list[tuple[str | None, str | None]]:
     """(catégorie, club) de chaque ligne de l'épreuve, tous statuts (#1287)."""
     return [
         tuple(row)
@@ -966,7 +970,11 @@ def _youth_pending_ids(db: Session) -> list[int]:
     rows = (
         db.query(Participation.id, Participation.category, Course.name, Course.event_date)
         .join(Course, Participation.course_id == Course.id)
-        .filter(awaiting_validation_clause(Participation.is_pending_validation, Participation.is_rejected))
+        .filter(
+            awaiting_validation_clause(
+                Participation.is_pending_validation, Participation.is_rejected
+            )
+        )
     )
     return [
         participation_id
@@ -977,7 +985,9 @@ def _youth_pending_ids(db: Session) -> list[int]:
 
 def _shown_awaiting(db: Session):
     """Lignes en attente **affichables** (#1273) : non refusées, hors jeunes."""
-    clause = awaiting_validation_clause(Participation.is_pending_validation, Participation.is_rejected)
+    clause = awaiting_validation_clause(
+        Participation.is_pending_validation, Participation.is_rejected
+    )
     youth = _youth_pending_ids(db)
     return and_(clause, Participation.id.not_in(youth)) if youth else clause
 
@@ -1002,7 +1012,9 @@ def list_pending_for_course(
     Plafonnés à `PENDING_ROWS_CAP`, catégories et épreuves jeunes exclues.
     """
     return (
-        _course_rows(db, course_id, q=q, club_only=club_only, club=club, category=category, gender=gender)
+        _course_rows(
+            db, course_id, q=q, club_only=club_only, club=club, category=category, gender=gender
+        )
         .filter(_shown_awaiting(db))
         .order_by(func.lower(Athlete.nom), func.lower(Athlete.prenom), Participation.id)
         .limit(PENDING_ROWS_CAP)
@@ -1032,7 +1044,9 @@ def _course_rows(db: Session, course_id: int, *, q, club_only, club, category, g
     if club_only:
         query = query.filter(Participation.counts_for_tcn.is_(True))
     if club:
-        query = query.filter(_normalize_sql(Participation.club).in_(_club_filter_targets(db, club, course_id)))
+        query = query.filter(
+            _normalize_sql(Participation.club).in_(_club_filter_targets(db, club, course_id))
+        )
     if category:
         query = query.filter(Participation.category == category)
     if gender:
@@ -1057,7 +1071,9 @@ def _relay_name_matches(pattern: str) -> list:
     ]
 
 
-def search_team_results(db: Session, *, term: str, exclude_athlete_id: int, limit: int = 10) -> list[Participation]:
+def search_team_results(
+    db: Session, *, term: str, exclude_athlete_id: int, limit: int = 10
+) -> list[Participation]:
     """Relais validés qu'un adhérent peut demander à rejoindre (#1739), trouvés
     par le nom d'équipe ou le nom de la fiche d'équipe qui les porte.
 
@@ -1068,18 +1084,19 @@ def search_team_results(db: Session, *, term: str, exclude_athlete_id: int, limi
     words = deaccent(term).split()
     if not words:
         return []
-    # Anonymised fiches ("Anonyme ...", cf. result_claims._is_anonymous) are not team records.
-    team_record = and_(
-        func.trim(Athlete.prenom) == "", func.trim(Athlete.nom) != "", ~Athlete.nom.startswith("Anonyme ")
-    )
+    # Anonymised fiches ("Anonyme ...", cf. result_claims._is_anonymous) never carry a claimable team.
+    anonymised = and_(func.trim(Athlete.prenom) == "", Athlete.nom.startswith("Anonyme "))
+    team_record = and_(func.trim(Athlete.prenom) == "", func.trim(Athlete.nom) != "")
     links = ParticipationTeammate.participation_id == Participation.id
     matches = []
     for word in words:
         pattern = f"%{escape_like(word).lower()}%"
-        matches.append(or_(
-            unaccent_like(Participation.team_name, pattern),
-            and_(team_record, unaccent_like(Athlete.nom, pattern)),
-        ))
+        matches.append(
+            or_(
+                unaccent_like(Participation.team_name, pattern),
+                and_(team_record, unaccent_like(Athlete.nom, pattern)),
+            )
+        )
     query = (
         select(Participation)
         .join(Participation.course)
@@ -1089,6 +1106,7 @@ def search_team_results(db: Session, *, term: str, exclude_athlete_id: int, limi
             or_(Participation.is_relay.is_(True), Course.is_relay.is_(True)),
             validated_clause(Participation.is_pending_validation),
             Participation.athlete_id != exclude_athlete_id,
+            ~anonymised,
             ~exists().where(links, ParticipationTeammate.athlete_id == exclude_athlete_id),
             or_(team_record, exists().where(links)),
             *matches,
@@ -1211,7 +1229,12 @@ def stats_totals(
     if seasons or federal_only or dates:
         q = q.join(Course, Participation.course_id == Course.id)
     q = _stats_filters(
-        q, club_only=club_only, seasons=seasons, federal_only=federal_only, dates=dates, gender=gender
+        q,
+        club_only=club_only,
+        seasons=seasons,
+        federal_only=federal_only,
+        dates=dates,
+        gender=gender,
     )
     total, athletes, events = q.one()
     return int(total or 0), int(athletes or 0), int(events or 0)
@@ -1239,7 +1262,9 @@ def stats_by_type(
         .filter(validated_clause(Participation.is_pending_validation))
         .filter(Course.event_type.isnot(None), Course.event_type != "")
     )
-    q = _stats_filters(q, club_only=club_only, seasons=seasons, federal_only=federal_only, gender=gender)
+    q = _stats_filters(
+        q, club_only=club_only, seasons=seasons, federal_only=federal_only, gender=gender
+    )
     return q.group_by(Course.event_type).order_by(Course.event_type).all()
 
 
@@ -1265,7 +1290,9 @@ def stats_by_month_rows(
         .filter(validated_clause(Participation.is_pending_validation))
         .filter(Course.event_date.isnot(None))
     )
-    q = _stats_filters(q, club_only=club_only, seasons=seasons, federal_only=federal_only, gender=gender)
+    q = _stats_filters(
+        q, club_only=club_only, seasons=seasons, federal_only=federal_only, gender=gender
+    )
     return q.group_by(Course.id, Course.event_date).all()
 
 
@@ -1305,12 +1332,10 @@ def stats_recent_rows(
         .filter(validated_clause(Participation.is_pending_validation))
         .filter(Participation.created_at.isnot(None))
     )
-    q = _stats_filters(q, club_only=club_only, seasons=seasons, federal_only=federal_only, gender=gender)
-    return (
-        q.order_by(Participation.created_at.desc(), Participation.id.desc())
-        .limit(limit)
-        .all()
+    q = _stats_filters(
+        q, club_only=club_only, seasons=seasons, federal_only=federal_only, gender=gender
     )
+    return q.order_by(Participation.created_at.desc(), Participation.id.desc()).limit(limit).all()
 
 
 def stats_rank_rows(
@@ -1342,7 +1367,12 @@ def stats_rank_rows(
     if seasons or federal_only or dates:
         q = q.join(Course, Participation.course_id == Course.id)
     q = _stats_filters(
-        q, club_only=club_only, seasons=seasons, federal_only=federal_only, dates=dates, gender=gender
+        q,
+        club_only=club_only,
+        seasons=seasons,
+        federal_only=federal_only,
+        dates=dates,
+        gender=gender,
     )
     return q.all()
 
@@ -1358,9 +1388,13 @@ def club_outing_rank_rows(
     des résultats TCN validés de la fenêtre, une ligne par participation (#1660)."""
     q = (
         db.query(
-            Course.id, Course.name, Course.event_type,
-            Participation.rank_overall, Participation.rank_category,
-            Participation.rank_gender, Athlete.gender,
+            Course.id,
+            Course.name,
+            Course.event_type,
+            Participation.rank_overall,
+            Participation.rank_category,
+            Participation.rank_gender,
+            Athlete.gender,
         )
         .select_from(Participation)
         .join(Athlete, Participation.athlete_id == Athlete.id)
@@ -1372,7 +1406,9 @@ def club_outing_rank_rows(
     ).all()
 
 
-def latest_club_event_date(db: Session, *, seasons: list[int], federal_only: bool = False) -> date | None:
+def latest_club_event_date(
+    db: Session, *, seasons: list[int], federal_only: bool = False
+) -> date | None:
     """Date de la dernière épreuve des `seasons` portant un résultat TCN validé (#1619)."""
     q = (
         db.query(func.max(Course.event_date))
@@ -1409,7 +1445,11 @@ def weekend_digest_rows(db: Session, course_ids: list[int]):
 
 
 def club_podiums(
-    db: Session, *, federal_only: bool = False, seasons: list[int] | None = None, gender: str | None = None
+    db: Session,
+    *,
+    federal_only: bool = False,
+    seasons: list[int] | None = None,
+    gender: str | None = None,
 ):
     """Participations podium du club (rang ≤3 sur au moins une portée), #581.
 
@@ -1506,7 +1546,9 @@ def club_best_time_rows(db: Session, *, season: int | None = None, federal_only:
     return q.all()
 
 
-def club_split_rows(db: Session, *, event_type: str, federal_only: bool = False, seasons: list[int] | None = None):
+def club_split_rows(
+    db: Session, *, event_type: str, federal_only: bool = False, seasons: list[int] | None = None
+):
     """Participations du club avec splits, d'un format donné (#1699), pour la médiane des inters.
 
     Mêmes exclusions de ligne que `club_best_time_rows`. La fiabilité du fournisseur
@@ -1530,14 +1572,21 @@ def club_split_rows(db: Session, *, event_type: str, federal_only: bool = False,
     return q.all()
 
 
-def teammate_rows(db: Session, *, athlete_id: int, federal_only: bool = False, seasons: list[int] | None = None):
+def teammate_rows(
+    db: Session, *, athlete_id: int, federal_only: bool = False, seasons: list[int] | None = None
+):
     """`(id, prenom, nom, épreuves en commun)` des membres du club passés sur mes épreuves (#1701).
 
     Mêmes exclusions de ligne que `club_split_rows`, appliquées aux deux côtés de l'appariement.
     """
     mine = aliased(Participation)
     q = (
-        db.query(Athlete.id, Athlete.prenom, Athlete.nom, func.count(func.distinct(Participation.course_id)))
+        db.query(
+            Athlete.id,
+            Athlete.prenom,
+            Athlete.nom,
+            func.count(func.distinct(Participation.course_id)),
+        )
         .select_from(Participation)
         .join(Athlete, Participation.athlete_id == Athlete.id)
         .join(mine, and_(mine.course_id == Participation.course_id, mine.athlete_id == athlete_id))
@@ -1611,9 +1660,9 @@ def _grouped_events_query(
         Course.is_reliable.label("is_reliable"),
         Course.quality_issues.label("quality_issues"),
         func.sum(case((validated, 1), else_=0)).label("total"),
-        func.sum(
-            case((and_(validated, Participation.counts_for_tcn.is_(True)), 1), else_=0)
-        ).label("tcn_count"),
+        func.sum(case((and_(validated, Participation.counts_for_tcn.is_(True)), 1), else_=0)).label(
+            "tcn_count"
+        ),
         func.sum(case((_shown_awaiting(db), 1), else_=0)).label("pending_count"),
     )
     q = _apply_filters(
@@ -1834,10 +1883,7 @@ def events_page(
         total_events = totals.total_events or 0
         total_participations = totals.total_participations or 0
         rows = (
-            q.order_by(*_events_order(db, sort, event_name))
-            .offset(offset)
-            .limit(page_size)
-            .all()
+            q.order_by(*_events_order(db, sort, event_name)).offset(offset).limit(page_size).all()
         )
         return {
             "items": rows,
@@ -1869,7 +1915,8 @@ def events_page(
         db.query(
             func.count(func.distinct(Participation.course_id)).label("total_events"),
             func.coalesce(
-                func.sum(case((validated_clause(Participation.is_pending_validation), 1), else_=0)), 0
+                func.sum(case((validated_clause(Participation.is_pending_validation), 1), else_=0)),
+                0,
             ).label("total_participations"),
         ),
         db,
@@ -1887,10 +1934,7 @@ def events_page(
     total_participations = counts.total_participations or 0
 
     rows = (
-        grouped.order_by(*_events_order(db, sort, event_name))
-        .offset(offset)
-        .limit(page_size)
-        .all()
+        grouped.order_by(*_events_order(db, sort, event_name)).offset(offset).limit(page_size).all()
     )
     return {
         "items": rows,
@@ -1981,12 +2025,18 @@ def course_ids_carried_by(db: Session, athlete_id: int) -> set[int]:
 
 
 def count_carried(db: Session, athlete_id: int) -> int:
-    return db.scalar(select(func.count()).select_from(Participation).where(Participation.athlete_id == athlete_id))
+    return db.scalar(
+        select(func.count())
+        .select_from(Participation)
+        .where(Participation.athlete_id == athlete_id)
+    )
 
 
 def count_teammate_links(db: Session, athlete_id: int) -> int:
     return db.scalar(
-        select(func.count()).select_from(ParticipationTeammate).where(ParticipationTeammate.athlete_id == athlete_id)
+        select(func.count())
+        .select_from(ParticipationTeammate)
+        .where(ParticipationTeammate.athlete_id == athlete_id)
     )
 
 
@@ -2010,7 +2060,9 @@ def share_an_individual_course(db: Session, first_id: int, second_id: int) -> bo
 def share_a_participation(db: Session, first_id: int, second_id: int) -> bool:
     """Les deux coureurs figurent-ils sur un même résultat (porteur ou équipier) ?"""
     members = (
-        select(Participation.id.label("participation_id"), Participation.athlete_id.label("athlete_id"))
+        select(
+            Participation.id.label("participation_id"), Participation.athlete_id.label("athlete_id")
+        )
         .union_all(select(ParticipationTeammate.participation_id, ParticipationTeammate.athlete_id))
         .subquery()
     )
@@ -2026,7 +2078,9 @@ def share_a_participation(db: Session, first_id: int, second_id: int) -> bool:
 def repoint_athlete(db: Session, *, from_athlete_id: int, to_athlete_id: int) -> tuple[int, int]:
     """Repointe les résultats portés et les liens d'équipier ; rend les deux comptes."""
     carried = db.execute(
-        sql_update(Participation).where(Participation.athlete_id == from_athlete_id).values(athlete_id=to_athlete_id)
+        sql_update(Participation)
+        .where(Participation.athlete_id == from_athlete_id)
+        .values(athlete_id=to_athlete_id)
     ).rowcount
     teammates = db.execute(
         sql_update(ParticipationTeammate)
@@ -2040,8 +2094,10 @@ def retarget_source_key(db: Session, *, athlete_id: int, old_key: str | None, ne
     """La clé source des résultats d'une fiche renormalisée suit son nouveau découpage
     (#906) : le rescrape sans dossard, qui découpe désormais « NOM, Prénom »
     correctement, ne les retrouverait plus sous l'ancienne clé."""
-    clause = Participation.source_identity_key.is_(None) if old_key is None else (
-        Participation.source_identity_key == old_key
+    clause = (
+        Participation.source_identity_key.is_(None)
+        if old_key is None
+        else (Participation.source_identity_key == old_key)
     )
     return db.execute(
         sql_update(Participation)
@@ -2056,10 +2112,14 @@ def list_carried_by(db: Session, athlete_id: int) -> list[Participation]:
 
 
 def teammate_links_of(db: Session, athlete_id: int) -> list[ParticipationTeammate]:
-    return db.query(ParticipationTeammate).filter(ParticipationTeammate.athlete_id == athlete_id).all()
+    return (
+        db.query(ParticipationTeammate).filter(ParticipationTeammate.athlete_id == athlete_id).all()
+    )
 
 
-def replace_teammate(db: Session, *, participation_id: int, old_athlete_id: int, new_athlete_id: int) -> None:
+def replace_teammate(
+    db: Session, *, participation_id: int, old_athlete_id: int, new_athlete_id: int
+) -> None:
     """Remplace un équipier à sa position. `athlete_id` est dans la clé primaire : mise à jour SQL."""
     db.query(ParticipationTeammate).filter(
         ParticipationTeammate.participation_id == participation_id,
@@ -2072,25 +2132,34 @@ def athlete_season_times(db: Session, athlete_id: int, season: int, event_type: 
     """Temps totaux candidats au meilleur temps d'une fiche, une saison et un
     format (#1373). Mêmes exclusions que `club_best_time_rows` : en attente,
     relais, épreuve non fiable, non classé. Le plus rapide se choisit côté service."""
-    return list(db.scalars(
-        select(Participation.total_time)
-        .join(Course, Participation.course_id == Course.id)
-        .where(
-            Participation.athlete_id == athlete_id,
-            validated_clause(Participation.is_pending_validation),
-            Participation.is_relay.is_(False),
-            func.coalesce(Course.is_relay, False).is_(False),
-            func.coalesce(Course.is_reliable, True).is_(True),
-            func.upper(func.coalesce(Participation.status, "")).notin_((STATUS_DNF, STATUS_DNS, STATUS_DSQ)),
-            Course.event_type == event_type,
-            Course.event_date.between(*season_bounds(season)),
-            Participation.total_time.is_not(None),
+    return list(
+        db.scalars(
+            select(Participation.total_time)
+            .join(Course, Participation.course_id == Course.id)
+            .where(
+                Participation.athlete_id == athlete_id,
+                validated_clause(Participation.is_pending_validation),
+                Participation.is_relay.is_(False),
+                func.coalesce(Course.is_relay, False).is_(False),
+                func.coalesce(Course.is_reliable, True).is_(True),
+                func.upper(func.coalesce(Participation.status, "")).notin_(
+                    (STATUS_DNF, STATUS_DNS, STATUS_DSQ)
+                ),
+                Course.event_type == event_type,
+                Course.event_date.between(*season_bounds(season)),
+                Participation.total_time.is_not(None),
+            )
         )
-    ))
+    )
 
 
 def athlete_race_times(
-    db: Session, athlete_id: int, *, course_id: int | None, event_date: date | None, event_type: str | None
+    db: Session,
+    athlete_id: int,
+    *,
+    course_id: int | None,
+    event_date: date | None,
+    event_type: str | None,
 ) -> list[str | None]:
     """Résultats exploitables d'une fiche sur une épreuve cible (#1694), `total_time`
     compris quand il est vide : même exclusions que `athlete_season_times`. L'épreuve
@@ -2104,7 +2173,9 @@ def athlete_race_times(
             Participation.is_relay.is_(False),
             func.coalesce(Course.is_relay, False).is_(False),
             func.coalesce(Course.is_reliable, True).is_(True),
-            func.upper(func.coalesce(Participation.status, "")).notin_((STATUS_DNF, STATUS_DNS, STATUS_DSQ)),
+            func.upper(func.coalesce(Participation.status, "")).notin_(
+                (STATUS_DNF, STATUS_DNS, STATUS_DSQ)
+            ),
         )
     )
     if course_id is not None:

@@ -91,6 +91,7 @@ export function ResultatEquipeManquant() {
         onSubmit={(e) => {
           e.preventDefault();
           if (assez) {
+            demander.reset();
             setRecherche(saisie.trim());
             setAnnonce("");
           }
