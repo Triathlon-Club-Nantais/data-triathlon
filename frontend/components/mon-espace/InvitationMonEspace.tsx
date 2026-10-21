@@ -23,17 +23,19 @@ export function InvitationMonEspace({ session }: { session: SessionUser | null }
           <Link href="/login" className="tcn-cible-tactile inline-flex items-center font-semibold underline underline-offset-2">
             Se connecter
           </Link>
-        ) : !session.is_member ? (
-          <>
-            <p style={{ margin: "0 0 8px", color: "var(--tcn-text-muted)" }}>Mon espace est réservé aux adhérents du club.</p>
-            <Link href="/mon-compte#adhesion" className="tcn-cible-tactile inline-flex items-center font-semibold underline underline-offset-2">
-              Demander à rejoindre le club
-            </Link>
-          </>
         ) : demande?.status === "pending" ? (
           <p role="status" style={{ margin: 0, color: "var(--tcn-text-muted)" }}>
             Votre demande de rattachement à la fiche de {nomComplet(demande.athlete)} est en attente : le club la valide.
           </p>
+        ) : !session.is_member ? (
+          <>
+            <p style={{ margin: "0 0 8px", color: "var(--tcn-text-muted)" }}>Mon espace est réservé aux adhérents du club.</p>
+            <Link href="/mon-compte#adhesion" className="tcn-cible-tactile inline-flex items-center font-semibold underline underline-offset-2">
+              {session.member_request?.status === "pending"
+                ? "Votre demande d'adhésion est en attente de validation."
+                : "Demander à rejoindre le club"}
+            </Link>
+          </>
         ) : (
           <>
             {demande?.status === "rejected" && (

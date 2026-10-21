@@ -49,7 +49,9 @@ export function AthleteHeaderActions({ athlete }: { athlete: CoureurACorriger })
       {session.data?.is_member && <AthleteClaimAction athlete={athlete} session={session.data} />}
       {session.data && !session.data.is_member && (
         <Link href="/mon-compte#adhesion" className="text-sm underline underline-offset-2">
-          Rejoindre le club pour rattacher votre fiche
+          {session.data.member_request?.status === "pending"
+            ? "Votre demande d'adhésion est en attente de validation."
+            : "Rejoindre le club pour rattacher votre fiche"}
         </Link>
       )}
     </>

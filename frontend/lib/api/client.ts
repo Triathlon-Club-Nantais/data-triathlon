@@ -196,7 +196,7 @@ export function messageDErreur(detail: unknown, repli: string): string {
     const messages = detail
       .map((item) =>
         typeof item === "object" && item !== null && "msg" in item
-          ? String((item as { msg: unknown }).msg)
+          ? String((item as { msg: unknown }).msg).replace(/^Value error, /, "")
           : null,
       )
       .filter(Boolean);

@@ -42,7 +42,7 @@ export function MemberRequestsTable() {
             <TableHead>Téléphone</TableHead>
             <TableHead>Adresse du compte</TableHead>
             <TableHead>Demandée le</TableHead>
-            <TableHead></TableHead>
+            <TableHead className="sr-only">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>

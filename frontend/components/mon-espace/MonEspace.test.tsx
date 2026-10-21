@@ -66,6 +66,24 @@ describe("MonEspace access", () => {
     expect(screen.queryByRole("button", { name: /Trouvez votre fiche/ })).toBeNull();
   });
 
+  it("says a non-member's join request is awaiting validation", async () => {
+    getSession.mockResolvedValue(session({ is_member: false, member_request: { status: "pending" } as never }));
+    afficher();
+
+    expect(await screen.findByRole("link", { name: "Votre demande d'adhésion est en attente de validation." })).toHaveAttribute(
+      "href",
+      "/mon-compte#adhesion",
+    );
+    expect(screen.queryByRole("link", { name: "Demander à rejoindre le club" })).toBeNull();
+  });
+
+  it("still shows a legacy pending claim to a non-member", async () => {
+    getSession.mockResolvedValue(session({ is_member: false, athlete_claim: { id: 1, athlete: LEA, status: "pending", created_at: "" } }));
+    afficher();
+
+    expect(await screen.findByText(/demande de rattachement.*en attente/i)).toBeInTheDocument();
+  });
+
   it("invites a logged-in member without a linked athlete to claim a profile", async () => {
     getSession.mockResolvedValue(session({ is_member: true }));
     afficher();

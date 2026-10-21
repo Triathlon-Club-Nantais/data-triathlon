@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Alert, Button, Card, Input } from "@/components/tcn";
 import { CLUB_NAME_SHORT } from "@/lib/club";
 import { useCancelMembershipRequest, useRequestMembership } from "@/lib/queries/auth";
@@ -19,17 +19,35 @@ function Champ({ id, label, ...rest }: { id: string; label: string } & React.Com
   );
 }
 
+const DELAI_NOUVELLE_DEMANDE_JOURS = 30;
+
+/** Date (JJ/MM/AAAA) à partir de laquelle une nouvelle demande est permise, ou `null` si le délai est écoulé. */
+function finDuRefus(decidedAt: string): string | null {
+  const fin = new Date(decidedAt);
+  fin.setUTCDate(fin.getUTCDate() + DELAI_NOUVELLE_DEMANDE_JOURS);
+  fin.setUTCHours(0, 0, 0, 0);
+  return fin.getTime() > Date.now() ? fin.toLocaleDateString("fr-FR", { timeZone: "UTC" }) : null;
+}
+
 /** Demande d'adhésion d'un connecté non adhérent (#1785) : le club la valide ou la refuse. */
 export function MemberRequestCard({ session }: { session: SessionUser }) {
   const demander = useRequestMembership();
   const annuler = useCancelMembershipRequest();
   const demande = session.member_request;
   const [erreurLocale, setErreurLocale] = useState<string | null>(null);
+  const titre = useRef<HTMLHeadingElement>(null);
+  const statut = demande?.status;
+  const precedent = useRef(statut);
+  useEffect(() => {
+    if (precedent.current !== statut) titre.current?.focus();
+    precedent.current = statut;
+  }, [statut]);
+  const finRefus = demande?.status === "rejected" && demande.decided_at ? finDuRefus(demande.decided_at) : null;
 
   if (demande?.status === "pending") {
     return (
       <Card id="adhesion">
-        <h2 style={TITRE}>Adhésion au club</h2>
+        <h2 ref={titre} tabIndex={-1} style={TITRE}>Adhésion au club</h2>
         <p role="status" style={DISCRET}>
           Votre demande d&apos;adhésion est en attente : un administrateur du club la valide.
         </p>
@@ -58,6 +76,12 @@ export function MemberRequestCard({ session }: { session: SessionUser }) {
     if (demander.isPending) return;
     const data = new FormData(event.currentTarget);
     const lire = (name: string) => String(data.get(name) ?? "").trim();
+    const first_name = lire("first_name");
+    const last_name = lire("last_name");
+    if (!first_name || !last_name) {
+      setErreurLocale("Indiquez votre prénom et votre nom.");
+      return;
+    }
     const birth_date = lire("birth_date") || null;
     const phone = lire("phone") || null;
     if (!birth_date && !phone) {
@@ -65,13 +89,19 @@ export function MemberRequestCard({ session }: { session: SessionUser }) {
       return;
     }
     setErreurLocale(null);
-    demander.mutate({ first_name: lire("first_name"), last_name: lire("last_name"), birth_date, phone });
+    demander.mutate({ first_name, last_name, birth_date, phone });
   }
 
   const erreur = erreurLocale ?? demander.error?.message;
   return (
     <Card id="adhesion">
-      <h2 style={TITRE}>Adhésion au club</h2>
+      <h2 ref={titre} tabIndex={-1} style={TITRE}>Adhésion au club</h2>
+      {finRefus ? (
+        <p style={DISCRET}>
+          Votre précédente demande a été refusée. Vous pourrez en envoyer une nouvelle à partir du {finRefus}.
+        </p>
+      ) : (
+        <>
       {demande?.status === "rejected" && <p style={{ ...DISCRET, marginBottom: 8 }}>Votre précédente demande a été refusée.</p>}
       <p style={{ ...DISCRET, marginBottom: 16 }}>
         Ces informations permettent au club de vérifier votre demande ou de vous recontacter. Indiquez votre date de
@@ -91,6 +121,8 @@ export function MemberRequestCard({ session }: { session: SessionUser }) {
           </div>
         )}
       </form>
+        </>
+      )}
     </Card>
   );
 }

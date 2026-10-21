@@ -1712,7 +1712,6 @@ export function useDecideMemberRequest() {
     mutationFn: ({ id, decision }: { id: number; decision: "approve" | "reject" }) =>
       decision === "approve" ? apiClient.approveMemberRequest(id) : apiClient.rejectMemberRequest(id),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: queryKeys.adminBadgeCounts() });
       // Une validation ajoute l'adresse du compte à la liste des adhérents.
       void qc.invalidateQueries({ queryKey: MEMBER_EMAILS });
       return qc.invalidateQueries({ queryKey: queryKeys.memberRequests() });
