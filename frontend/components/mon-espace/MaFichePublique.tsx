@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useId, useState } from "react";
 import { AnnonceStatut, Button, Card } from "@/components/tcn";
+import { Skeleton } from "@/components/ui/skeleton";
 import { apiClient } from "@/lib/api/client";
 import { queryKeys } from "@/lib/queries/keys";
 import type { PublicPageSettings } from "@/lib/types";
@@ -24,15 +25,33 @@ export function MaFichePublique({ athleteId }: { athleteId: number }) {
     queryFn: () => apiClient.getPublicPageSettings(),
     retry: false,
   });
-  if (reglages.isPending) return null;
+  if (reglages.isPending) {
+    return (
+      <Card aria-busy>
+        <Titre />
+        <Skeleton style={{ height: 120, marginTop: 12 }} />
+      </Card>
+    );
+  }
   if (reglages.error) {
     return (
       <Card>
-        <p role="alert" style={{ margin: 0 }}>{reglages.error.message}</p>
+        <Titre />
+        <p role="alert" style={{ margin: "8px 0 0" }}>
+          {reglages.error.message} Rechargez la page, ou réessayez dans un instant.
+        </p>
       </Card>
     );
   }
   return <Formulaire athleteId={athleteId} initial={reglages.data} />;
+}
+
+function Titre() {
+  return (
+    <h2 style={{ fontFamily: "var(--tcn-font-display)", fontSize: 22, fontWeight: 400, color: "var(--tcn-ink)", margin: 0 }}>
+      Ma fiche publique
+    </h2>
+  );
 }
 
 function Formulaire({ athleteId, initial }: { athleteId: number; initial: PublicPageSettings }) {
@@ -71,9 +90,7 @@ function Formulaire({ athleteId, initial }: { athleteId: number; initial: Public
 
   return (
     <Card>
-      <h2 style={{ fontFamily: "var(--tcn-font-display)", fontSize: 22, fontWeight: 400, color: "var(--tcn-ink)", margin: 0 }}>
-        Ma fiche publique
-      </h2>
+      <Titre />
       <p style={{ margin: "8px 0 0", fontSize: 13, color: "var(--tcn-text-muted)" }}>
         Masquer un bloc n&apos;efface rien : vos résultats restent publics et permettent de le recalculer. Votre fiche reste trouvable comme adversaire dans la comparaison d&apos;une autre fiche.{" "}
         <Link href={`/athletes/${athleteId}`} className="underline underline-offset-2">Voir ma fiche</Link>
@@ -93,11 +110,15 @@ function Formulaire({ athleteId, initial }: { athleteId: number; initial: Public
             {libelle}
           </label>
         ))}
+        <p id={`${ids}-sites`} style={{ margin: 0, fontSize: 13, color: "var(--tcn-text-muted)" }}>
+          Profils Strava, Garmin Connect, Polar Flow ou Suunto, en https.
+        </p>
         {liens.map((lien, i) => (
           <div key={i} style={{ display: "grid", gap: 4 }}>
-            <label htmlFor={`${ids}-lien-${i}`} style={{ fontWeight: 600 }}>Lien {i + 1} (Strava, Garmin, Polar ou Suunto)</label>
+            <label htmlFor={`${ids}-lien-${i}`} style={{ fontWeight: 600 }}>Lien {i + 1}</label>
             <input
               id={`${ids}-lien-${i}`}
+              aria-describedby={`${ids}-sites`}
               type="url"
               className="tcn-input"
               maxLength={200}
@@ -111,6 +132,8 @@ function Formulaire({ athleteId, initial }: { athleteId: number; initial: Public
         <select
           id={`${ids}-epingle`}
           className="tcn-input"
+          // Sans la liste, l'épingle enregistrée n'aurait pas d'option et le choix afficherait « Aucun ».
+          disabled={!carriere.data}
           value={epingle === null ? "" : String(epingle)}
           onChange={(e) => setEpingle(e.target.value === "" ? null : Number(e.target.value))}
         >
@@ -121,6 +144,11 @@ function Formulaire({ athleteId, initial }: { athleteId: number; initial: Public
             </option>
           ))}
         </select>
+        {carriere.error && (
+          <p style={{ margin: 0, fontSize: 13 }}>
+            Vos résultats n&apos;ont pas pu être chargés : le résultat épinglé reste inchangé.
+          </p>
+        )}
         {enregistrer.error && (
           <p role="alert" style={{ margin: 0, color: "var(--tcn-danger)", fontSize: 13 }}>{enregistrer.error.message}</p>
         )}

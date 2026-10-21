@@ -84,8 +84,36 @@ describe("MaFichePublique (#1692)", () => {
     getPublicPageSettings.mockRejectedValue(new ApiError(500, "Réglages indisponibles."));
     afficher();
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("Réglages indisponibles.");
+    expect(screen.getByRole("heading", { name: "Ma fiche publique" })).toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toHaveTextContent("Réglages indisponibles. Rechargez la page, ou réessayez dans un instant.");
     expect(screen.queryByRole("button", { name: "Enregistrer" })).toBeNull();
+  });
+
+  it("keeps its titled card busy while the settings load", () => {
+    getPublicPageSettings.mockReturnValue(new Promise(() => {}));
+    afficher();
+
+    expect(screen.getByRole("heading", { name: "Ma fiche publique" }).closest("[aria-busy]")).toHaveAttribute("aria-busy", "true");
+  });
+
+  it("locks the pin choice while the results load, and says so when they fail", async () => {
+    getPublicPageSettings.mockResolvedValue({ ...REGLAGES, pinned_participation_id: 5 });
+    let echouer: (e: Error) => void = () => {};
+    getAthlete.mockReturnValue(new Promise((_, reject) => { echouer = reject; }));
+    afficher();
+
+    const choix = await screen.findByLabelText("Résultat épinglé");
+    expect(choix).toBeDisabled();
+    echouer(new ApiError(500, "Fiche indisponible."));
+    expect(await screen.findByText("Vos résultats n'ont pas pu être chargés : le résultat épinglé reste inchangé.")).toBeInTheDocument();
+    expect(choix).toBeDisabled();
+  });
+
+  it("names each link field once and points to the accepted sites", async () => {
+    afficher();
+
+    const champ = await screen.findByLabelText("Lien 1");
+    expect(champ).toHaveAccessibleDescription("Profils Strava, Garmin Connect, Polar Flow ou Suunto, en https.");
   });
 
   it("warns when several accounts share the fiche", async () => {
