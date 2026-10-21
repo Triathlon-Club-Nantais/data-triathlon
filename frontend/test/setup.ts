@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom/vitest";
-import { beforeEach } from "vitest";
+import { beforeEach, inject, vi } from "vitest";
 
 // `useSession` (#427) n'appelle `/auth/me` que si ce cookie est présent —
 // posé par défaut ici pour que les tests existants, qui simulent une session
@@ -56,3 +56,17 @@ import { configure } from "@testing-library/react";
 configure({
   defaultIgnore: 'script, style, [data-affichage="cartes"], [data-affichage="cartes"] *',
 });
+
+declare module "vitest" {
+  interface ProvidedContext {
+    coverage: boolean;
+  }
+}
+
+// Sous couverture, l'instrumentation v8 double le coût CPU d'un premier rendu à
+// froid, et la charge le pousse jusqu'à 2,2 s sur 5 et à 1 s de dépassement des
+// `findBy*` : x3 sur les deux délais, en mode couverture seulement (#1708).
+if (inject("coverage")) {
+  configure({ asyncUtilTimeout: 3 * 1000 });
+  vi.setConfig({ testTimeout: 3 * 5000 });
+}

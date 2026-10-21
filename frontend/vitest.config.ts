@@ -30,7 +30,17 @@ const EXCLUDE = [...configDefaults.exclude, "**/.claude/**"];
 // Ne rien exporter d'autre que ce `default` : un export nommé fait émettre à
 // rollup un avertissement MIXED_EXPORTS à chaque exécution de la suite.
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    {
+      // `--coverage` se décide en ligne de commande : seule la config résolue
+      // le sait. `test/setup.ts` le lit par `inject` pour élargir ses délais.
+      name: "tcn-coverage-flag",
+      configureVitest({ vitest, project }) {
+        project.provide("coverage", vitest.config.coverage.enabled);
+      },
+    },
+  ],
   resolve: {
     alias: { "@": path.resolve(__dirname, ".") },
   },
