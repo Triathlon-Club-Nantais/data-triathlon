@@ -43,6 +43,20 @@ describe("ProgressionChart", () => {
     expect(container.querySelectorAll("svg line").length).toBeGreaterThanOrEqual(2);
   });
 
+  it("spaces the percent ticks by a regular round step (#1789)", () => {
+    const { container } = render(
+      <ProgressionChart
+        points={[
+          point({ id: 1, eventDate: "2026-01-10", value: 10 }),
+          point({ id: 2, eventDate: "2026-03-10", value: 33 }),
+          point({ id: 3, eventDate: "2026-05-10", value: 47 }),
+        ]}
+      />,
+    );
+    const values = Array.from(container.querySelectorAll("[data-tick]")).map((el) => parseInt(el.textContent ?? "", 10));
+    expect(values).toEqual([20, 40]);
+  });
+
   it("affiche le pourcentage de chaque point en permanence, sans survol (#677)", () => {
     const { getByText } = render(
       <ProgressionChart
@@ -175,6 +189,7 @@ describe("ProgressionChart axe", () => {
   it("trace une durée avec son propre axe", () => {
     const axis: ProgressionAxis = {
       max: 864000,
+      step: 1,
       tick: formatDuration,
       label: formatDuration,
       spoken: (v) => formatDuration(v),
@@ -197,6 +212,50 @@ describe("ProgressionChart axe", () => {
     getByText("Durée du test, plus bas, meilleur.");
     expect(queryByText(/classement au sein du peloton/i)).toBeNull();
     expect(container.textContent).not.toContain("%");
+  });
+
+  const secondes: ProgressionAxis = {
+    max: Infinity,
+    step: 10,
+    tick: formatDuration,
+    label: formatDuration,
+    spoken: formatDuration,
+    caption: "Durée du test, plus haut, plus rapide.",
+    ariaLabel: "Évolution de la durée",
+    emptyTitle: "Pas encore assez de tests",
+    emptyDescription: "Trois tests sont nécessaires.",
+  };
+  const tickTexts = (container: HTMLElement) => Array.from(container.querySelectorAll("[data-tick]")).map((el) => el.textContent);
+
+  it("grades the time axis with a regular round step (#1789)", () => {
+    const { container } = render(
+      <ProgressionChart
+        axis={secondes}
+        points={[
+          point({ id: 1, eventDate: "2026-09-10", value: 524 }),
+          point({ id: 2, eventDate: "2026-09-24", value: 501 }),
+          point({ id: 3, eventDate: "2026-10-08", value: 487 }),
+        ]}
+      />,
+    );
+    expect(tickTexts(container)).toEqual(["48 s", "50 s", "52 s"]);
+  });
+
+  it("never grades below the axis step, even on a narrow spread (#1789)", () => {
+    const { container } = render(
+      <ProgressionChart
+        axis={secondes}
+        points={[
+          point({ id: 1, eventDate: "2026-09-10", value: 524 }),
+          point({ id: 2, eventDate: "2026-09-24", value: 525 }),
+          point({ id: 3, eventDate: "2026-10-08", value: 526 }),
+        ]}
+      />,
+    );
+    const texts = tickTexts(container);
+    expect(texts.length).toBeGreaterThanOrEqual(2);
+    expect(new Set(texts).size).toBe(texts.length);
+    for (const text of texts) expect(text).not.toContain(",");
   });
 });
 
