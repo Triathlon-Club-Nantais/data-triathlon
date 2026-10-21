@@ -224,6 +224,27 @@ def classify_event_type(text: str, *, context: str = "") -> str:
     return _with_size(base or "triathlon", t if _detect_size(t) else reference)
 
 
+# Tokens qui disent « triathlon » sans le nommer. Hors de `_sport_base` : les y
+# mettre changerait `classify_event_type`, ce que ce prédicat ne doit pas faire.
+_TRIATHLON_TOKENS = re.compile(r"\btri\b|ironman|embrunman|triman|70\.3")
+
+
+def names_a_sport(text: str) -> bool:
+    """Vrai si `text` nomme un sport, triathlon compris (`_TRIATHLON_TOKENS`)."""
+    t = _norm(text)
+    return _sport_base(t) is not None or _TRIATHLON_TOKENS.search(t) is not None
+
+
+def is_fallback_type(event_type: str, name: str, *, has_swim_and_bike: bool) -> bool:
+    """Vrai si `event_type` est un repli triathlon que rien ne vient étayer.
+
+    Repli = slug triathlon produit faute de sport nommé ; un heat avec natation
+    et vélo n'en est pas un, les splits le prouvent.
+    """
+    is_triathlon = event_type == "triathlon" or event_type.startswith("triathlon-")
+    return is_triathlon and not names_a_sport(name) and not has_swim_and_bike
+
+
 def normalize_event_type(value: str) -> str:
     """Canonicalise une valeur existante (`Triathlon M` → `triathlon-m`).
 

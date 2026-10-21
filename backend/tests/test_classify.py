@@ -4,6 +4,7 @@ import pytest
 from app.scrapers.classify import (
     classify_event_type,
     extract_distance_km,
+    is_fallback_type,
     normalize_event_type,
     refine_from_splits,
 )
@@ -306,3 +307,21 @@ def test_classify_swim_bike(text, expected):
 ])
 def test_extract_distance_km(text, expected):
     assert extract_distance_km(text) == expected
+
+
+# --- Repli triathlon : nom qui ne nomme aucun sport (#1744) ---
+@pytest.mark.parametrize("event_type,name,has_swim_and_bike,expected", [
+    ("triathlon-s", "La Chaussaire - Solo", False, True),
+    ("triathlon-m", "Armorun 2026 - M - Solo", False, True),
+    ("triathlon-m", "Triathlon M de Vertou", False, False),
+    ("triathlon-s", "Triathlon L de Mimizan - Format S", False, False),
+    ("triathlon-s", "La Chaussaire - Solo", True, False),
+    ("triathlon-l", "2026 IRONMAN 70.3 Vichy", False, False),
+    ("triathlon-m", "Embrunman - Quart", False, False),
+    ("triathlon-l", "Chtriman 2025 - Gravelines - CHTRIMAN 113", False, False),
+    ("triathlon-s", "TRI AT BAIN 2026 - TRI-AT-BAIN-S", False, False),
+    ("duathlon-s", "La Chaussaire - Solo", False, False),
+    ("cross-triathlon", "La Chaussaire - Solo", False, False),
+])
+def test_is_fallback_type(event_type, name, has_swim_and_bike, expected):
+    assert is_fallback_type(event_type, name, has_swim_and_bike=has_swim_and_bike) is expected
