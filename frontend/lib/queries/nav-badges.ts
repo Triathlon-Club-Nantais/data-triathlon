@@ -81,6 +81,8 @@ export function libelleCompteur(badge: string | undefined, n: number): string {
       return `${motCompte(n, "résultat")} à valider`;
     case "claims":
       return `${motCompte(n, "demande")} de rattachement`;
+    case "member_requests":
+      return `${motCompte(n, "demande")} d'adhésion`;
     case "backoffice":
       return `${motCompte(n, "élément")} à traiter`;
     default:

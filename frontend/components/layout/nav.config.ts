@@ -356,6 +356,7 @@ export const NAV: NavSection[] = [
         href: "/admin/adresses-adherents",
         helpAnchor: "adresses-adherents",
         permission: "member_emails:manage",
+        badge: "member_requests",
         group: "Données",
       },
       // Jamais d'office (#1325) : chaque rattachement d'un compte à sa fiche

@@ -41,6 +41,8 @@ const ACTION_LABELS: Record<string, string> = {
   "member_emails.import": "Import de la liste des adresses d'adhérents",
   "member_emails.add": "Ajout d'une adresse d'adhérent",
   "member_emails.remove": "Retrait d'une adresse d'adhérent",
+  "member_request.approve": "Validation d'une demande d'adhésion",
+  "member_request.reject": "Refus d'une demande d'adhésion",
   "athlete_claim.approve": "Rattachement d'un compte à sa fiche athlète",
   "athlete_claim.reject": "Refus d'un rattachement de fiche",
   "athlete_claim.detach": "Détachement d'un compte de sa fiche par le club",
