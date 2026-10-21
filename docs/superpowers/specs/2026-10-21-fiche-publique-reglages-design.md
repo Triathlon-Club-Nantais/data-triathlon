@@ -84,8 +84,9 @@ l'opposition (#1673) est le seul chemin pour les retirer.
   résultat devenu anonyme.
 - **Fiche masquée au public** (#1615, saisies en attente seules) : 404 comme
   aujourd'hui, rien de neuf ne s'y affiche.
-- **Jeunes** (#881) : une ligne jeune n'apparaît nulle part ; un résultat jeune
-  ne peut donc pas être épinglé (même filtre que la liste publique).
+- **Jeunes** (#881) : l'épingle ne peut viser qu'un résultat que la liste
+  publique de la fiche montre déjà (`list_for_athlete` sans les lignes en
+  attente) ; elle n'ouvre donc aucun chemin nouveau vers une ligne exclue.
 
 ### Respect côté serveur
 
