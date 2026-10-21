@@ -5,6 +5,30 @@ import { formatDate } from "@/lib/utils/date";
 import { pctFr } from "@/lib/utils/format";
 import { EmptyState } from "@/components/ui/empty-state";
 
+/** Ce que la courbe mesure : l'échelle, les libellés et les textes de l'état vide. */
+export interface ProgressionAxis {
+  /** Plafond du bas de l'axe : la marge ajoutée au pire point ne le dépasse pas. */
+  max: number;
+  tick(value: number): string;
+  label(value: number): string;
+  spoken(value: number): string;
+  caption: string;
+  ariaLabel: string;
+  emptyTitle: string;
+  emptyDescription: string;
+}
+
+export const PERCENT_AXIS: ProgressionAxis = {
+  max: 100,
+  tick: (value) => pctFr(value, 0),
+  label: (value) => `Top ${pctFr(value, 0)}`,
+  spoken: (value) => `top ${value} pour cent`,
+  caption: "Classement au sein du peloton à chaque épreuve — plus haut, meilleur.",
+  ariaLabel: "Évolution du classement au sein du peloton (plus petit, meilleur)",
+  emptyTitle: "Pas encore assez d'épreuves",
+  emptyDescription: "Trois épreuves classées sont nécessaires pour tracer une progression — encore un peu de patience.",
+};
+
 // Système de coordonnées horizontal seulement : le SVG s'étire à la largeur
 // disponible (`preserveAspectRatio="none"`), une abscisse ne vaut donc qu'en
 // pourcentage de W. H est en pixels réels, pour que les libellés HTML
@@ -68,21 +92,21 @@ function labelBox(index: number, count: number) {
  * de chaque point est donc écrit en permanence (#677) plutôt que réservé à une
  * infobulle au survol, qui exigerait un composant client.
  */
-export function ProgressionChart({ points, comparaison, nonFiables = 0 }: { points: ProgressionPoint[]; comparaison?: ProgressionPoint[]; nonFiables?: number }) {
+export function ProgressionChart({ points, comparaison, nonFiables = 0, axis = PERCENT_AXIS }: { points: ProgressionPoint[]; comparaison?: ProgressionPoint[]; nonFiables?: number; axis?: ProgressionAxis }) {
   if (points.length < MIN_POINTS) {
     return (
       <EmptyState
         bare
         className="px-0 py-8"
-        title="Pas encore assez d'épreuves"
-        description="Trois épreuves classées sont nécessaires pour tracer une progression — encore un peu de patience."
+        title={axis.emptyTitle}
+        description={axis.emptyDescription}
       />
     );
   }
 
   // Une série de comparaison d'un seul point ne trace aucun segment.
   const autre = comparaison && comparaison.length >= 2 ? comparaison : null;
-  const percents = [...points, ...(autre ?? [])].map((p) => p.percent);
+  const percents = [...points, ...(autre ?? [])].map((p) => p.value);
   const best = Math.min(...percents);
   const worst = Math.max(...percents);
   const margin = Math.max(1, Math.round((worst - best) * 0.15));
@@ -90,7 +114,7 @@ export function ProgressionChart({ points, comparaison, nonFiables = 0 }: { poin
   // `percent` ne dépasse jamais 100 (`rankRatio` refuse rank > total) : sans
   // ce plafond, un dernier de course affiche une graduation « 114 % » (#677,
   // revue de code — la marge ajoutée à `worst` n'était bornée que d'un côté).
-  const bottom = Math.min(100, worst + margin);
+  const bottom = Math.min(axis.max, worst + margin);
 
   const yScale = scaleLinear().domain([top, bottom]).range([TOP, BOTTOM]);
   const xOf = (index: number) => (points.length === 1 ? W / 2 : (W / (points.length - 1)) * index);
@@ -103,8 +127,8 @@ export function ProgressionChart({ points, comparaison, nonFiables = 0 }: { poin
     d3Line<{ x: number; y: number }>()
       .x((point) => point.x)
       .y((point) => point.y)
-      .curve(curveLinear)(serie.map((p, index) => ({ x: xPoint(p, index), y: yScale(p.percent) }))) ?? "";
-  const linePoints = points.map((p, index) => ({ x: xPoint(p, index), y: yScale(p.percent) }));
+      .curve(curveLinear)(serie.map((p, index) => ({ x: xPoint(p, index), y: yScale(p.value) }))) ?? "";
+  const linePoints = points.map((p, index) => ({ x: xPoint(p, index), y: yScale(p.value) }));
   // Tracé droit, pas lissé (#677) : avec 3 à quelques points seulement, une
   // courbe lissée (l'ancien `curveMonotoneX`) dessine un creux ou un sommet
   // qui n'existe pas dans les données — un artefact de la spline, pas une
@@ -124,14 +148,14 @@ export function ProgressionChart({ points, comparaison, nonFiables = 0 }: { poin
     Math.round(top + ((bottom - top) * index) / (TICKS - 1)),
   );
 
-  const resume = (serie: ProgressionPoint[]) => serie.map((p) => `${formatDate(p.eventDate)} top ${p.percent} pour cent`).join(", ");
+  const resume = (serie: ProgressionPoint[]) => serie.map((p) => `${formatDate(p.eventDate)} ${axis.spoken(p.value)}`).join(", ");
   const absentes = nonFiables > 0 ? `. ${nonFiables} ${nonFiables > 1 ? "épreuves non fiables absentes" : "épreuve non fiable absente"} de la courbe` : "";
   const summary = (autre ? `Cette saison : ${resume(points)}. Saison précédente : ${resume(autre)}` : resume(points)) + absentes;
 
   return (
     <div>
       <p style={{ marginBottom: 12, fontSize: 13, color: "var(--tcn-text-faint)" }}>
-        Classement au sein du peloton à chaque épreuve — plus haut, meilleur.
+        {axis.caption}
       </p>
       <div style={{ position: "relative", paddingLeft: LEFT_GUTTER, paddingBottom: BOTTOM_GUTTER }}>
         {/* Graduations, en px réels : un <text> SVG dans ce viewBox étiré non
@@ -152,7 +176,7 @@ export function ProgressionChart({ points, comparaison, nonFiables = 0 }: { poin
               color: "var(--tcn-text-faint)",
             }}
           >
-            {pctFr(percent, 0)}
+            {axis.tick(percent)}
           </span>
         ))}
 
@@ -161,7 +185,7 @@ export function ProgressionChart({ points, comparaison, nonFiables = 0 }: { poin
           preserveAspectRatio="none"
           style={{ width: "100%", height: H, display: "block" }}
           role="img"
-          aria-label={`Évolution du classement au sein du peloton (plus petit, meilleur) : ${summary}.`}
+          aria-label={`${axis.ariaLabel} : ${summary}.`}
         >
           {ticks.map((percent) => (
             <line
@@ -188,13 +212,13 @@ export function ProgressionChart({ points, comparaison, nonFiables = 0 }: { poin
         <div style={{ position: "absolute", left: LEFT_GUTTER, right: 0, top: 0, height: H, pointerEvents: "none" }}>
           {points.map((p, index) => (
             <span
-              key={p.participationId}
-              data-point={p.participationId}
+              key={p.id}
+              data-point={p.id}
               aria-hidden
               style={{
                 position: "absolute",
                 left: `calc(${(xPoint(p, index) / W) * 100}% - 5px)`,
-                top: yScale(p.percent) - 5,
+                top: yScale(p.value) - 5,
                 width: 10,
                 height: 10,
                 borderRadius: 999,
@@ -233,7 +257,7 @@ export function ProgressionChart({ points, comparaison, nonFiables = 0 }: { poin
             ))}
           {!parDate && points.map((p, index) => (
             <span
-              key={p.participationId}
+              key={p.id}
               aria-hidden
               style={{
                 position: "absolute",
@@ -270,7 +294,7 @@ export function ProgressionChart({ points, comparaison, nonFiables = 0 }: { poin
                   color: "var(--tcn-ink)",
                 }}
               >
-                Top {pctFr(p.percent, 0)}
+                {axis.label(p.value)}
               </b>
             </span>
           ))}

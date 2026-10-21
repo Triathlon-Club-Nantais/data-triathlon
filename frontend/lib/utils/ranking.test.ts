@@ -143,7 +143,7 @@ describe("progressionSeries", () => {
     ancien.course = { ...ancien.course, event_date: "2026-01-10" };
 
     const series = progressionSeries([recent, ancien]);
-    expect(series.map((point) => point.participationId)).toEqual([2, 1]);
+    expect(series.map((point) => point.id)).toEqual([2, 1]);
   });
 
   it("exclut les participations sans ratio exploitable", () => {
@@ -153,7 +153,7 @@ describe("progressionSeries", () => {
 
     const series = progressionSeries([sansRang, avecRatio]);
     expect(series).toHaveLength(1);
-    expect(series[0].participationId).toBe(2);
+    expect(series[0].id).toBe(2);
   });
 
   it("exclut les participations sans date d'épreuve : l'ordre chronologique n'a pas de sens sans elle", () => {
@@ -170,7 +170,7 @@ describe("progressionSeries", () => {
   it("porte le pourcentage de ratio de chaque point", () => {
     const p = part({ id: 1, rank_overall: 42, course_finishers: 300 });
     p.course = { ...p.course, event_date: "2026-05-16" };
-    expect(progressionSeries([p])).toEqual([{ participationId: 1, eventDate: "2026-05-16", percent: 14 }]);
+    expect(progressionSeries([p])).toEqual([{ id: 1, eventDate: "2026-05-16", value: 14 }]);
   });
 });
 
