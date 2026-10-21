@@ -1345,6 +1345,7 @@ def _reclassify_heats(db: Session, event_url: str, results: list[ScrapedResult])
     jamais.
     """
     classifications: dict[tuple[str, str, object, bool], set[str]] = {}
+    rows: dict[tuple[str, str, object, bool], list[ScrapedResult]] = {}
     for scraped in results:
         # Même priorité que `mapping.get_or_create_course` : le fan-out Klikego
         # (#156) donne à chaque heat sa propre URL, et c'est elle qui porte la
@@ -1354,6 +1355,7 @@ def _reclassify_heats(db: Session, event_url: str, results: list[ScrapedResult])
             continue
         identity_key = (url, scraped.event_name, scraped.event_date, bool(scraped.is_relay))
         classifications.setdefault(identity_key, set()).add(scraped.event_type)
+        rows.setdefault(identity_key, []).append(scraped)
 
     for (url, name, event_date, is_relay), types in classifications.items():
         if len(types) != 1:
@@ -1367,33 +1369,14 @@ def _reclassify_heats(db: Session, event_url: str, results: list[ScrapedResult])
         course = course_repository.get_by_active_source(
             db, source_url=url, name=name, event_date=event_date, is_relay=is_relay
         )
-        if course is not None:
-            course_repository.reclassify(db, course, event_type)
-
-
-def attach_manual_heats(db: Session, event_url: str, results: list[ScrapedResult]) -> None:
-    """Donne aux résultats d'une épreuve au type corrigé à la main (#1745) ce type-là.
-
-    Avant l'appariement : le scrape se rattache à l'épreuve corrigée au lieu d'en
-    créer une jumelle, et `_reclassify_heats` n'a plus rien à réaligner. Comme
-    `_reclassify_heats`, seulement quand le scrape ne publie qu'une classification
-    pour la clé (sinon ce sont des heats distincts).
-    """
-    groups: dict[tuple[str, str, object, bool], list[ScrapedResult]] = {}
-    for scraped in results:
-        url = scraped.source_url or event_url
-        if url:
-            key = (url, scraped.event_name, scraped.event_date, bool(scraped.is_relay))
-            groups.setdefault(key, []).append(scraped)
-    for (url, name, event_date, is_relay), group in groups.items():
-        if len({scraped.event_type for scraped in group}) != 1:
+        if course is None:
             continue
-        course = course_repository.get_by_active_source(
-            db, source_url=url, name=name, event_date=event_date, is_relay=is_relay
-        )
-        if course is not None and course.event_type_origin == EVENT_TYPE_ORIGIN_MANUAL:
-            for scraped in group:
+        if course.event_type_origin == EVENT_TYPE_ORIGIN_MANUAL:
+            # Type corrigé à la main (#1745) : le scrape s'y rattache, il ne le réécrit pas.
+            for scraped in rows[(url, name, event_date, is_relay)]:
                 scraped.event_type = course.event_type
+        else:
+            course_repository.reclassify(db, course, event_type)
 
 
 CourseIdentity = tuple[str, object, str, bool]
@@ -1420,7 +1403,8 @@ def _reidentify_heats(db: Session, event_url: str, results: list[ScrapedResult])
     Deux exclusions. Klikego et Breizh Chrono ont la règle R (#289), qui retrouve
     déjà l'épreuve sans regarder son identité, et dont les deux façades nomment
     différemment : les renommer ferait osciller le nom à chaque bascule. Et une
-    épreuve dont un admin a corrigé l'identité (`course.update`) la garde.
+    épreuve dont un admin a corrigé l'identité (`course.update`) la garde (ce qui recoupe
+    `event_type_origin`, #1745, pour le seul type).
     """
     published: dict[str, dict[CourseIdentity, set[str]]] = {}
     for scraped in results:
@@ -1698,7 +1682,6 @@ def _prepare_batch(db: Session, url: str, results: list[ScrapedResult]) -> None:
     """Les rattrapages de lot, dans leur ordre, avant la première ligne écrite."""
     _redate_heats(db, results)
     _relay_heats(db, results)
-    attach_manual_heats(db, url, results)
     _reclassify_heats(db, url, results)
     _reidentify_heats(db, url, results)
     _renumber_duplicate_ranks(results)
