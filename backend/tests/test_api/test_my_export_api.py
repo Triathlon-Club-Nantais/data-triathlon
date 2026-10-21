@@ -146,7 +146,7 @@ def test_unlinked_account_exports_its_declarations_for_others(client, db_session
 #: technical, roles and groups are the club's organisation rather than the member's data.
 EXCLUDED_OWNED_TABLES = {"user_sessions", "user_roles", "user_groups"}
 EXPORTED_OWNED_TABLES = {
-    "identities": "identities", "athlete_claims": "athlete_claim",
+    "identities": "identities", "athlete_claims": "athlete_claim", "member_requests": "member_request",
     "season_goals": "season_goals", "result_claims": "result_claims",
 }
 

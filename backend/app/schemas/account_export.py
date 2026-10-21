@@ -3,6 +3,7 @@
 Jamais un secret (`subject`, `secret_hash`, jeton) ni la donnée d'une autre personne :
 ni l'auteur ou l'athlète d'une déclaration de bénévolat, ni les équipiers d'un relais.
 """
+
 from datetime import date
 
 from pydantic import BaseModel, ConfigDict
@@ -10,6 +11,7 @@ from pydantic import BaseModel, ConfigDict
 from app.schemas.athlete_claim import AthleteClaimRead
 from app.schemas.auth import AccountIdentityRead
 from app.schemas.course import CourseBrief
+from app.schemas.member_request import MemberRequestRead
 from app.schemas.utc_datetime import UtcDatetime
 
 
@@ -103,6 +105,7 @@ class AccountExport(BaseModel):
     identities: list[AccountIdentityRead]
     athlete: ExportedAthlete | None
     athlete_claim: AthleteClaimRead | None
+    member_request: MemberRequestRead | None
     result_claims: list[ExportedResultClaim]
     season_goals: list[ExportedSeasonGoal]
     volunteer_actions: list[ExportedVolunteerAction]

@@ -8,6 +8,7 @@ de statut et les redirections.
 de données techniques dans un navigateur en pleine navigation, ce qui était le
 défaut reconnu de la PR #159.
 """
+
 import logging
 from collections.abc import Iterable
 
@@ -51,6 +52,7 @@ from app.schemas.auth import (
     SessionUserRead,
 )
 from app.schemas.ids import DbId
+from app.schemas.member_request import MemberRequestCreate, MemberRequestRead
 from app.schemas.opposition import OppositionPreviewRead
 from app.schemas.season_goal import SeasonGoalRead, SeasonGoalWrite
 from app.schemas.teammate import Teammate
@@ -59,6 +61,7 @@ from app.services import (
     account_export,
     admin_actions,
     athlete_claims,
+    member_requests,
     membership,
     opposition_service,
     result_claims,
@@ -124,9 +127,7 @@ def _not_found() -> NotFoundError:
     dépendance de router : sans cela, deux réponses sur sept échapperaient à
     l'invariant `no-store` / `Vary: Cookie`.
     """
-    return NotFoundError(
-        "Ce moyen de connexion n'existe pas.", headers=NO_STORE_HEADERS
-    )
+    return NotFoundError("Ce moyen de connexion n'existe pas.", headers=NO_STORE_HEADERS)
 
 
 def _landing_path(codes: Iterable[str]) -> str:
@@ -274,9 +275,7 @@ def callback(
         # `User` ne porte aucun rôle global (FR-041) : `is_superuser` est la
         # décision réelle du projet, pas un champ inventé sur `User`.
         set_person_properties(str(user.id), {"is_staff": authorization.is_superuser(db, user)})
-        capture_event(
-            "user_logged_in", distinct_id=str(user.id), properties={"provider": provider}
-        )
+        capture_event("user_logged_in", distinct_id=str(user.id), properties={"provider": provider})
         # La destination reste **fixée par le code** (FR-026) : aucun paramètre
         # d'entrée n'y entre, la redirection ouverte reste fermée. Un compte sans
         # rôle (adhérent, #1322) arrive sur l'accueil.
@@ -344,9 +343,7 @@ def logout(
 def _signed_out_response(settings: Settings) -> Response:
     response = Response(status_code=204, headers=NO_STORE_HEADERS)
     _clear_auth_cookie(response, name=session_cookie_name(settings), settings=settings)
-    _clear_auth_cookie(
-        response, name=LOGGED_IN_COOKIE, settings=settings, httponly=False
-    )
+    _clear_auth_cookie(response, name=LOGGED_IN_COOKIE, settings=settings, httponly=False)
     # #1272 : admis par son pouvoir, l'admin ne voit plus « Se déconnecter » de
     # `/benevoles`. Un cookie bénévoles resté sur ce navigateur ne doit pas
     # survivre à sa déconnexion. Mêmes attributs qu'à la pose.
@@ -399,11 +396,35 @@ def cancel_athlete_claim(user: User = Depends(current_user), db: Session = Depen
     return Response(status_code=204, headers=NO_STORE_HEADERS)
 
 
+@router.post("/auth/me/member-request", response_model=MemberRequestRead, status_code=201)
+def request_membership(
+    body: MemberRequestCreate, user: User = Depends(current_user), db: Session = Depends(get_db)
+):
+    """Un compte connecté non adhérent demande au club de le reconnaître (#1785).
+
+    Sans garde du site : l'écran du code d'accès doit pouvoir y mener.
+    """
+    request = member_requests.request_membership(db, user, body, now=utcnow())
+    db.commit()
+    return MemberRequestRead.model_validate(request)
+
+
+@router.delete("/auth/me/member-request", status_code=204)
+def cancel_member_request(user: User = Depends(current_user), db: Session = Depends(get_db)):
+    member_requests.cancel_pending(db, user)
+    db.commit()
+    return Response(status_code=204, headers=NO_STORE_HEADERS)
+
+
 def _result_claim_read(claim: ResultClaim) -> ResultClaimRead:
     course = claim.participation.course
     return ResultClaimRead(
-        id=claim.id, participation_id=claim.participation_id, status=claim.status, created_at=claim.created_at,
-        course_id=course.id, course_name=course.name,
+        id=claim.id,
+        participation_id=claim.participation_id,
+        status=claim.status,
+        created_at=claim.created_at,
+        course_id=course.id,
+        course_name=course.name,
         event_date=course.event_date.isoformat() if course.event_date else None,
     )
 
@@ -421,7 +442,9 @@ def list_my_result_claims(user: User = Depends(current_user), db: Session = Depe
     # Même raison que la demande de fiche : le routeur `auth` échappe à la garde du site.
     dependencies=[Depends(require_site_access)],
 )
-def request_result_claim(body: ResultClaimCreate, user: User = Depends(current_user), db: Session = Depends(get_db)):
+def request_result_claim(
+    body: ResultClaimCreate, user: User = Depends(current_user), db: Session = Depends(get_db)
+):
     """« Ce résultat est à moi » (#1637), toujours soumis à la file du club."""
     claim = result_claims.request_claim(db, user, body.participation_id)
     db.commit()
@@ -445,7 +468,9 @@ def search_team_results(
             team_name=hit.team_name,
             course_id=hit.participation.course_id,
             course_name=hit.participation.course.name,
-            event_date=hit.participation.course.event_date.isoformat() if hit.participation.course.event_date else None,
+            event_date=hit.participation.course.event_date.isoformat()
+            if hit.participation.course.event_date
+            else None,
             rank_overall=hit.participation.rank_overall,
             total_time=hit.participation.total_time,
             teammates=hit.teammates,
@@ -455,7 +480,9 @@ def search_team_results(
 
 
 @router.delete("/auth/me/result-claims/{claim_id}", status_code=204)
-def cancel_result_claim(claim_id: DbId, user: User = Depends(current_user), db: Session = Depends(get_db)):
+def cancel_result_claim(
+    claim_id: DbId, user: User = Depends(current_user), db: Session = Depends(get_db)
+):
     result_claims.cancel_claim(db, user, claim_id)
     db.commit()
     return Response(status_code=204, headers=NO_STORE_HEADERS)
@@ -471,7 +498,9 @@ def detach_athlete(user: User = Depends(current_user), db: Session = Depends(get
 
 def _linked_member(user: User = Depends(current_user)) -> User:
     if user.athlete_id is None:
-        raise InsufficientPermissionError("Rattachez-vous d'abord à votre fiche pour exercer votre droit d'opposition.")
+        raise InsufficientPermissionError(
+            "Rattachez-vous d'abord à votre fiche pour exercer votre droit d'opposition."
+        )
     return user
 
 
@@ -490,16 +519,26 @@ def apply_my_opposition(user: User = Depends(_linked_member), db: Session = Depe
 def _goal_read(progress: season_goals.GoalProgress) -> SeasonGoalRead:
     goal = progress.goal
     return SeasonGoalRead(
-        id=goal.id, season=goal.season, kind=goal.kind, event_type=goal.event_type, target=goal.target,
-        best_time=progress.best_time, count=progress.count, reached=progress.reached,
-        course_id=goal.course_id, race_name=goal.race_name,
-        race_date=goal.race_date.isoformat() if goal.race_date else None, major=goal.major,
+        id=goal.id,
+        season=goal.season,
+        kind=goal.kind,
+        event_type=goal.event_type,
+        target=goal.target,
+        best_time=progress.best_time,
+        count=progress.count,
+        reached=progress.reached,
+        course_id=goal.course_id,
+        race_name=goal.race_name,
+        race_date=goal.race_date.isoformat() if goal.race_date else None,
+        major=goal.major,
         outcome=progress.outcome,
     )
 
 
 def _progress_of(db: Session, user: User, goal) -> SeasonGoalRead:
-    (progress,) = [p for p in season_goals.list_with_progress(db, user, goal.season) if p.goal.id == goal.id]
+    (progress,) = [
+        p for p in season_goals.list_with_progress(db, user, goal.season) if p.goal.id == goal.id
+    ]
     return _goal_read(progress)
 
 
@@ -510,11 +549,15 @@ def list_goals(
     db: Session = Depends(get_db),
 ):
     """Objectifs de saison du compte et leur progression (#1373), privés."""
-    return [_goal_read(p) for p in season_goals.list_with_progress(db, user, season or current_season())]
+    return [
+        _goal_read(p) for p in season_goals.list_with_progress(db, user, season or current_season())
+    ]
 
 
 @router.post("/auth/me/goals", response_model=SeasonGoalRead, status_code=201)
-def create_goal(body: SeasonGoalWrite, user: User = Depends(current_user), db: Session = Depends(get_db)):
+def create_goal(
+    body: SeasonGoalWrite, user: User = Depends(current_user), db: Session = Depends(get_db)
+):
     goal = season_goals.create(db, user, body)
     db.commit()
     return _progress_of(db, user, goal)
@@ -522,7 +565,10 @@ def create_goal(body: SeasonGoalWrite, user: User = Depends(current_user), db: S
 
 @router.put("/auth/me/goals/{goal_id}", response_model=SeasonGoalRead)
 def update_goal(
-    goal_id: DbId, body: SeasonGoalWrite, user: User = Depends(current_user), db: Session = Depends(get_db)
+    goal_id: DbId,
+    body: SeasonGoalWrite,
+    user: User = Depends(current_user),
+    db: Session = Depends(get_db),
 ):
     goal = season_goals.update(db, user, goal_id, body)
     db.commit()
@@ -545,7 +591,9 @@ def list_my_volunteer_actions(user: User = Depends(current_user), db: Session = 
 
 
 @router.get("/auth/me/volunteer-declarations", response_model=list[MyVolunteerDeclarationOut])
-def list_my_volunteer_declarations(user: User = Depends(current_user), db: Session = Depends(get_db)):
+def list_my_volunteer_declarations(
+    user: User = Depends(current_user), db: Session = Depends(get_db)
+):
     """Déclarations de bénévolat faites par mon compte (#1672), tous statuts, pour toute fiche."""
     return volunteer_action_service.list_declared_by(db, user_id=user.id)
 
@@ -561,7 +609,9 @@ def get_my_season_quota(user: User = Depends(current_user), db: Session = Depend
 @router.get("/auth/me/teammates", response_model=list[Teammate])
 def list_my_teammates(
     federal_only: bool = Query(False),
-    seasons: str | None = Query(None, description="Saisons (années de début, CSV) ; absentes, toutes saisons."),
+    seasons: str | None = Query(
+        None, description="Saisons (années de début, CSV) ; absentes, toutes saisons."
+    ),
     user: User = Depends(current_user),
     db: Session = Depends(get_db),
 ):
@@ -581,7 +631,9 @@ def list_my_identities(user: User = Depends(current_user)):
 
 # Sans `require_site_access` : un droit RGPD ne dépend pas du code du site (#1673).
 @router.get("/auth/me/export", response_model=AccountExport)
-def export_my_data(response: Response, user: User = Depends(current_user), db: Session = Depends(get_db)):
+def export_my_data(
+    response: Response, user: User = Depends(current_user), db: Session = Depends(get_db)
+):
     """Les données du compte en JSON, téléchargées en pièce jointe (#1674) : droit d'accès et de portabilité."""
     response.headers["Content-Disposition"] = 'attachment; filename="mes-donnees-tcn.json"'
     return account_export.build(db, user)
@@ -608,9 +660,11 @@ def me(user: User = Depends(current_user), db: Session = Depends(get_db)):
     loaded_user = user_repository.get_with_roles_and_groups(db, user.id) or user
     effective = authorization.effective_permissions(db, loaded_user, attributions=loaded_user.roles)
     athlete, claim = athlete_claims.session_view(db, loaded_user)
+    join_request = member_requests.current_for(db, loaded_user)
     return SessionUserRead(
         athlete=ClaimedAthleteRead.model_validate(athlete) if athlete else None,
         athlete_claim=AthleteClaimRead.model_validate(claim) if claim else None,
+        member_request=MemberRequestRead.model_validate(join_request) if join_request else None,
         id=loaded_user.id,
         email=loaded_user.email,
         display_name=loaded_user.display_name,
