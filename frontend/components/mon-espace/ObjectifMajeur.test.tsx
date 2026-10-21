@@ -14,7 +14,7 @@ import { ObjectifMajeur, RappelObjectifMajeur } from "./ObjectifMajeur";
 const BASE: SeasonGoal = {
   id: 1, season: 2026, kind: "race", event_type: "triathlon-m", target: 9000, best_time: null, count: null,
   reached: false, course_id: null, race_name: "Triathlon de Nantes", race_date: "2026-10-12", major: true,
-  outcome: "upcoming",
+  public: false, outcome: "upcoming",
 };
 const goal = (extra: Partial<SeasonGoal>): SeasonGoal => ({ ...BASE, ...extra });
 

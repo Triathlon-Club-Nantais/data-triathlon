@@ -25,6 +25,7 @@ import { resumeAthlete } from "@/lib/utils/athlete-stats";
 import { estRelais } from "@/lib/utils/relais";
 import { ProgressionChart } from "@/components/charts/ProgressionChart";
 import { AthleteComparisonChart } from "@/components/charts/AthleteComparisonChart";
+import { PinnedResult, PublicGoal, PublicLinks } from "@/components/athletes/PublicPageExtras";
 
 export const metadata: Metadata = { title: "Athlète" };
 
@@ -39,7 +40,10 @@ export default async function AthletePage({
   const comparer = Number((await searchParams)?.comparer);
   const data = await apiServer.getAthlete(idDeRoute(id)).catch(rendreNullSi404);
   if (!data) notFound();
-  const { athlete, participations, challenges, claimed } = data;
+  const { athlete, participations, challenges, claimed, public_page: publicPage } = data;
+  // Un bloc masqué n'est pas rendu du tout : il ne doit pas figurer dans le HTML servi au visiteur (#1692).
+  const montre = (bloc: (typeof publicPage.hidden)[number]) => !publicPage.hidden.includes(bloc);
+  const epinglee = participations.find((p) => p.id === publicPage.pinned_participation_id);
   const fullName = [athlete.prenom, athlete.nom].filter(Boolean).join(" ");
   const preselect = Number.isInteger(comparer) && comparer > 0 && comparer !== athlete.id ? comparer : undefined;
 
@@ -118,6 +122,7 @@ export default async function AthletePage({
             />
           }
         >
+          <>
           {(categorie || athlete.gender || claimed) && (
             <div className="flex flex-wrap items-center gap-2 pt-1">
               {categorie && (
@@ -136,6 +141,9 @@ export default async function AthletePage({
               {claimed && <MetaPill>Fiche rattachée à l&apos;athlète</MetaPill>}
             </div>
           )}
+          <PublicLinks links={publicPage.links} />
+          {publicPage.goal && <PublicGoal goal={publicPage.goal} />}
+          </>
         </PageHeader>
       </div>
 
@@ -144,6 +152,7 @@ export default async function AthletePage({
           `/resultats` — plutôt que des marges inline par carte, qui avaient
           fini par diverger entre elles (#654). */}
       <div className="space-y-6">
+        {epinglee && <PinnedResult participation={epinglee} />}
         {/* Une carte, pas une commande : dans le slot `actions`, son bloc
             incompressible faisait déborder la page de 641 à 1 700 px (#927). */}
         <SeasonValidationPanel athlete={{ id: athlete.id, nom: athlete.nom, prenom: athlete.prenom }} />
@@ -209,9 +218,9 @@ export default async function AthletePage({
         )}
 
         {/* Sous trois épreuves, la tuile « Temps » montre déjà ce temps (#1361). */}
-        {resume.regime === "complet" && <BestTimesCard participations={participations} />}
+        {resume.regime === "complet" && montre("best_times") && <BestTimesCard participations={participations} />}
 
-        {validated.length > 0 && (
+        {validated.length > 0 && montre("progression") && (
           <Card>
             <Eyebrow>Progression</Eyebrow>
             <ProgressionChart points={progression} />
@@ -264,13 +273,14 @@ export default async function AthletePage({
           </Card>
         )}
 
-        {validated.length > 0 ? (
-          <AthleteComparisonChart mine={validated} preselect={preselect} />
-        ) : (
-          preselect !== undefined && (
-            <p className="text-sm text-[var(--tcn-text-faint)]">Vous n&apos;avez pas encore de résultat validé à comparer.</p>
-          )
-        )}
+        {montre("comparison") &&
+          (validated.length > 0 ? (
+            <AthleteComparisonChart mine={validated} preselect={preselect} />
+          ) : (
+            preselect !== undefined && (
+              <p className="text-sm text-[var(--tcn-text-faint)]">Vous n&apos;avez pas encore de résultat validé à comparer.</p>
+            )
+          ))}
 
         <EventsTable participations={participations} athleteId={athlete.id} athleteName={fullName} />
 
