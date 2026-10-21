@@ -89,6 +89,10 @@ def list_pending(db: Session) -> list[MemberRequest]:
     return member_request_repository.list_pending(db, _organisation_id(db))
 
 
+def count_pending(db: Session) -> int:
+    return member_request_repository.count_pending(db, _organisation_id(db))
+
+
 def approve(db: Session, request_id: int, *, actor_id: int) -> None:
     request = member_request_repository.get_pending(db, request_id)
     if request is None:

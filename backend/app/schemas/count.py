@@ -13,3 +13,4 @@ class BadgeCounts(BaseModel):
     volunteer: int | None = None
     validation: int | None = None
     claims: int | None = None
+    member_requests: int | None = None
