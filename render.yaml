@@ -158,4 +158,7 @@ services:
     startCommand: uv run --no-sync alembic upgrade head && uv run --no-sync uvicorn app.main:app --host 0.0.0.0 --port $PORT
     # `APP_VERSION` y reçoit un `git describe` (`v0.1.4-63-gxxxxxxx`) et non un
     # tag : une preview n'en porte pas.
+    # Le dashboard porte en plus `DB_POOL_SIZE=3` et `DB_MAX_OVERFLOW=3` (#1734) :
+    # le pooler Supabase plafonne à 15 clients (docs/ci-cd.md). Hors de l'ancre,
+    # que la production partage et qui garde les défauts du code.
     envVars: *backend_env_vars

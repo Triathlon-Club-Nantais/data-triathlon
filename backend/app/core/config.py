@@ -47,8 +47,11 @@ class Settings(BaseSettings):
     # marge pour ce qui se connecte à côté : `alembic upgrade head` au
     # démarrage (séquentiel, libéré avant uvicorn), le batch GitHub Actions
     # quand `GITHUB_BATCH_TARGET=production`, et les connexions manuelles
-    # ponctuelles (`ClientIPAddress_*`). Côté Supabase (preview), ce plafond ne
-    # s'applique pas — projet distinct, capacité non mesurée.
+    # ponctuelles (`ClientIPAddress_*`). Ces défauts valent pour la production
+    # seule : la preview (Supabase, pooler en mode session) plafonne à
+    # **15 clients**, mesuré par `EMAXCONNSESSION` (#1734). Son service Render
+    # porte donc `DB_POOL_SIZE=3` et `DB_MAX_OVERFLOW=3` (budget détaillé dans
+    # docs/ci-cd.md).
     #
     # `ge=1` / `ge=0` : SQLAlchemy traite `pool_size=0` et `max_overflow=-1`
     # comme des *sentinels* — respectivement « pool illimité » (et force alors
