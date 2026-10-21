@@ -36,7 +36,7 @@ Ordre : lots 1 à 4, puis lignes décroissantes. « Tests » compte les tests
 collectés (un cas de `parametrize` ou de `it.each` compte pour un), y compris
 les tests `integration` et `migrations`.
 
-État au 21/10/2026, après le lot 3 : 614 fichiers, 135 851 lignes, 10 424 tests,
+État au 21/10/2026, après le lot 4 : 614 fichiers, 135 676 lignes, 10 412 tests,
 153 lots.
 
 ## Lots
@@ -46,7 +46,7 @@ les tests `integration` et `migrations`.
 | 1 | test_raceresult.py | `test_raceresult.py` (sous `backend/tests/`) | `backend/app/scrapers/raceresult.py` | 4132 | 377 | gardé (tâche 12) : tests 381 → 377, mutation 1613/2074 → 1613/2074, couverture 95,6 % → 95,6 % |
 | 2 | test_import_service.py | `test_import_service.py` (sous `backend/tests/test_services/`) | `backend/app/services/import_service.py` | 2962 | 162 | gardé (tâche 13) : tests 169 → 162, mutation 225/389 → 225/389, couverture 96,2 % → 96,2 % |
 | 3 | RaceFinishers.test.tsx | `RaceFinishers.test.tsx` (sous `frontend/components/results/`) | `frontend/components/results/RaceFinishers.tsx` | 1589 | 113 | gardé (tâche 14) : tests 134 → 113, mutation 451/749 → 451/749, couverture 98,5 % → 98,5 % |
-| 4 | AppNav.test.tsx | `AppNav.test.tsx` (sous `frontend/components/layout/`) | `frontend/components/layout/AppNav.tsx` | 1925 | 137 | à faire (tâche 15) |
+| 4 | AppNav.test.tsx | `AppNav.test.tsx` (sous `frontend/components/layout/`) | `frontend/components/layout/AppNav.tsx` | 1750 | 125 | gardé (tâche 15) : tests 146 → 125, mutation 391/783 → 391/783, couverture 96,7 % → 96,7 % |
 | 5 | backend test_api/ | 48 fichiers (sous `backend/tests/test_api/`) | `backend/app/api/` | 11936 | 888 | à faire (tâche 16) |
 | 6 | backend test_auth/ | 56 fichiers (sous `backend/tests/test_auth/`) | `backend/app/services/auth/` | 11209 | 1075 | à faire (tâche 16) |
 | 7 | composants admin | 48 fichiers (sous `frontend/components/admin/`) | `frontend/components/admin/` | 10707 | 551 | à faire (tâche 16) |
@@ -382,6 +382,88 @@ Envisagé, écarté :
   le fusionnait, et perdait la branche `if (club)` fausse de
   `titreAbsenceFiltre` (filtre catégorie seul, sélection vide), que ce test
   est seul à atteindre. Gardé tel quel.
+
+## Lot 4 : `AppNav.test.tsx`
+
+Gardé. Code couvert : `components/layout/AppNav.tsx` (151 instructions, 794
+mutants au rapport, fichier entier : pas de restriction).
+
+| Mesure | Avant | Après |
+| --- | --- | --- |
+| Tests collectés | 146 | 125 |
+| Appels `it` et `it.each` | 137 | 111 |
+| Lignes | 1925 | 1750 |
+| Mutation, concurrence 3, même ensemble (tués / tués + survivants) | 391/783 (49,9 %) | 391/783 (49,9 %) |
+| Timeouts de l'exécution complète | 29 | 0 |
+| Couverture de lignes (fichier seul) | 116/120 (96,7 %) | 116/120 (96,7 %) |
+
+La ligne du tableau annonçait 137 tests : c'est le compte de `vitest list`,
+qui ne déplie pas les cas d'`it.each` (111 sur le fichier consolidé) ; vitest
+en collecte 146. La ligne porte désormais le compte collecté (125), et l'état
+global en tête suit cette ligne. Les 29 timeouts de l'avant (lignes 488 à
+547) sont tranchés par la relance ciblée sur le fichier d'origine, `npx stryker run --force --concurrency 3 --timeoutMS 60000 --mutate "components/layout/AppNav.tsx:488-547"` :
+6 tués, 23 survivants, le même verdict que l'après pour chacun. À ensemble
+égal, 783 mutants tranchés des deux côtés (11 sans couverture exclus), verdict
+identique mutant par mutant, comparés par leur étendue complète (une clé sur
+le seul début confond 20 mutants et en perdait 10). Couverture identique sur les quatre mesures
+(instructions 146/151, branches 244/253, fonctions 69/74), mêmes lignes
+manquées (204, 241, 457, 542). L'exécution complète de l'avant a duré 2016 s,
+au delà du budget de 30 min ; la restriction aux lignes touchées aurait couvert
+presque tout le fichier, d'où l'exécution complète des deux côtés.
+
+Fait (toutes les assertions gardées) :
+
+- `it.each` : largeur du rail replié et déplié dès le premier rendu (NAV-3 ;
+  le cas replié vérifie désormais lui aussi que `localStorage` n'est pas lu) ;
+  alignement de l'en-tête replié et déplié (#620) ; infobulles des trois
+  éléments repliés trouvés au premier rendu (« Ajouter une épreuve »,
+  « Rechercher un athlète », « Accueil ») ; ni sélecteur ni entrée Back-office
+  pour un membre sans pouvoir et pour un anonyme (le cas anonyme vérifie
+  désormais aussi l'absence de Back-office). Aucun `if` dans un corps
+  paramétré.
+- Montages qui se prolongent, fusionnés : logo du rail déplié sans prefetch
+  et non doublé du monogramme (#428, NAV-2) ; palette ⌘K titrée recherche, avec
+  son invite, sans la promesse du tableau de bord (#952, absorbe « ouvre le
+  picker au ⌘K ») ; palette de sélection ouverte par `OPEN_PICKER_EVENT`, puis
+  gardée sous Ctrl+K (absorbe « ouvre le picker sur OPEN_PICKER_EVENT ») ; la
+  croix de la tuile (#442) : titre, pas de « suivre », `.tcn-icon-btn`, 44 px,
+  puis désélection qui laisse la recherche (cinq tests en un) ; « Mes
+  résultats » (lien et absence de prefetch) ; 503 : relance à la place de « Se
+  connecter », anneau orange, région de statut, retour du compte (trois tests
+  en un) ; session en attente : ni « Se connecter » ni contenu dans le repère
+  occupé ; état du déclencheur du tiroir puis fermeture (#1077, #1116) ; entrée
+  courante marquée et en orange 4,5:1 (#1078) ; « Droits des rôles » et
+  filtrage par pouvoir ; état connecté puis tiroir (#114) ; tuile « Mon
+  athlète » nommée (#502), puis son infobulle ; onglet « Validation »
+  raccourci et nommé par son texte visible (#890, #1012) ; « Plus » éteint
+  (avant et après la session) puis ouvrant le tiroir (#1620) ; pied du tiroir
+  qui ne se ferme ni sur l'adresse ni sur « Se déconnecter » ; sélecteur
+  d'espace sur le rail et en tête du tiroir.
+
+Envisagé, écarté :
+
+- Fusionner « moves focus to the account trigger once the rail retry
+  succeeds » dans le test du 503 : un premier brouillon le faisait, et
+  l'exécution complète de l'après montrait 23 mutants « Survived » devenus
+  « Killed » (lignes 116 à 379, dont des littéraux de style). Faux gain : ce
+  test échoue lancé seul sur le code intact (il ne passe qu'après une relance
+  antérieure du même fichier, déjà vrai du test d'origine), et Stryker ne
+  rejoue que les tests qui couvrent un mutant. Remis à sa place, après le test
+  du 503, avec un commentaire ; l'après a été remesuré. La cause de cette
+  dépendance d'ordre (code ou test) reste à chercher, hors de ce lot.
+- `readAthlete` (stock corrompu, forme `{ id, name }`) : code
+  d'`AthletePicker`, hors du code couvert du lot, aucune mesure pour prouver
+  qu'un autre test les porte.
+- « asks every count in a single call » et les tests qui comptent les appels
+  de `getSession` : tests d'interaction, gardés faute de preuve qu'un autre
+  test tue leurs mutants.
+- Les mêmes montages répartis entre plusieurs `describe` (tiroir anonyme,
+  catégorie « Administration » à deux pouvoirs, athlète retenu sur le rail
+  replié) : les fusionner mêlerait des issues distinctes ; et les sections
+  publiques du tiroir, anonyme ou connecté (#621), ne se paramètrent pas sans
+  `if` (le cas connecté attend le compte, le cas anonyme ne le peut pas).
+- « ouvre le picker au clavier même avec un athlète retenu » : le paramétrer
+  avec le cas sans athlète demanderait un `if` autour de l'écriture du stock.
 
 ## Régénérer le tableau
 

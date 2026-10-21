@@ -173,7 +173,14 @@ Score = tués / (tués + survivants), timeouts exclus.
   contre 0 timeouts, même fichier de test). Si les timeouts diffèrent encore
   entre les deux bras, relancer seulement leurs lignes, sur le bras où ils ont
   expiré et à la même concurrence : `--mutate <fichier>:<L>-<L> --timeoutMS
-  60000`.
+  60000`. Un mutant « Survived » avant et « Killed » après est suspect :
+  Stryker ne rejoue que les tests qui couvrent le mutant, donc un test qui ne
+  passe que dans l'ordre du fichier échoue seul ou dans un sous-ensemble, et
+  « tue » tout ce qu'il couvre. Lancer le test tueur seul sur le code intact
+  (`npx vitest run <fichier> -t "<nom>"`) avant de compter ce gain (lot 4).
+  Comparer deux rapports mutant par mutant sur l'étendue complète
+  (`location.start` et `location.end`, mutateur, remplacement) : une clé sur
+  le seul début confond des mutants (lot 4 : 20 sur 794).
 - **Où vivent les résultats** : backend dans `backend/mutants/` (copie de `app/`
   et `tests/`, base de résultats `mutmut-stats.json` et `*.meta`) ; frontend dans
   `frontend/reports/` (JSON et fichier incrémental) et `frontend/.stryker-tmp/`.
