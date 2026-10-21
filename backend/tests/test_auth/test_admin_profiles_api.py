@@ -3,11 +3,13 @@
 Trois volets : lecture (US1/US2), écriture (US3), journal de bord (US4), plus
 les gardes de chacun. Patron `test_admin_groups_api.py`.
 """
-from datetime import date
+from datetime import date, datetime
 
 import pytest
 
 from app.core.permissions import P
+from app.repositories import training_session_repository
+from app.services import profile_service
 from app.services.fftri_category import fftri_category
 
 BASE = "/api/v1/admin/profiles"
@@ -259,10 +261,24 @@ def test_the_detail_lists_the_groups_of_the_profile(client, ouvrir_session, prof
     assert body["groups"] == [{"id": alpha["id"], "name": "Alpha"}, {"id": beta["id"], "name": "Beta"}]
 
 
+def test_detail_reports_the_season_attendance(client, profile, db_session, monkeypatch):
+    monkeypatch.setattr(profile_service, "utcnow", lambda: datetime(2026, 10, 15, 12, 0))
+    for day, present in ((date(2026, 9, 2), True), (date(2026, 9, 9), False)):
+        session = training_session_repository.create(db_session, date=day)
+        training_session_repository.add_participant(
+            db_session, training_session_id=session.id, profile_id=profile["id"], present=present
+        )
+    db_session.commit()
+
+    body = client.get(f"{BASE}/{profile['id']}").json()
+
+    assert body["attendance"] == {"attended": 1, "pointed": 2, "absence_streak": 1}
+
+
 # --- #1472 : sans `jeunes:read`, les écritures taisent les données personnelles ---
 
 
-PERSONAL_FIELDS = ("emergency_contact", "notes", "log_entries")
+PERSONAL_FIELDS = ("emergency_contact", "notes", "log_entries", "attendance")
 
 
 @pytest.fixture
