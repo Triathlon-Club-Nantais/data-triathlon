@@ -14,6 +14,8 @@ const {
   listTrainingGroups,
   addTrainingGroupMember,
   removeTrainingGroupMember,
+  listMeasurementEvents,
+  listTrainingSessions,
 } = vi.hoisted(() => ({
   getProfile: vi.fn(),
   updateProfile: vi.fn(),
@@ -22,6 +24,8 @@ const {
   listTrainingGroups: vi.fn(),
   addTrainingGroupMember: vi.fn(),
   removeTrainingGroupMember: vi.fn(),
+  listMeasurementEvents: vi.fn().mockResolvedValue([]),
+  listTrainingSessions: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock("@/lib/api/client", async (importOriginal) => {
@@ -36,6 +40,8 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
       listTrainingGroups,
       addTrainingGroupMember,
       removeTrainingGroupMember,
+      listMeasurementEvents,
+      listTrainingSessions,
     },
   };
 });
@@ -56,6 +62,7 @@ const PROFIL: ProfileDetailType = {
   membership_ended_on: null,
   category: null,
   groups: [],
+  measurements: [],
   log_entries: [
     {
       id: 2,
@@ -130,6 +137,18 @@ describe("ProfileDetail", () => {
       expect(client.getQueryCache().find({ queryKey: ["admin-profile", 1] })?.state.fetchStatus).toBe("paused"),
     );
     expect(screen.queryByText("Profil introuvable")).not.toBeInTheDocument();
+  });
+
+  it("n'affiche les tests chronométrés qu'avec la lecture (#1365)", async () => {
+    afficher();
+    expect(await screen.findByText("Tests chronométrés")).toBeInTheDocument();
+  });
+
+  it("masque la carte des tests quand l'API les retient (#1365)", async () => {
+    getProfile.mockResolvedValue({ ...PROFIL, measurements: null });
+    afficher();
+    await screen.findByText("Alix Martin");
+    expect(screen.queryByText("Tests chronométrés")).not.toBeInTheDocument();
   });
 
   it("affiche les informations personnelles", async () => {
@@ -225,7 +244,7 @@ describe("ProfileDetail", () => {
     await utilisateur.type(nom, "Martins");
     await utilisateur.clear(naissance);
     await utilisateur.type(naissance, "2015-05-13");
-    await utilisateur.click(screen.getByRole("button", { name: /enregistrer/i }));
+    await utilisateur.click(screen.getByRole("button", { name: /^enregistrer$/i }));
 
     await waitFor(() =>
       expect(updateProfile).toHaveBeenCalledWith(
@@ -253,7 +272,7 @@ describe("ProfileDetail", () => {
     afficher();
     await utilisateur.click(await screen.findByRole("button", { name: /modifier le profil/i }));
     await utilisateur.type(screen.getByLabelText(/fin d'adhésion/i), "2026-06-30");
-    await utilisateur.click(screen.getByRole("button", { name: /enregistrer/i }));
+    await utilisateur.click(screen.getByRole("button", { name: /^enregistrer$/i }));
     await waitFor(() =>
       expect(updateProfile).toHaveBeenCalledWith(1, expect.objectContaining({ membership_ended_on: "2026-06-30" })),
     );
@@ -261,7 +280,7 @@ describe("ProfileDetail", () => {
     getProfile.mockResolvedValue({ ...PROFIL, membership_ended_on: "2026-06-30" });
     await utilisateur.click(await screen.findByRole("button", { name: /modifier le profil/i }));
     await utilisateur.clear(screen.getByLabelText(/fin d'adhésion/i));
-    await utilisateur.click(screen.getByRole("button", { name: /enregistrer/i }));
+    await utilisateur.click(screen.getByRole("button", { name: /^enregistrer$/i }));
     await waitFor(() =>
       expect(updateProfile).toHaveBeenLastCalledWith(1, expect.objectContaining({ membership_ended_on: null })),
     );
@@ -280,7 +299,7 @@ describe("ProfileDetail", () => {
     afficher();
     await utilisateur.click(await screen.findByRole("button", { name: /modifier le profil/i }));
     await utilisateur.type(screen.getByLabelText(/fin d'adhésion/i), "2016-06-30");
-    await utilisateur.click(screen.getByRole("button", { name: /enregistrer/i }));
+    await utilisateur.click(screen.getByRole("button", { name: /^enregistrer$/i }));
 
     const dialogue = await screen.findByRole("dialog");
     expect(dialogue).toHaveTextContent(/prochaine purge/i);
@@ -297,7 +316,7 @@ describe("ProfileDetail", () => {
     expect(await screen.findByText(/âge inconnu/i)).toBeInTheDocument();
     await utilisateur.click(screen.getByRole("button", { name: /modifier le profil/i }));
     await utilisateur.type(screen.getByLabelText(/date de naissance/i), "2015-04-12");
-    await utilisateur.click(screen.getByRole("button", { name: /enregistrer/i }));
+    await utilisateur.click(screen.getByRole("button", { name: /^enregistrer$/i }));
 
     await waitFor(() =>
       expect(updateProfile).toHaveBeenCalledWith(
