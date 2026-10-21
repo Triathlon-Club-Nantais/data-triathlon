@@ -96,11 +96,11 @@ export function CoursesAdminTable({
 
   function naviguer(valeurs: FiltresCourses, versLaPage: number) {
     const qs = new URLSearchParams();
-    Object.entries(valeurs).forEach(
-      ([cle, valeur]) =>
-        valeur &&
-        qs.set(cle === "event_type_to_review" ? "type_a_verifier" : cle, valeur === true ? "1" : String(valeur)),
-    );
+    Object.entries(valeurs).forEach(([cle, valeur]) => {
+      if (!valeur) return;
+      if (cle === "event_type_to_review") qs.set("type_a_verifier", "1");
+      else qs.set(cle, String(valeur));
+    });
     // La page 1 ne s'écrit pas : `?page=1` est du bruit dans une URL partagée.
     if (versLaPage > 1) qs.set("page", String(versLaPage));
     router.push(qs.size ? `${chemin}?${qs}` : chemin);
@@ -379,7 +379,12 @@ function CatalogueFilters({
   const actifs = Object.values(valeurs).some(Boolean);
 
   function appliquer() {
-    onFiltrer({ id, name: nom, event_type: type, date_from: du, date_to: au,
+    onFiltrer({
+      id,
+      name: nom,
+      event_type: type,
+      date_from: du,
+      date_to: au,
       event_type_to_review: aVerifier || undefined,
     });
   }
