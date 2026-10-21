@@ -108,14 +108,15 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
   }, [compteRattache]);
 
   // Le bouton « Réessayer » du rail disparaît avec la panne : sans relais, le
-  // focus tomberait sur `body` au retour de la session.
-  const piedRail = useRef<HTMLDivElement>(null);
+  // focus tomberait sur `body` au retour de la session. Ref de rappel plutôt
+  // qu'un effet sur `session` : au premier chargement du menu (#1603), le
+  // déclencheur se monte après la session (#1772).
   const relanceRail = useRef(false);
-  useEffect(() => {
-    if (session === undefined || !relanceRail.current) return;
+  function relayerFocus(declencheur: HTMLButtonElement | null) {
+    if (!declencheur || !relanceRail.current) return;
     relanceRail.current = false;
-    if (document.activeElement === document.body) piedRail.current?.querySelector<HTMLElement>("button")?.focus();
-  }, [session]);
+    if (document.activeElement === document.body) declencheur.focus();
+  }
   function relancerSession() {
     if (sessionEnCours) return;
     relanceRail.current = true;
@@ -324,10 +325,10 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
 
         {contenu(expanded)}
 
-        <div ref={piedRail} style={{ flex: "none", padding: "12px 14px", borderTop: "1px solid var(--tcn-border-faint)" }}>
+        <div style={{ flex: "none", padding: "12px 14px", borderTop: "1px solid var(--tcn-border-faint)" }}>
           {session ? (
             <div style={{ display: "flex", alignItems: "center", gap: 10, justifyContent: expanded ? "flex-start" : "center" }}>
-              <UserMenu />
+              <UserMenu triggerRef={relayerFocus} />
               {expanded && (
                 <div style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 700, color: "var(--tcn-ink)", ...tronque }}>
                   {session.display_name || session.email}
