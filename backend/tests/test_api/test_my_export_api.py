@@ -172,3 +172,14 @@ def test_export_holds_the_public_page_settings(client, db_session):
         "hide_best_times": False, "hide_progression": False, "hide_comparison": True,
         "links": ["https://strava.com/a"], "pinned_participation_id": None,
     }
+
+
+def test_export_succeeds_for_a_race_goal_without_target_time(client, db_session):
+    me = _session_etroite(client, db_session, email="moi@exemple.fr", slug="moi")
+    db_session.add(SeasonGoal(user_id=me.id, season=2026, kind="race", target=None, race_name="Tri", race_date=date(2027, 5, 1)))
+    db_session.commit()
+
+    response = client.get(URL)
+
+    assert response.status_code == 200
+    assert [(g["target"], g["public"]) for g in response.json()["season_goals"]] == [(None, False)]

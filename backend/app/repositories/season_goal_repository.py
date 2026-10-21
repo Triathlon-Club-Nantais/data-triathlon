@@ -22,6 +22,14 @@ def clear_major(db: Session, user_id: int, season: int, *, except_id: int | None
     db.execute(stmt.values(major=False))
 
 
+def clear_public(db: Session, user_id: int, *, except_id: int) -> None:
+    db.execute(
+        update(SeasonGoal)
+        .where(SeasonGoal.user_id == user_id, SeasonGoal.public.is_(True), SeasonGoal.id != except_id)
+        .values(public=False)
+    )
+
+
 def list_for(db: Session, user_id: int, season: int) -> list[SeasonGoal]:
     return list(db.scalars(
         select(SeasonGoal).where(SeasonGoal.user_id == user_id, SeasonGoal.season == season).order_by(SeasonGoal.id)

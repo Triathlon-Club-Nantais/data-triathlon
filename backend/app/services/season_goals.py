@@ -88,7 +88,7 @@ def _fields(db: Session, data: SeasonGoalWrite) -> dict:
         fields = {"course_id": course_id, "race_name": race_name, "race_date": race_date}
     if event_type is not None and event_type not in CANONICAL_TYPES:
         raise InvalidGoalError()
-    return {"kind": data.kind, "event_type": event_type, "target": target, "major": data.major, **fields}
+    return {"kind": data.kind, "event_type": event_type, "target": target, "major": data.major, "public": data.public, **fields}
 
 
 def create(db: Session, user: User, data: SeasonGoalWrite) -> SeasonGoal:
@@ -101,6 +101,8 @@ def create(db: Session, user: User, data: SeasonGoalWrite) -> SeasonGoal:
     goal = season_goal_repository.create(db, user_id=user.id, season=season, **fields)
     if goal.major:
         season_goal_repository.clear_major(db, user.id, season, except_id=goal.id)
+    if goal.public:
+        season_goal_repository.clear_public(db, user.id, except_id=goal.id)
     return goal
 
 
@@ -117,6 +119,8 @@ def update(db: Session, user: User, goal_id: int, data: SeasonGoalWrite) -> Seas
     goal.season = season
     if goal.major:
         season_goal_repository.clear_major(db, user.id, goal.season, except_id=goal.id)
+    if goal.public:
+        season_goal_repository.clear_public(db, user.id, except_id=goal.id)
     db.flush()
     return goal
 
@@ -142,6 +146,11 @@ class GoalProgress:
 def list_with_progress(db: Session, user: User, season: int) -> list[GoalProgress]:
     goals = season_goal_repository.list_for(db, user.id, season)
     return [_progress(db, user.athlete_id, goal) for goal in goals]
+
+
+def public_goal(db: Session, user: User) -> GoalProgress | None:
+    """The account's public goal of the current season, else `None`."""
+    return next((p for p in list_with_progress(db, user, current_season()) if p.goal.public), None)
 
 
 def _closed(goal: SeasonGoal, reached: bool) -> str:

@@ -511,20 +511,9 @@ def apply_my_opposition(user: User = Depends(_linked_member), db: Session = Depe
     return Response(status_code=204, headers=NO_STORE_HEADERS)
 
 
-def _goal_read(progress: season_goals.GoalProgress) -> SeasonGoalRead:
-    goal = progress.goal
-    return SeasonGoalRead(
-        id=goal.id, season=goal.season, kind=goal.kind, event_type=goal.event_type, target=goal.target,
-        best_time=progress.best_time, count=progress.count, reached=progress.reached,
-        course_id=goal.course_id, race_name=goal.race_name,
-        race_date=goal.race_date.isoformat() if goal.race_date else None, major=goal.major,
-        outcome=progress.outcome,
-    )
-
-
 def _progress_of(db: Session, user: User, goal) -> SeasonGoalRead:
     (progress,) = [p for p in season_goals.list_with_progress(db, user, goal.season) if p.goal.id == goal.id]
-    return _goal_read(progress)
+    return SeasonGoalRead.of(progress)
 
 
 @router.get("/auth/me/goals", response_model=list[SeasonGoalRead])
@@ -534,7 +523,7 @@ def list_goals(
     db: Session = Depends(get_db),
 ):
     """Objectifs de saison du compte et leur progression (#1373), privés."""
-    return [_goal_read(p) for p in season_goals.list_with_progress(db, user, season or current_season())]
+    return [SeasonGoalRead.of(p) for p in season_goals.list_with_progress(db, user, season or current_season())]
 
 
 @router.post("/auth/me/goals", response_model=SeasonGoalRead, status_code=201)
