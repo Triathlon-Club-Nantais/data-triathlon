@@ -1,6 +1,6 @@
 import { Card } from "@/components/ui/card";
 import type { ProfileAttendance } from "@/lib/types";
-import { motCompte, tauxAssiduite } from "@/lib/utils/format";
+import { motCompte, pctFr, tauxAssiduite } from "@/lib/utils/format";
 
 /** Assiduité de la saison FFTri en cours (#1364). */
 export function PresenceDuProfil({ attendance }: { attendance: ProfileAttendance }) {
@@ -15,7 +15,7 @@ export function PresenceDuProfil({ attendance }: { attendance: ProfileAttendance
       {taux === null ? (
         <p>Aucun appel cette saison.</p>
       ) : (
-        <p>{`Assiduité : ${taux} % (${motCompte(attended, "séance")} sur ${pointed})`}</p>
+        <p>{`Assiduité : ${pctFr(taux, 0)} (${motCompte(attended, "séance")} sur ${pointed})`}</p>
       )}
       {absence_streak === 1 && <p>Dernière séance manquée.</p>}
       {absence_streak >= 2 && <p>{absence_streak} séances manquées d&apos;affilée.</p>}

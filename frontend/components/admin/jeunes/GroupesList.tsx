@@ -11,13 +11,13 @@ import { GroupeDetail } from "@/components/admin/jeunes/GroupeDetail";
 import { useCreateTrainingGroup, useTrainingGroups } from "@/lib/queries/admin";
 import { useSession } from "@/lib/queries/auth";
 import { messageDeRefus } from "@/lib/api/refus";
-import { motCompte, tauxAssiduite } from "@/lib/utils/format";
+import { motCompte, pctFr, tauxAssiduite } from "@/lib/utils/format";
 
 const REFUS = { sujet: "groupes", action: "consulter les groupes" };
 
 function assiduite(attended: number, pointed: number): string {
   const taux = tauxAssiduite(attended, pointed);
-  return taux === null ? "Assiduité : aucun appel" : `Assiduité : ${taux} %`;
+  return taux === null ? "Assiduité : aucun appel" : `Assiduité : ${pctFr(taux, 0)}`;
 }
 
 /** Les groupes d'entraînement (#1291) : cartes seules, l'écran se tient au téléphone. */

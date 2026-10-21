@@ -9,9 +9,9 @@ function afficher(attended: number, pointed: number, absence_streak: number) {
 describe("PresenceDuProfil (#1364)", () => {
   it("shows the rate and a single missed session", () => {
     afficher(1, 2, 1);
-    // le normaliseur par défaut replie l'espace insécable : on le désactive pour la vérifier
+    // le normaliseur par défaut replie l'espace insécable fine : on le désactive pour la vérifier
     const brut = { normalizer: (texte: string) => texte };
-    expect(screen.getByText("Assiduité : 50 % (1 séance sur 2)", brut)).toBeInTheDocument();
+    expect(screen.getByText("Assiduité : 50\u202f% (1 séance sur 2)", brut)).toBeInTheDocument();
     expect(screen.getByText("Dernière séance manquée.")).toBeInTheDocument();
   });
 

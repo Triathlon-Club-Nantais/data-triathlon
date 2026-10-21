@@ -6,7 +6,7 @@ Garde : lecture `jeunes:read`, écriture `jeunes:write` (401 sans session, 403 s
 
 | Méthode | Route | Corps | Réponse |
 | --- | --- | --- | --- |
-| GET | `/admin/training-groups` | | `[{id, name, member_count}]` trié par nom |
+| GET | `/admin/training-groups` | | `[{id, name, member_count, attended, pointed}]` trié par nom ; `attended`/`pointed` : séances pointées de la saison FFTri à ce jour (#1364) |
 | GET | `/admin/training-groups/{id}` | | `{id, name, members: [ProfileRead]}` |
 | POST | `/admin/training-groups` | `{name}` | 201, détail ; 422 nom vide ou déjà pris |
 | PATCH | `/admin/training-groups/{id}` | `{name}` | détail ; 422 nom déjà pris |
