@@ -28,6 +28,7 @@ from app.repositories.athlete_repository import credits, escape_like, name_filte
 from app.repositories.dialect import is_postgres
 from app.scrapers.base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, STATUS_FINISHER
 from app.scrapers.classify import CANONICAL_TYPES
+from app.scrapers.utils import MAX_RELAY_TEAMMATES
 
 
 def get(db: Session, participation_id: int) -> Participation | None:
@@ -1091,6 +1092,8 @@ def search_team_results(db: Session, *, term: str, exclude_athlete_id: int, limi
             ~anonymised,
             ~exists().where(links, ParticipationTeammate.athlete_id == exclude_athlete_id),
             or_(team_record, exists().where(links)),
+            # A full relay cannot take one more teammate: set_teammates would refuse the claim.
+            select(func.count()).where(links).scalar_subquery() < MAX_RELAY_TEAMMATES,
             *matches,
         )
         .order_by(Course.event_date.desc().nullslast(), Participation.id.desc())
