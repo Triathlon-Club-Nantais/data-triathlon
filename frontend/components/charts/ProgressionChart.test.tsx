@@ -57,6 +57,19 @@ describe("ProgressionChart", () => {
     expect(values).toEqual([20, 40]);
   });
 
+  it("keeps at least two ticks when d3 would pick a step as wide as the domain (#1789)", () => {
+    const { container } = render(
+      <ProgressionChart
+        points={[
+          point({ id: 1, eventDate: "2026-01-10", value: 12 }),
+          point({ id: 2, eventDate: "2026-03-10", value: 50 }),
+          point({ id: 3, eventDate: "2026-05-10", value: 85 }),
+        ]}
+      />,
+    );
+    expect(container.querySelectorAll("[data-tick]").length).toBeGreaterThanOrEqual(2);
+  });
+
   it("affiche le pourcentage de chaque point en permanence, sans survol (#677)", () => {
     const { getByText } = render(
       <ProgressionChart
