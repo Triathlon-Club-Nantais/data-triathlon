@@ -1,5 +1,4 @@
 """Dépendances FastAPI partagées."""
-
 import logging
 import time
 from collections import deque
