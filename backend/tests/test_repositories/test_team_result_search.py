@@ -1,5 +1,4 @@
 """Relay results a claimed member can find by team name (#1739)."""
-
 from datetime import date
 from itertools import count
 
@@ -20,34 +19,17 @@ def _athlete(db, nom, prenom="") -> Athlete:
     return athlete
 
 
-def _relay(
-    db, carrier, *, event_date=date(2026, 6, 7), course_relay=True, teammates=(), **extra
-) -> Participation:
+def _relay(db, carrier, *, event_date=date(2026, 6, 7), course_relay=True, teammates=(), **extra) -> Participation:
     number = next(_NUMBER)
-    course = Course(
-        name=f"Relais {number}",
-        event_date=event_date,
-        event_type="triathlon-s",
-        is_relay=course_relay,
-    )
+    course = Course(name=f"Relais {number}", event_date=event_date, event_type="triathlon-s", is_relay=course_relay)
     db.add(course)
     db.flush()
     extra.setdefault("is_relay", True)
-    row = Participation(
-        course_id=course.id,
-        athlete_id=carrier.id,
-        bib_number=str(number),
-        status="finisher",
-        **extra,
-    )
+    row = Participation(course_id=course.id, athlete_id=carrier.id, bib_number=str(number), status="finisher", **extra)
     db.add(row)
     db.flush()
     for position, teammate in enumerate(teammates):
-        db.add(
-            ParticipationTeammate(
-                participation_id=row.id, athlete_id=teammate.id, position=position
-            )
-        )
+        db.add(ParticipationTeammate(participation_id=row.id, athlete_id=teammate.id, position=position))
     db.flush()
     return row
 
@@ -58,12 +40,9 @@ def member(db_session):
 
 
 def _search(db, member, term, **extra):
-    return [
-        row.id
-        for row in participation_repository.search_team_results(
-            db, term=term, exclude_athlete_id=member.id, **extra
-        )
-    ]
+    return [row.id for row in participation_repository.search_team_results(
+        db, term=term, exclude_athlete_id=member.id, **extra
+    )]
 
 
 def test_finds_a_team_record_by_its_name_ignoring_case_and_accents(db_session, member):
@@ -82,9 +61,7 @@ def test_finds_a_composed_relay_by_team_name(db_session, member):
     jean, paul = _athlete(db_session, "DUPONT", "Jean"), _athlete(db_session, "DURAND", "Paul")
     row = _relay(db_session, jean, team_name="Tri Again", teammates=(jean, paul))
 
-    (hit,) = participation_repository.search_team_results(
-        db_session, term="tri ag", exclude_athlete_id=member.id
-    )
+    (hit,) = participation_repository.search_team_results(db_session, term="tri ag", exclude_athlete_id=member.id)
 
     assert hit.id == row.id
     assert (hit.course.name, hit.athlete.nom) == (row.course.name, "DUPONT")
