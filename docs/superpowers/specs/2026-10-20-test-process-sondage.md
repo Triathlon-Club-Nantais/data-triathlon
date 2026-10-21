@@ -188,3 +188,36 @@ le test de focus fusionné échoue lancé seul sur le code intact, et Stryker ne
 rejoue que les tests couvrant le mutant. Remis à part, l'après a été remesuré.
 Couverture du fichier seul : 116/120 lignes avant et après, mêmes lignes
 manquées. Détail du lot : `2026-10-20-test-consolidation-inventaire.md`.
+
+## Avant / après
+
+Mesures du 21/10, fin d'epic, `FULL_SUITE=1`, protocole du sondage du 2026-08-20 (seuil `load average` 1 min < 2,0). Le load d'une exécution vient en grande partie de `-n 4` ou des workers vitest eux-mêmes : une exécution lancée juste après une autre démarre donc au-dessus du seuil. Les exécutions retenues sont celles lancées machine au repos (load < 1,1, aucun `pytest`, `vitest`, `next dev` ni Stryker étranger).
+
+| Mesure | 20/10 (avant) | 21/10 (après) | load au départ | Statut |
+| --- | --- | --- | --- | --- |
+| Backend unitaire, tests | 6 823 | 7 125 passés, 19 ignorés | | |
+| Backend unitaire, durée | | **26,4 s** (puis 25,9 s et 31,2 s) | 1,09 (puis 2,23 et 2,95) | retenue (1re) ; les deux autres non retenues (charge) |
+| Backend `--migrations`, tests | | 7 199 passés, 19 ignorés | | |
+| Backend `--migrations`, durée | | **84,5 s** (avant : 90,7 s, 84,8 s, 85,0 s) | 0,97 (avant : 3,52, 2,83, 3,34) | retenue (au repos) ; trois premières non retenues (charge) |
+| Backend, couverture | 98 % | 98 % (19 442 instructions, 422 manquées, `--migrations`) | | |
+| Frontend `npm test`, tests | 3 224 | 3 403 passés, 2 ignorés (305 fichiers) | | |
+| Frontend `npm test`, durée | | **69,6 s** (avant : 72,4 s) | 0,88 (avant : 3,13) | retenue (au repos) ; la première non retenue (charge) |
+| Frontend, couverture | 92,37 % des lignes | 92,07 % des lignes (91,33 % instructions, 89,55 % branches, 85,7 % fonctions) | | |
+
+Le nombre de tests monte des deux côtés parce que `main` a gagné des tests depuis le 20/10 (cause non vérifiée), l'epic n'en ajoutant pas : sa consolidation en retire 53 (voir plus bas). La couverture frontend recule de 0,30 point de lignes sur la même période, sans que la consolidation y soit pour quelque chose (couverture par fichier identique avant et après chaque lot).
+
+Durées absolues du 20/10 : le sondage n'en conserve aucune sous protocole pour la suite complète (la seule valeur au repos, ~58 s pour 7 135 tests en `-n 0`, date du sondage du 2026-08-20 ; la suite fait 95,0 s en `-n 0` à load 1,73 après la fixture transactionnelle). En `-n 4` (addopts), la suite unitaire backend tient donc en 26,4 s au repos. Le gain de la tâche 6 (fixture transactionnelle) reste jugé sur la part de `create_all` (35,5 % puis 3,8 %), et l'A/B en bras entrelacés de la durée murale reste à faire machine libre ; les essais vitest de la tâche 7 (`isolate: false`, happy-dom) ne sont pas rejoués ici et attendent eux aussi une mesure au repos.
+
+Couverture frontend sous v8 (`npx vitest run --coverage --coverage.provider=v8`) : 305 fichiers, 3 403 tests, aucun rouge (le flaky de #1708 ne s'est pas manifesté, load 6 à 11 en fin d'exécution).
+
+### Consolidation
+
+| Lot | Fichier | Tests avant → après | Retirés | Mutation | Couverture du fichier |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `test_raceresult.py` | 381 → 377 | 4 | 1613/2074 → 1613/2074 | 95,6 % → 95,6 % |
+| 2 | `test_import_service.py` | 169 → 162 | 7 | 225/389 → 225/389 | 96,2 % → 96,2 % |
+| 3 | `RaceFinishers.test.tsx` | 134 → 113 | 21 | 451/749 → 451/749 | 98,5 % → 98,5 % |
+| 4 | `AppNav.test.tsx` | 146 → 125 | 21 | 391/783 → 391/783 | 96,7 % → 96,7 % |
+| Total | | | **53** sur ~10,4 k (10 412 tests au 21/10) | inchangée | inchangée |
+
+Source : `2026-10-20-test-consolidation-inventaire.md`. Arrêt de la consolidation par décision du contrôleur : 4 lots à environ 1 à 1,5 h de calcul chacun ont retiré 53 tests sur environ 10,4 k sans changement de score, donc les 149 lots restants de l'inventaire servent à l'occasion, sans campagne.
