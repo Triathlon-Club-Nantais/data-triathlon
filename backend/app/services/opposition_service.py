@@ -329,3 +329,8 @@ def opposition_view(opposition: AthleteOpposition) -> dict:
 
 def list_oppositions(db: Session) -> list[dict]:
     return [opposition_view(opposition) for opposition in opposition_repository.list_recent(db)]
+
+
+def is_anonymous(prenom: str | None, nom: str) -> bool:
+    """Fiche d'une personne opposée (#1514) ou masquée par le chronométreur : ni réclamée ni nommée."""
+    return not prenom and nom.startswith("Anonyme ")

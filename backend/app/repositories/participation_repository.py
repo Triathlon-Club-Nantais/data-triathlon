@@ -1341,6 +1341,30 @@ def latest_club_event_date(db: Session, *, seasons: list[int], federal_only: boo
     return q.scalar()
 
 
+def weekend_digest_rows(db: Session, course_ids: list[int]):
+    """Résultats TCN validés des épreuves données, colonnes utiles seulement (#1363)."""
+    if not course_ids:
+        return []
+    return (
+        db.query(
+            Participation.course_id,
+            Participation.status,
+            Participation.rank_overall,
+            Participation.rank_gender,
+            Participation.rank_category,
+            Participation.category,
+            Athlete.prenom,
+            Athlete.nom,
+            Athlete.gender,
+        )
+        .join(Athlete, Participation.athlete_id == Athlete.id)
+        .filter(Participation.course_id.in_(course_ids))
+        .filter(validated_clause(Participation.is_pending_validation))
+        .filter(Participation.counts_for_tcn.is_(True))
+        .all()
+    )
+
+
 def club_podiums(
     db: Session, *, federal_only: bool = False, seasons: list[int] | None = None, gender: str | None = None
 ):

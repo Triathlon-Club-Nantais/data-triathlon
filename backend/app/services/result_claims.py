@@ -32,7 +32,7 @@ from app.repositories import (
     participation_repository,
     result_claim_repository,
 )
-from app.services import admin_actions, audit
+from app.services import admin_actions, audit, opposition_service
 from app.services.course_locks import lock_courses_or_409
 
 logger = logging.getLogger(__name__)
@@ -74,7 +74,7 @@ def request_claim(db: Session, user: User, participation_id: int) -> ResultClaim
         raise NotFoundError("Résultat introuvable.")
     if (
         participation.athlete_id == user.athlete_id
-        or _is_anonymous(participation.athlete)
+        or opposition_service.is_anonymous(participation.athlete.prenom, participation.athlete.nom)
         or user.athlete_id in participation_repository.teammate_athlete_ids(db, participation_id)
     ):
         raise UnclaimableResultError()
@@ -86,11 +86,6 @@ def request_claim(db: Session, user: User, participation_id: int) -> ResultClaim
     claim = result_claim_repository.replace_pending(db, user_id=user.id, participation_id=participation_id)
     logger.info("Result claim requested: user=%s participation=%s", user.id, participation_id)
     return claim
-
-
-def _is_anonymous(athlete: Athlete) -> bool:
-    """Fiche d'une personne opposée (#1514) ou masquée par le chronométreur : elle ne se réclame pas."""
-    return not athlete.prenom and athlete.nom.startswith("Anonyme ")
 
 
 def cancel_claim(db: Session, user: User, claim_id: int) -> None:
@@ -110,7 +105,7 @@ def approve(db: Session, claim_id: int, *, actor_id: int) -> None:
         raise _claim_not_pending()
     participation, target = claim.participation, claim.user.athlete_id
     lock_courses_or_409(db, participation.course_id)
-    if _is_anonymous(participation.athlete):  # opposition appliquée depuis le dépôt
+    if opposition_service.is_anonymous(participation.athlete.prenom, participation.athlete.nom):  # opposition appliquée depuis le dépôt
         raise UnclaimableResultError()
     payload = {"user_id": claim.user_id, "athlete_id": target, "claim_id": claim_id}
     if participation.counts_as_relay:
