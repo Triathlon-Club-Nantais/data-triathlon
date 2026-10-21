@@ -150,7 +150,8 @@ def list_with_progress(db: Session, user: User, season: int) -> list[GoalProgres
 
 def public_goal(db: Session, user: User) -> GoalProgress | None:
     """The account's public goal of the current season, else `None`."""
-    return next((p for p in list_with_progress(db, user, current_season()) if p.goal.public), None)
+    goal = season_goal_repository.get_public(db, user.id, current_season())
+    return _progress(db, user.athlete_id, goal) if goal else None
 
 
 def _closed(goal: SeasonGoal, reached: bool) -> str:

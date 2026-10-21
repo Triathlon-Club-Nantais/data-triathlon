@@ -36,6 +36,12 @@ def list_for(db: Session, user_id: int, season: int) -> list[SeasonGoal]:
     ))
 
 
+def get_public(db: Session, user_id: int, season: int) -> SeasonGoal | None:
+    return db.scalar(select(SeasonGoal).where(
+        SeasonGoal.user_id == user_id, SeasonGoal.season == season, SeasonGoal.public.is_(True)
+    ).order_by(SeasonGoal.id))
+
+
 def get_for(db: Session, user_id: int, goal_id: int) -> SeasonGoal | None:
     return db.scalar(select(SeasonGoal).where(SeasonGoal.id == goal_id, SeasonGoal.user_id == user_id))
 

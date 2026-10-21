@@ -80,14 +80,19 @@ def link_label(url: str) -> str:
     return LINK_PROVIDERS[_provider_domain(url)]
 
 
+def _validated_ids(db: Session, athlete_id: int) -> set[int]:
+    return {p.id for p in participation_repository.list_for_athlete(db, athlete_id) if not p.is_pending_validation}
+
+
 def _read(db: Session, user: User, row) -> PublicPageSettingsRead:
     shared = len(user_repository.ids_linked_to_athlete(db, user.athlete_id)) > 1
     if row is None:
         return PublicPageSettingsRead(shared=shared)
+    pin = row.pinned_participation_id
     return PublicPageSettingsRead(
         hide_best_times=row.hide_best_times, hide_progression=row.hide_progression,
         hide_comparison=row.hide_comparison, links=list(row.links),
-        pinned_participation_id=row.pinned_participation_id, shared=shared,
+        pinned_participation_id=pin if pin in _validated_ids(db, user.athlete_id) else None, shared=shared,
     )
 
 
@@ -101,12 +106,10 @@ def save(db: Session, user: User, data: PublicPageSettingsWrite) -> PublicPageSe
     if user.athlete_id is None:
         raise NoClaimedAthleteError()
     links = [normalize_link(link) for link in data.links]
-    if len(links) > 3 or len(set(links)) != len(links):
+    if len(set(links)) != len(links):
         raise TooManyLinksError()
     pin = data.pinned_participation_id
-    if pin is not None and pin not in {
-        p.id for p in participation_repository.list_for_athlete(db, user.athlete_id) if not p.is_pending_validation
-    }:
+    if pin is not None and pin not in _validated_ids(db, user.athlete_id):
         raise InvalidPinError()
     row = public_page_settings_repository.upsert(
         db, user.id, hide_best_times=data.hide_best_times, hide_progression=data.hide_progression,
@@ -115,10 +118,9 @@ def save(db: Session, user: User, data: PublicPageSettingsWrite) -> PublicPageSe
     return _read(db, user, row)
 
 
-def for_athlete(db: Session, athlete_id: int, *, validated_ids: set[int]) -> PublicPageRead:
+def for_athlete(db: Session, user_ids: set[int], *, validated_ids: set[int]) -> PublicPageRead:
     """What visitors see of a fiche: a block is hidden if any linked account hides it, while
     links, goal and pin (rechecked here, the FK is inert in SQLite) need exactly one account."""
-    user_ids = user_repository.ids_linked_to_athlete(db, athlete_id)
     rows = public_page_settings_repository.list_for_users(db, user_ids)
     page = PublicPageRead(hidden=[
         key for key, hidden in (
@@ -131,7 +133,9 @@ def for_athlete(db: Session, athlete_id: int, *, validated_ids: set[int]) -> Pub
         return page
     (user_id,) = user_ids
     if rows:
-        page.links = [PublicLink(url=url, label=link_label(url)) for url in rows[0].links]
+        page.links = [
+            PublicLink(url=url, label=link_label(url)) for url in rows[0].links if _provider_domain(url)
+        ]
         pin = rows[0].pinned_participation_id
         page.pinned_participation_id = pin if pin in validated_ids else None
     progress = season_goals.public_goal(db, user_repository.get(db, user_id))
