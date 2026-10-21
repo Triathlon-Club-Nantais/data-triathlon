@@ -122,7 +122,6 @@ export default async function AthletePage({
             />
           }
         >
-          <>
           {(categorie || athlete.gender || claimed) && (
             <div className="flex flex-wrap items-center gap-2 pt-1">
               {categorie && (
@@ -143,7 +142,6 @@ export default async function AthletePage({
           )}
           <PublicLinks links={publicPage.links} />
           {publicPage.goal && <PublicGoal goal={publicPage.goal} />}
-          </>
         </PageHeader>
       </div>
 

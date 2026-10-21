@@ -910,15 +910,15 @@ describe("AthletePage: public page settings (#1692)", () => {
 
   it("removes the comparison chart when hidden", async () => {
     const avec = await rendre({});
-    const longueur = avec.container.innerHTML.length;
+    expect(screen.getByText("Comparer avec un coéquipier")).toBeInTheDocument();
     avec.unmount();
-    const sans = await rendre({ hidden: ["comparison"] });
-    expect(sans.container.innerHTML.length).toBeLessThan(longueur);
+    await rendre({ hidden: ["comparison"] });
+    expect(screen.queryByText("Comparer avec un coéquipier")).not.toBeInTheDocument();
   });
 
   it("shows links and the pinned result", async () => {
     await rendre({ links: [{ url: "https://strava.com/x", label: "Strava" }], pinned_participation_id: 3 });
-    expect(screen.getByRole("link", { name: "Strava" })).toHaveAttribute("rel", "noopener nofollow ugc");
+    expect(screen.getByRole("link", { name: "Strava (nouvel onglet)" })).toHaveAttribute("rel", "noopener nofollow ugc");
     expect(screen.getByText("Résultat épinglé")).toBeInTheDocument();
   });
 
