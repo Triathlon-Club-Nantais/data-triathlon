@@ -14,7 +14,7 @@ FEDERALES = [
 HORS_FEDERATION = [
     "trail", "cyclisme", "cyclisme-route", "cyclisme-clm",
     "course-a-pied", "course-a-pied-5k", "course-a-pied-10k",
-    "course-a-pied-semi", "course-a-pied-marathon",
+    "course-a-pied-semi", "course-a-pied-marathon", "natation",
 ]
 
 

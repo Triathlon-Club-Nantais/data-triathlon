@@ -731,7 +731,22 @@ def test_downgrade_puis_upgrade_de_la_portee_des_compteurs(sqlite_url):
     assert "counter_scope_entries" not in _tables(sqlite_url)
 
     command.upgrade(cfg, "head")
-    assert _lignes(sqlite_url, "SELECT COUNT(*) FROM counter_scope_entries") == [(12,)]
+    assert _lignes(sqlite_url, "SELECT COUNT(*) FROM counter_scope_entries") == [(13,)]
+
+
+def test_natation_seed_downgrade_removes_only_its_row(sqlite_url):
+    cfg = _alembic_config()
+    command.upgrade(cfg, "head")
+    sql = "SELECT value FROM counter_scope_entries WHERE kind = 'non_federal_discipline'"
+    assert ("natation",) in _lignes(sqlite_url, sql)
+
+    command.downgrade(cfg, "a1745e7c0b2d")
+    restantes = {valeur for (valeur,) in _lignes(sqlite_url, sql)}
+    assert "natation" not in restantes
+    assert {"trail", "cyclisme", "course-a-pied-marathon"} <= restantes
+
+    command.upgrade(cfg, "head")
+    assert ("natation",) in _lignes(sqlite_url, sql)
 
 
 def test_upgrade_head_adds_participation_validation_timestamp_columns(base_migree):

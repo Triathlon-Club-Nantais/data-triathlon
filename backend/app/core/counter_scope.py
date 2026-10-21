@@ -40,6 +40,7 @@ DEFAULT_NON_FEDERAL_DISCIPLINES: frozenset[str] = frozenset({
     "course-a-pied-10k",
     "course-a-pied-semi",
     "course-a-pied-marathon",
+    "natation",
 })
 
 #: Libellés du club sous leur forme normalisée (cf. `club.normalize_club`).
