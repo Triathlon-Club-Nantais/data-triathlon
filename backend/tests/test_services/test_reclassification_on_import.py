@@ -278,3 +278,12 @@ def test_relay_twin_is_flagged_on_its_own(db_session, patch_scraper):
     courses = db_session.query(Course).all()
     assert len(courses) == 2
     assert {c.event_type_origin for c in courses} == {"fallback"}
+
+
+def test_placeholder_splits_do_not_corroborate_a_fallback(db_session, patch_scraper):
+    _importer(
+        db_session, patch_scraper, WICLAX,
+        [_neutral("1", swim_time="00:00:00", bike_time="00:00:00")],
+    )
+
+    assert db_session.query(Course).one().event_type_origin == "fallback"

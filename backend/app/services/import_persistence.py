@@ -1704,7 +1704,10 @@ def _flag_fallback_heats(db: Session, results: list[ScrapedResult]) -> None:
         course = course_repository.get_by_identity(db, name, event_date, event_type, is_relay)
         if course is None or course.event_type_origin == EVENT_TYPE_ORIGIN_MANUAL:
             continue
-        has_swim_and_bike = any(r.swim_time and r.bike_time for r in rows)
+        # Même règle que la reprise : les splits tels que stockés, pas les champs bruts.
+        has_swim_and_bike = any(
+            {"swim", "bike"} <= mapping.build_splits(r).keys() for r in rows
+        )
         fallback = is_fallback_type(event_type, name, has_swim_and_bike=has_swim_and_bike)
         origin = EVENT_TYPE_ORIGIN_FALLBACK if fallback else EVENT_TYPE_ORIGIN_CLASSIFIED
         course_repository.set_event_type_origin(db, course, origin)
