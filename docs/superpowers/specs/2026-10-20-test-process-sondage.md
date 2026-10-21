@@ -241,7 +241,7 @@ Couverture frontend sous v8 (`npx vitest run --coverage --coverage.provider=v8`)
 | --- | --- | --- | --- | --- | --- |
 | 1 | `test_raceresult.py` | 381 → 377 | 4 | 1613/2074 → 1613/2074 | 95,6 % → 95,6 % |
 | 2 | `test_import_service.py` | 169 → 162 | 7 | 225/389 → 225/389 | 96,2 % → 96,2 % |
-| 3 | `RaceFinishers.test.tsx` | 134 → 113 | 21 | 451/749 → 451/749 | 98,5 % → 98,5 % |
+| 3 | `RaceFinishers.test.tsx` | 134 → 113 (149 → 128 après rebase) | 21 | 451/749 → 451/749 (après rebase : 511/818 → 511/818) | 98,5 % → 98,5 % (98,6 % après rebase) |
 | 4 | `AppNav.test.tsx` | 146 → 125 | 21 | 391/783 → 391/783 | 96,7 % → 96,7 % |
 | Total | | | **53** sur ~10,4 k (10 412 tests au 21/10) | inchangée | inchangée |
 
