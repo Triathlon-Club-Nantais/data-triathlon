@@ -475,9 +475,9 @@ disparaît : le déplacement passe par `admin_actions.reassign_participation`
 aussi (#1739) : sans composition, `set_teammates` pose l'équipe porteur puis
 membre, rien n'est purgé ; seul un porteur **sans prénom**, étiquette d'équipe,
 est remplacé par le membre (nom d'équipe posé s'il manque). Avec une
-composition, la validation est refusée (409) tant que l'admin n'y a pas ajouté
-le membre par `set_teammates`, puis la réclamation se clôt sans autre geste. Le
-journal porte `mode` (`joined_with_carrier`, `replaced_team_label`,
-`team_completed`), le couple `carrier.nom`/`carrier.prenom` et l'ancien
+composition, la validation y ajoute le membre en dernier par `set_teammates`
+(409 s'il a déjà un résultat sur l'épreuve, au plus 8 équipiers) ; s'il y figure
+déjà, la réclamation se clôt seule. Le journal porte `mode`
+(`joined_with_carrier`, `replaced_team_label`, `joined_team`, `team_completed`), le couple `carrier.nom`/`carrier.prenom` et l'ancien
 `team_name`, que l'opposition efface. Un résultat en attente ou refusé répond
 comme un id inconnu (404) ; un porteur `Anonyme …` ne se réclame pas.

@@ -109,8 +109,8 @@ def test_permissions_and_sessions(client, db_session):
     assert client.post(MINE, json={"participation_id": 1}).status_code == 401
 
 
-def test_a_relay_claim_shows_its_team_and_waits_for_it_to_be_completed(client, db_session, setup):
-    """#1739: the queue shows the current team; approval needs the member in it."""
+def test_a_relay_claim_shows_its_team_and_approval_adds_the_member(client, db_session, setup):
+    """#1739: the queue shows the current team; approval appends the member."""
     _, mine, homonym, result = setup
     partner = Athlete(nom="Durand", prenom="Paul")
     db_session.add(partner)
@@ -126,9 +126,8 @@ def test_a_relay_claim_shows_its_team_and_waits_for_it_to_be_completed(client, d
     assert (item["participation"]["is_relay"], item["participation"]["team_name"]) == (True, "Les Dauphins")
     assert [a["id"] for a in item["participation"]["teammates"]] == [homonym.id, partner.id]
 
-    refused = client.post(f"{QUEUE}/{claim_id}/approve")
-    assert refused.status_code == 409
-    assert "Attribuer aux équipiers" in refused.json()["detail"]
+    assert client.post(f"{QUEUE}/{claim_id}/approve").status_code == 204
+    assert participation_repository.teammate_athlete_ids(db_session, result.id)[-1] == mine.id
 
 
 TEAM_SEARCH = "/api/v1/auth/me/team-results"

@@ -10,7 +10,7 @@ de fiche (`/admin/rattachements`), en section distincte.
 Un relais (#1739) se réclame aussi : la fiche du compte rejoint sa composition
 (#894). Sans composition, elle s'ajoute à côté du porteur, sauf si le porteur
 n'est qu'une étiquette d'équipe (sans prénom) : elle la remplace. Avec une
-composition, l'admin la complète par « Attribuer aux équipiers ».
+composition, la fiche s'y ajoute en dernier.
 
 Le relais se trouve par son nom d'équipe (`search_team_results`), sans rien
 changer au geste de réclamation.
@@ -54,11 +54,6 @@ class NoClaimedAthleteError(DomainError):
 class UnclaimableResultError(DomainError):
     status_code = 409
     message = "Ce résultat ne peut pas être réclamé : il est déjà sur votre fiche, ou vous figurez déjà dans l'équipe."
-
-
-class TeamToCompleteError(DomainError):
-    status_code = 409
-    message = "Ce relais a déjà des équipiers : ajoutez ce membre avec « Attribuer aux équipiers »."
 
 
 class TooManyClaimsError(DomainError):
@@ -161,9 +156,12 @@ def _join_relay(db: Session, participation: Participation, target: int, actor_id
     """La fiche du membre rejoint l'équipe ; rend ce que le journal doit en garder."""
     team = participation_repository.teammate_athlete_ids(db, participation.id)
     if team:
-        if target not in team:
-            raise TeamToCompleteError()
-        return {"mode": "team_completed"}
+        if target in team:
+            return {"mode": "team_completed"}
+        admin_actions.set_teammates(
+            db, participation_id=participation.id, teammates=[*team, target], user_id=actor_id
+        )
+        return {"mode": "joined_team"}
     carrier = participation.athlete
     # `nom`/`prenom` groupés : l'opposition (`_redact_log`) efface ce couple du journal.
     trace = {"carrier": {"nom": carrier.nom, "prenom": carrier.prenom}, "former_team_name": participation.team_name}

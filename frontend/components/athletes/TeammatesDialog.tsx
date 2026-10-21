@@ -33,14 +33,11 @@ export function TeammatesDialog({
   resultat,
   equipiers,
   onClose,
-  reclamation,
 }: {
   resultat: { id: number; epreuve: string; date: string | null };
   equipiers: Equipier[];
   /** `attribue` : fermée par une attribution réussie, et non par « Annuler ». */
   onClose: (attribue?: boolean) => void;
-  /** Réclamation du membre `athleteId`, validée dans le même essai que l'attribution (#1739). */
-  reclamation?: { de: string; athleteId: number; valider: () => Promise<unknown> };
 }) {
   const [equipe, setEquipe] = useState<Membre[]>(equipiers);
   const [nouveauNom, setNouveauNom] = useState("");
@@ -53,7 +50,6 @@ export function TeammatesDialog({
   const router = useRouter();
 
   const complete = equipe.length >= MAX_EQUIPIERS;
-  const sansLeMembre = reclamation !== undefined && !equipe.some((e) => e.id === reclamation.athleteId);
   const champRecherche = `equipiers-${resultat.id}`;
   const proposes = (candidats.data ?? []).filter((c) => !equipe.some((e) => e.id === c.id));
 
@@ -105,20 +101,7 @@ export function TeammatesDialog({
       toast.error(ECHEC);
       return;
     }
-    if (reclamation) {
-      try {
-        await reclamation.valider();
-      } catch {
-        // Réessayer est sûr : la même composition se réenregistre sans effet.
-        setRefus(`L'équipe est enregistrée, mais la réclamation de ${reclamation.de} n'a pas été validée. Réessayez.`);
-        return;
-      }
-    }
-    toast.success(
-      reclamation
-        ? `Équipe complétée, réclamation de ${reclamation.de} validée.`
-        : `Relais attribué à ${equipe.length} athlètes.`,
-    );
+    toast.success(`Relais attribué à ${equipe.length} athlètes.`);
     onClose(true);
     // La fiche courante peut avoir été purgée : `notFound()` prend le relais.
     router.refresh();
@@ -128,7 +111,6 @@ export function TeammatesDialog({
     refus ??
     (equipe.length === 0 ? `Ajoutez au moins ${MIN_EQUIPIERS} athlètes pour attribuer ce relais.` : null) ??
     (equipe.length === 1 ? "Pour un seul athlète, utilisez « Rattacher »." : null) ??
-    (sansLeMembre && reclamation ? `Gardez la fiche de ${reclamation.de} dans l'équipe pour valider sa réclamation.` : null) ??
     (complete ? `Un relais compte au plus ${MAX_EQUIPIERS} athlètes.` : null);
 
   return (
@@ -143,7 +125,7 @@ export function TeammatesDialog({
           </Button>
           <Button
             onClick={attribuer}
-            disabled={equipe.length < MIN_EQUIPIERS || sansLeMembre || attribution.isPending}
+            disabled={equipe.length < MIN_EQUIPIERS || attribution.isPending}
           >
             {attribution.isPending ? "Attribution…" : "Attribuer"}
           </Button>
@@ -154,7 +136,6 @@ export function TeammatesDialog({
         <p style={{ fontSize: 15, lineHeight: 1.6, color: "var(--tcn-text-body)", margin: 0 }}>
           {intitule} apparaîtra sur la fiche de chaque athlète choisi. Une fiche au nom de
           l&apos;équipe qui n&apos;a plus aucun résultat sera supprimée.
-          {reclamation && ` La réclamation de ${reclamation.de} sera validée en même temps.`}
         </p>
 
         <ul

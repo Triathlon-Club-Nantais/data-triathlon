@@ -1,9 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ApiError } from "@/lib/api/client";
 import { queryKeys } from "@/lib/queries/keys";
 import type { ResultClaimReview } from "@/lib/types";
 
@@ -47,10 +45,7 @@ function afficher(permissions: string[] = ["athlete_claims:review"]) {
   client.setQueryData(queryKeys.session(), { id: 1, permissions, athlete: null });
   return render(
     <QueryClientProvider client={client}>
-      <h2 id="resultats-reclames" tabIndex={-1}>
-        Résultats réclamés
-      </h2>
-      <ResultClaimsTable titreId="resultats-reclames" />
+      <ResultClaimsTable />
     </QueryClientProvider>,
   );
 }
@@ -154,57 +149,17 @@ describe("ResultClaimsTable, relais (#1739)", () => {
     await waitFor(() => expect(approveResultClaim).toHaveBeenCalledWith(4));
   });
 
-  it("completes an existing team through « Attribuer aux équipiers », then closes the claim", async () => {
-    getResultClaims.mockResolvedValueOnce([AVEC_EQUIPE]).mockResolvedValue([]);
-    setParticipationTeammates.mockResolvedValue({});
+  it("adds the member to a composed relay in one click, without the reassign permission", async () => {
+    getResultClaims.mockResolvedValue([AVEC_EQUIPE]);
     approveResultClaim.mockResolvedValue(null);
-    afficher(["athlete_claims:review", "participations:reassign"]);
+    afficher();
 
     const ligne = (await screen.findByText("lea@exemple.fr")).closest("tr") as HTMLElement;
     const actuels = within(ligne).getByRole("list", { name: "Équipiers actuels" });
     expect(within(actuels).getAllByRole("listitem").map((li) => li.textContent)).toEqual(["Jean Dupont", "Paul Durand"]);
-    await userEvent.click(within(ligne).getByRole("button", { name: "Attribuer aux équipiers, avec Léa M." }));
-    expect(screen.getByRole("dialog")).toHaveTextContent("La réclamation de Léa M. sera validée en même temps.");
-    expect(within(screen.getByRole("list", { name: "Équipe" })).getByText("Martin Léa")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Attribuer" }));
+    await userEvent.click(within(ligne).getByRole("button", { name: "Ajouter à l'équipe la fiche de Léa M." }));
 
-    await waitFor(() => expect(setParticipationTeammates).toHaveBeenCalledWith(5, [7, 8, 42]));
     await waitFor(() => expect(approveResultClaim).toHaveBeenCalledWith(4));
-    await waitFor(() => expect(screen.getByRole("heading", { name: "Résultats réclamés" })).toHaveFocus());
-    expect(vi.mocked(toast.success).mock.calls).toEqual([["Équipe complétée, réclamation de Léa M. validée."]]);
-  });
-
-  it("cannot assign the team once the member was removed from it", async () => {
-    getResultClaims.mockResolvedValue([AVEC_EQUIPE]);
-    afficher(["athlete_claims:review", "participations:reassign"]);
-
-    await userEvent.click(await screen.findByRole("button", { name: "Attribuer aux équipiers, avec Léa M." }));
-    await userEvent.click(screen.getByRole("button", { name: "Retirer Martin Léa" }));
-
-    expect(screen.getByRole("button", { name: "Attribuer" })).toBeDisabled();
-  });
-
-  it("says the team is saved when only the claim fails to close", async () => {
-    getResultClaims.mockResolvedValue([AVEC_EQUIPE]);
-    setParticipationTeammates.mockResolvedValue({});
-    approveResultClaim.mockRejectedValue(new ApiError(409, "Cette réclamation n'est plus en attente."));
-    afficher(["athlete_claims:review", "participations:reassign"]);
-
-    await userEvent.click(await screen.findByRole("button", { name: "Attribuer aux équipiers, avec Léa M." }));
-    await userEvent.click(screen.getByRole("button", { name: "Attribuer" }));
-
-    expect(
-      await screen.findByText("L'équipe est enregistrée, mais la réclamation de Léa M. n'a pas été validée. Réessayez."),
-    ).toBeInTheDocument();
-    expect(toast.success).not.toHaveBeenCalled();
-  });
-
-  it("says who can complete the team when the reviewer cannot reassign results", async () => {
-    getResultClaims.mockResolvedValue([AVEC_EQUIPE]);
-    afficher();
-
-    const ligne = (await screen.findByText("lea@exemple.fr")).closest("tr") as HTMLElement;
-    expect(within(ligne).queryByRole("button", { name: /Attribuer aux équipiers/ })).not.toBeInTheDocument();
-    expect(ligne).toHaveTextContent("Demandez à un administrateur disposant de « Rattacher un résultat ».");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });

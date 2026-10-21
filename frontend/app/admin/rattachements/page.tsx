@@ -32,7 +32,7 @@ export default function AdminRattachementsPage() {
           sorte={<ClaimKind kind="result" />}
           explication="Un compte déjà rattaché réclame un seul résultat rangé sur une autre fiche, souvent celle d'un homonyme. « Déplacer le résultat » le passe sur sa fiche, le fige contre les réimports et supprime la fiche d'origine si elle se vide."
         >
-          <ResultClaimsTable titreId="resultats-reclames" />
+          <ResultClaimsTable />
         </Section>
         <Section
           id="comptes-rattaches"

@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -10,9 +10,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ClaimKind } from "@/components/admin/ClaimKind";
 import { DangerConfirm } from "@/components/admin/DangerConfirm";
 import { nomComplet } from "@/components/layout/AthletePicker";
-import { TeammatesDialog } from "@/components/athletes/TeammatesDialog";
 import { useDecideResultClaim, useResultClaims } from "@/lib/queries/admin";
-import { useHydratedSession } from "@/lib/queries/auth";
 import { messageDeRefus } from "@/lib/api/refus";
 import { formatDate } from "@/lib/utils/date";
 import type { ResultClaimReview } from "@/lib/types";
@@ -24,22 +22,14 @@ const REFUS = { sujet: "réclamations de résultat", action: "valider les rattac
  * fiche entière dans la file commune. Déplacer passe par la réattribution du
  * back-office : résultat figé contre l'import, fiche d'origine purgée si vidée.
  *
- * Relais (#1739) : sans équipiers, la fiche du membre s'ajoute à côté du
- * porteur en un clic, ou remplace une étiquette d'équipe (porteur sans prénom),
- * avec confirmation si celle-ci est supprimée. Avec des équipiers, l'admin la
- * complète par « Attribuer aux équipiers », qui exige `participations:reassign`
- * et valide la réclamation dans le même geste.
- *
- * `titreId` : titre de la section, qui reçoit le focus quand la ligne traitée
- * disparaît avec sa modale.
+ * Relais (#1739) : la fiche du membre s'ajoute en un clic, à côté du porteur,
+ * en dernier d'une composition existante, ou à la place d'une étiquette
+ * d'équipe (porteur sans prénom), avec confirmation si celle-ci est supprimée.
  */
-export function ResultClaimsTable({ titreId }: { titreId?: string }) {
+export function ResultClaimsTable() {
   const { data, isPending, error } = useResultClaims();
   const decider = useDecideResultClaim();
-  const peutAttribuer = useHydratedSession().data?.permissions.includes("participations:reassign") ?? false;
-  const [aCompleter, setACompleter] = useState<ResultClaimReview | null>(null);
   const [aConfirmer, setAConfirmer] = useState<ResultClaimReview | null>(null);
-  const titre = useRef<HTMLElement | null>(null);
 
   if (isPending) return <Skeleton className="h-32 w-full" />;
   if (error) return <EmptyState {...messageDeRefus(error, REFUS)} />;
@@ -64,12 +54,6 @@ export function ResultClaimsTable({ titreId }: { titreId?: string }) {
     } catch (e) {
       toast.error((e as Error).message);
     }
-  }
-
-  function completer(reclamation: ResultClaimReview) {
-    // Lu avant l'invalidation : une file vidée démonte le tableau, pas le titre de la section.
-    titre.current = titreId ? document.getElementById(titreId) : null;
-    setACompleter(reclamation);
   }
 
   return (
@@ -155,21 +139,6 @@ export function ResultClaimsTable({ titreId }: { titreId?: string }) {
                       >
                         Valider
                       </Button>
-                    ) : p.teammates.length > 0 ? (
-                      peutAttribuer ? (
-                        <Button
-                          size="sm"
-                          onClick={() => completer(r)}
-                          disabled={decider.isPending || r.claimant_athlete === null}
-                          aria-label={`Attribuer aux équipiers, avec ${qui}`}
-                        >
-                          Attribuer aux équipiers
-                        </Button>
-                      ) : (
-                        <p className="text-sm text-muted-foreground">
-                          Demandez à un administrateur disposant de « Rattacher un résultat ».
-                        </p>
-                      )
                     ) : (
                       <Button
                         size="sm"
@@ -198,26 +167,6 @@ export function ResultClaimsTable({ titreId }: { titreId?: string }) {
           })}
         </TableBody>
       </Table>
-      {aCompleter?.claimant_athlete && (
-        <TeammatesDialog
-          resultat={{
-            id: aCompleter.participation.id,
-            epreuve: aCompleter.participation.course_name,
-            date: aCompleter.participation.event_date,
-          }}
-          equipiers={[...aCompleter.participation.teammates, aCompleter.claimant_athlete]}
-          onClose={(attribue) => {
-            setACompleter(null);
-            // Après le démontage de la modale, qui sinon rend le focus à un bouton disparu.
-            if (attribue) setTimeout(() => titre.current?.focus());
-          }}
-          reclamation={{
-            de: aCompleter.user.display_name || aCompleter.user.email,
-            athleteId: aCompleter.claimant_athlete.id,
-            valider: () => decider.mutateAsync({ id: aCompleter.id, decision: "approve" }),
-          }}
-        />
-      )}
       <DangerConfirm
         open={aConfirmer !== null}
         onOpenChange={(ouvert) => !ouvert && setAConfirmer(null)}
