@@ -62,7 +62,7 @@ function Section({
   return (
     <section className="space-y-4" aria-labelledby={id}>
       <div className="space-y-1">
-        <h2 id={id} tabIndex={-1} className="flex flex-wrap items-center gap-3 font-[var(--tcn-font-display)] text-xl">
+        <h2 id={id} className="flex flex-wrap items-center gap-3 font-[var(--tcn-font-display)] text-xl">
           {titre}
           {sorte}
         </h2>

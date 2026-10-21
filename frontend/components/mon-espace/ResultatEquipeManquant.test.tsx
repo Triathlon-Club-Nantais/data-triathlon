@@ -131,6 +131,17 @@ describe("ResultatEquipeManquant (#1773)", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("La recherche n'a pas abouti. Réessayez dans un instant.");
   });
 
+  it("une_nouvelle_recherche_efface_le_refus_precedent", async () => {
+    requestResultClaim.mockRejectedValue(new Error("Vous avez déjà un résultat sur cette épreuve."));
+    afficher();
+    await chercher("mollets");
+    await userEvent.click(await screen.findByRole("button", { name: /C'était mon équipe/ }));
+    await screen.findByRole("alert");
+    await userEvent.type(screen.getByLabelText("Nom de l'équipe"), "x");
+    await userEvent.click(screen.getByRole("button", { name: "Chercher" }));
+    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+  });
+
   it("le_refus_du_serveur_s_affiche", async () => {
     requestResultClaim.mockRejectedValue(new Error("Vous avez déjà un résultat sur cette épreuve."));
     afficher();

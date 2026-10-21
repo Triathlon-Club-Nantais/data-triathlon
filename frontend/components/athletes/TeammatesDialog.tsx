@@ -36,8 +36,7 @@ export function TeammatesDialog({
 }: {
   resultat: { id: number; epreuve: string; date: string | null };
   equipiers: Equipier[];
-  /** `attribue` : fermée par une attribution réussie, et non par « Annuler ». */
-  onClose: (attribue?: boolean) => void;
+  onClose: () => void;
 }) {
   const [equipe, setEquipe] = useState<Membre[]>(equipiers);
   const [nouveauNom, setNouveauNom] = useState("");
@@ -102,7 +101,7 @@ export function TeammatesDialog({
       return;
     }
     toast.success(`Relais attribué à ${equipe.length} athlètes.`);
-    onClose(true);
+    onClose();
     // La fiche courante peut avoir été purgée : `notFound()` prend le relais.
     router.refresh();
   }
