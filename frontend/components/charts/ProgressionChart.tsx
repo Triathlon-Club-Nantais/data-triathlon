@@ -9,6 +9,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 export interface ProgressionAxis {
   /** Plafond du bas de l'axe : la marge ajoutée au pire point ne le dépasse pas. */
   max: number;
+  /** Plus petit pas de graduation : sous lui, deux graduations porteraient le même libellé. */
+  step: number;
   tick(value: number): string;
   label(value: number): string;
   spoken(value: number): string;
@@ -20,6 +22,7 @@ export interface ProgressionAxis {
 
 export const PERCENT_AXIS: ProgressionAxis = {
   max: 100,
+  step: 1,
   tick: (value) => pctFr(value, 0),
   label: (value) => `Top ${pctFr(value, 0)}`,
   spoken: (value) => `top ${value} pour cent`,
@@ -44,7 +47,7 @@ const BOTTOM = 160;
 const LEFT_GUTTER = 40;
 const BOTTOM_GUTTER = 34;
 
-// Nombre de graduations de l'axe des pourcentages, bornes comprises.
+// Nombre de graduations demandé à d3, qui l'ajuste pour garder un pas rond.
 const TICKS = 3;
 
 // Sous ce seuil, une tendance ne se lit pas — deux points relient toujours
@@ -109,7 +112,9 @@ export function ProgressionChart({ points, comparaison, nonFiables = 0, axis = P
   const percents = [...points, ...(autre ?? [])].map((p) => p.value);
   const best = Math.min(...percents);
   const worst = Math.max(...percents);
-  const margin = Math.max(1, Math.round((worst - best) * 0.15));
+  // Au moins un pas de chaque côté : le domaine couvre alors deux multiples du
+  // pas, donc deux graduations au moins.
+  const margin = Math.max(axis.step, Math.round((worst - best) * 0.15));
   const top = Math.max(0, best - margin);
   // `percent` ne dépasse jamais 100 (`rankRatio` refuse rank > total) : sans
   // ce plafond, un dernier de course affiche une graduation « 114 % » (#677,
@@ -139,14 +144,11 @@ export function ProgressionChart({ points, comparaison, nonFiables = 0, axis = P
       .y((point) => point.y)
       .curve(curveLinear)(linePoints) ?? "";
 
-  // Graduations de l'axe des pourcentages, réparties entre les deux bornes du
-  // domaine — sans elles, la courbe montrait un sens de variation sans jamais
-  // dire de quel pourcentage à quel pourcentage (#677). S'appuie sur
-  // `percent` ∈ [1, 100] (`rankRatio`) pour que `bottom - top` ≥ 2 et que les
-  // TICKS graduations restent distinctes ; rien ne l'impose au niveau du type.
-  const ticks = Array.from({ length: TICKS }, (_, index) =>
-    Math.round(top + ((bottom - top) * index) / (TICKS - 1)),
-  );
+  // Graduations : sans elles, la courbe montrait un sens de variation sans
+  // jamais dire de quelle valeur à quelle valeur (#677). d3 les pose à pas
+  // régulier sur des valeurs rondes (#1789), le filtre écarte celles qui
+  // tombent sous le pas de l'axe (12,5 % pour un pas de 1 %).
+  const ticks = yScale.ticks(TICKS).filter((value) => value % axis.step === 0);
 
   const resume = (serie: ProgressionPoint[]) => serie.map((p) => `${formatDate(p.eventDate)} ${axis.spoken(p.value)}`).join(", ");
   const absentes = nonFiables > 0 ? `. ${nonFiables} ${nonFiables > 1 ? "épreuves non fiables absentes" : "épreuve non fiable absente"} de la courbe` : "";

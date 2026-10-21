@@ -20,8 +20,10 @@ import type { ProfileMeasurement } from "@/lib/types";
 // Une durée n'a pas de plafond naturel : la marge de la courbe ne se rabat sur rien.
 const DURATION_AXIS: ProgressionAxis = {
   max: Infinity,
-  // La gouttière gauche du graphique tient 40 px : « 7:42 », pas « 7:42,3 ».
-  tick: (value) => formatDuration(Math.round(value / 10) * 10),
+  // Des secondes entières (les valeurs sont en dixièmes) : la gouttière gauche
+  // du graphique tient 40 px, « 7:42 », pas « 7:42,3 ».
+  step: 10,
+  tick: formatDuration,
   label: formatDuration,
   spoken: formatDuration,
   caption: "Durée à chaque test, plus haut, plus rapide.",
