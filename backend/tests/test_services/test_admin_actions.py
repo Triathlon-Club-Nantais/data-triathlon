@@ -1059,6 +1059,26 @@ def _bascules(db_session, course_id):
     ]
 
 
+def test_switch_accepts_a_manually_corrected_event_type(db_session, auteur, scrape):
+    """#1745 : la source entrante classe autrement l'épreuve corrigée, la bascule passe."""
+    course, passive = _epreuve_deux_sources(db_session)
+    scraped = _resultat_bascule(course, passive, "9", "NOUVEAU")
+    admin_actions.update_course(
+        db_session, course_id=course.id, fields={"event_type": "duathlon-s"}, user_id=auteur.id
+    )
+    db_session.commit()
+    scrape([scraped])
+
+    events = list(course_rescrape_service.iter_switch_course_source(
+        db_session, course_id=course.id, source_id=passive.id,
+        user_id=auteur.id, settings=_settings(),
+    ))
+
+    assert events[-1]["phase"] == "done", events[-1]
+    assert course.event_type == "duathlon-s"
+    assert participation_repository.count_for_course(db_session, course.id) == 1
+
+
 def test_switch_replaces_the_ranking_purges_orphans_and_logs_the_switch(
     db_session, auteur, scrape
 ):

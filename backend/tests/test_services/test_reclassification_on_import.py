@@ -21,12 +21,13 @@ Le chemin de la règle R (#289, Klikego ↔ Breizh Chrono) a ses propres tests d
 `test_platform_event_reconciliation.py` : là, l'épreuve n'était plus dédoublée
 depuis #289, mais elle gardait le verdict de son *premier* scrape.
 """
-from datetime import date
+from datetime import date, datetime, timedelta
 
 from app.core.config import Settings
 from app.models.course import EVENT_TYPE_ORIGIN_MANUAL, Course
+from app.repositories import user_repository
 from app.scrapers.base import ScrapedResult
-from app.services import import_service
+from app.services import admin_actions, import_service
 
 #: Hosts réels : `validate_url` refuse une URL qu'aucun provider ne reconnaît, un
 #: `.test` ferait échouer ces tests pour une raison étrangère à #294.
@@ -179,3 +180,34 @@ def test_a_manually_corrected_event_type_survives_a_reimport(db_session, patch_s
     epreuve = db_session.query(Course).one()
     assert epreuve.event_type == "duathlon-s"
     assert {p.bib_number for p in epreuve.participations} == {"1", "2"}
+
+
+def test_a_sibling_heat_keeps_its_own_course_next_to_a_manually_corrected_one(
+    db_session, patch_scraper
+):
+    """#1745 : un scrape qui ne publie que le heat frère ne le rattache pas à l'épreuve corrigée."""
+    def heat(bib, event_type):
+        return _result(
+            bib, url=TIMEPULSE, provider="timepulse", event_name="Triathlon de Vertou",
+            event_type=event_type,
+        )
+
+    _importer(
+        db_session, patch_scraper, TIMEPULSE,
+        [heat("1", "triathlon-s"), heat("2", "duathlon-s")],
+    )
+    corrected = db_session.query(Course).filter_by(event_type="triathlon-s").one()
+    sibling = db_session.query(Course).filter_by(event_type="duathlon-s").one()
+    admin = user_repository.create(db_session, email="admin@exemple.fr")
+    db_session.flush()
+    admin_actions.update_course(
+        db_session, course_id=corrected.id, fields={"event_type": "aquathlon-s"}, user_id=admin.id
+    )
+    corrected.scraped_at = datetime(2030, 1, 1)
+    sibling.scraped_at = datetime(2030, 1, 1) - timedelta(days=1)
+    db_session.flush()
+
+    _importer(db_session, patch_scraper, TIMEPULSE, [heat("2", "duathlon-s")], force=True)
+
+    assert {p.bib_number for p in corrected.participations} == {"1"}
+    assert {p.bib_number for p in sibling.participations} == {"2"}
