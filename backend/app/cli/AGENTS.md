@@ -37,6 +37,7 @@ uv run python -m app.cli entra-deletions --since 2026-10-01   # oid Entra à eff
 uv run python -m app.cli sync-club-members --json   # licenciés FFTri de la saison en cours (#1202)
 uv run python -m app.cli import-member-emails --season 2026 --file export.xlsx --json   # adresses d'adhérents de l'export AssoConnect (#1334)
 uv run python -m app.cli purge-orphans               # athlètes sans résultat ni autre référence (#1271)
+uv run python -m app.cli weekend-digest --dry-run   # point du week-end écoulé pour Slack, affiché sans poster (#1363)
 uv run python -m app.cli allow-email --email <adresse>              # autorise une adresse à se connecter (#170)
 uv run python -m app.cli grant-role --email <adresse> --role admin   # amorce le 1er administrateur (#115)
 uv run python -m app.cli revoke-sessions --all --yes                 # révocation d'urgence : ferme toutes les sessions (#169)
@@ -101,8 +102,8 @@ est rattrapé, et le bilan bascule sur stderr plutôt que d'être perdu.
 **Où ces batches tournent désormais** (#47) : plus sur un poste de développement,
 mais sur un runner GitHub Actions (`.github/workflows/batch.yml`), déclenché
 depuis `/admin/batches`. La planification hebdomadaire ne lance plus
-`rescrape-db` (#1271) : seulement `purge-retention`, `sync-club-members` et
-`purge-orphans`. Rien n'a changé
+`rescrape-db` (#1271) : seulement `purge-retention`, `sync-club-members`,
+`purge-orphans` et `weekend-digest`. Rien n'a changé
 dans la CLI — c'est bien elle qui s'exécute — mais le workflow **dépend** de deux
 propriétés décrites ci-dessus, et les casser casserait l'écran d'administration
 sans qu'aucun test de la CLI ne bouge :
@@ -436,3 +437,20 @@ du compte `--by-email`. Elle applique le test de l'import : nom passant
 `heat_is_challenge`, et au moins 90 % des athlètes présents sur au moins deux
 autres épreuves du même jour. La logique vit dans
 `services/challenge_requalification.py`. À lancer une fois après le déploiement.
+
+## `weekend-digest` (#1363)
+
+Message Slack du lundi pour le bureau : `--date AAAA-MM-JJ` (défaut : aujourd'hui,
+UTC) vise le samedi et le dimanche **précédant** cette date, donc un lancement un
+samedi ou un dimanche vise le week-end d'avant. Une ligne par épreuve ayant au
+moins un TCN validé : nom (lié à `AUTH_REDIRECT_BASE_URL/courses/<id>`, sans lien
+si vide), nombre de TCN classés, podiums (rang 1 à 3 au général, par sexe M/F ou
+dans leur catégorie). Les noms cités excluent les fiches anonymisées par une
+opposition (#1172) et les jeunes ; les décomptes les incluent. Logique :
+`services/weekend_digest.py`.
+
+Sans `SLACK_DIGEST_WEBHOOK_URL` et sans `--dry-run`, un avertissement est journalisé
+et la commande sort en 0 sans ouvrir la base. Week-end vide : rien n'est posté, une
+ligne d'information, code 0. `--dry-run` affiche le message sur stdout sans le
+poster. Échec Slack (erreur HTTP, statut ≥ 400) : code 1, pour que le run planifié
+rougisse ; l'URL du webhook n'apparaît jamais dans les messages.
