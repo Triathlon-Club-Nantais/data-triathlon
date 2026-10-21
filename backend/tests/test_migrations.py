@@ -1644,7 +1644,7 @@ def test_public_page_settings_table_up_and_down(sqlite_url):
         "links", "pinned_participation_id", "updated_at",
     }
 
-    command.downgrade(cfg, "c84cbf6533c4")
+    command.downgrade(cfg, "c1744a8f3b6d")
     assert "public_page_settings" not in _tables(sqlite_url)
     assert "public" not in _columns(sqlite_url, "season_goals")
 
