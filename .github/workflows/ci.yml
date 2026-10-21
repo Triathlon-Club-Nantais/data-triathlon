@@ -30,12 +30,14 @@ jobs:
   # événement (merge_group, workflow_dispatch, workflow_call de deploy.yml sur tag)
   # force les deux sorties à vrai : la merge queue et les déploiements exécutent
   # tout. Le filtre vit dans les jobs, pas dans `on.paths`, pour que `ci-ok`
-  # existe toujours. Le step ne tourne que sur `pull_request`, donc `changes`
-  # ne peut échouer que par accident, et `ci-ok` rougit alors (voir ci-ok.sh).
+  # existe toujours. Le filtre ne tourne que sur `pull_request`. `changes` porte
+  # aussi les tests des hooks Claude et de ci-ok.sh, que ni `backend` ni
+  # `frontend` ne lancent (une PR `.claude/**` seule n'en déclenche aucun) :
+  # rouges, ils font échouer `changes`, et `ci-ok` rougit (voir ci-ok.sh).
   changes:
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    # L'API des fichiers de PR demande `pull-requests: read` (aucun checkout).
+    # L'API des fichiers de PR demande `pull-requests: read`.
     permissions:
       contents: read
       pull-requests: read
@@ -54,6 +56,13 @@ jobs:
             frontend:
               - 'frontend/**'
               - '.github/**'
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Tests des hooks Claude et de ci-ok.sh
+        run: |
+          python3 -m unittest discover -s .claude/hooks -p 'test_*.py'
+          bash .github/scripts/test-ci-ok.sh
 
   # Matrice de deux runners (#1707) : pytest-split répartit les tests selon
   # `backend/.test_durations` (rafraîchi par docs/tests-boucle.md). Comme pour
