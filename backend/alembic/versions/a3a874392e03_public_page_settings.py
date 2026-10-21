@@ -1,7 +1,7 @@
 """public page settings
 
 Revision ID: a3a874392e03
-Revises: a1745e7c0b2d
+Revises: c84cbf6533c4
 Create Date: 2026-10-21 16:23:19.881228
 """
 from typing import Sequence, Union
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 
 revision: str = 'a3a874392e03'
-down_revision: Union[str, None] = 'a1745e7c0b2d'
+down_revision: Union[str, None] = 'c84cbf6533c4'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
