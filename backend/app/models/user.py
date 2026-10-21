@@ -1,4 +1,5 @@
 """Modèle User — l'identité applicative d'un contributeur (#114)."""
+
 from datetime import datetime
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, String
@@ -96,4 +97,8 @@ class User(Base):
     # Ses objectifs de saison, privés, partent avec lui (#1373).
     season_goals: Mapped[list["SeasonGoal"]] = relationship(  # noqa: F821
         cascade="all, delete-orphan"
+    )
+    # Ses réglages de fiche publique partent avec lui (#1692).
+    public_page_settings: Mapped["PublicPageSettings | None"] = relationship(  # noqa: F821
+        cascade="all, delete-orphan", uselist=False
     )
