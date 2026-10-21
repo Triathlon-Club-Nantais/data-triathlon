@@ -3,8 +3,10 @@ from collections import defaultdict
 from dataclasses import dataclass
 from datetime import date, timedelta
 
+import httpx
 from sqlalchemy.orm import Session
 
+from app.core import http
 from app.core.gender import is_gender_podium
 from app.core.youth import is_youth
 from app.repositories import course_repository, participation_repository
@@ -85,3 +87,23 @@ def render(courses: list[DigestCourse], *, saturday: date, sunday: date, base_ur
             for podium in course.podiums
         )
     return "\n".join(lines)
+
+
+class DigestDeliveryError(Exception):
+    """Le message nomme la cause, jamais l'URL du webhook (c'est un secret)."""
+
+
+def build(db: Session, day: date, *, base_url: str) -> str | None:
+    saturday, sunday = weekend_before(day)
+    courses = collect(db, saturday, sunday)
+    return render(courses, saturday=saturday, sunday=sunday, base_url=base_url) if courses else None
+
+
+def send(text: str, webhook_url: str, *, transport: httpx.BaseTransport | None = None) -> None:
+    try:
+        with http.client(transport=transport) as client:
+            response = client.post(webhook_url, json={"text": text}, timeout=10)
+    except httpx.HTTPError as error:
+        raise DigestDeliveryError(f"Slack injoignable ({type(error).__name__}).") from None
+    if response.status_code >= 400:
+        raise DigestDeliveryError(f"Slack a répondu {response.status_code}.")

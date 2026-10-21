@@ -1,8 +1,21 @@
 """Collecte et rendu du récap du week-end (#1363)."""
 from datetime import date
 
+import httpx
+import pytest
+
+from app.core import http
 from app.repositories import athlete_repository, course_repository, participation_repository
-from app.services.weekend_digest import DigestCourse, DigestPodium, collect, render, weekend_before
+from app.services.weekend_digest import (
+    DigestCourse,
+    DigestDeliveryError,
+    DigestPodium,
+    build,
+    collect,
+    render,
+    send,
+    weekend_before,
+)
 
 SAT, SUN = date(2026, 10, 17), date(2026, 10, 18)
 
@@ -127,3 +140,50 @@ def test_render_without_base_url_shows_the_name_without_link():
     assert "Tri &amp; Co" in text
     assert "<" not in text
     assert "1 TCN classé" in text and "classés" not in text
+
+
+def test_build_returns_none_for_an_empty_weekend(db_session):
+    assert build(db_session, date(2026, 10, 19), base_url="") is None
+
+
+def test_build_renders_the_weekend_before_the_given_day(db_session):
+    _result(db_session, _course(db_session), "Jean", "Dupont")
+
+    assert "Tri de Nantes" in build(db_session, date(2026, 10, 19), base_url="")
+
+
+@pytest.fixture
+def no_dns(monkeypatch):
+    monkeypatch.setattr(http, "_resolve", lambda host, port: ["93.184.216.34"])
+
+
+def test_send_posts_the_text_as_json(no_dns):
+    seen = []
+
+    def handler(request):
+        request.read()
+        seen.append(request)
+        return httpx.Response(200)
+
+    send("x", "https://hooks.slack.com/services/T/B/S", transport=httpx.MockTransport(handler))
+
+    assert [(r.method, str(r.url), r.content) for r in seen] == [
+        ("POST", "https://hooks.slack.com/services/T/B/S", b'{"text":"x"}')
+    ]
+
+
+def test_send_raises_on_a_slack_error(no_dns):
+    with pytest.raises(DigestDeliveryError, match="404") as error:
+        send("x", "https://hooks.slack.com/services/T/B/S", transport=httpx.MockTransport(lambda r: httpx.Response(404)))
+
+    assert "hooks.slack.com" not in str(error.value)
+
+
+def test_send_raises_on_a_network_error(no_dns):
+    def handler(request):
+        raise httpx.ConnectError("boom", request=request)
+
+    with pytest.raises(DigestDeliveryError) as error:
+        send("x", "https://hooks.slack.com/services/T/B/S", transport=httpx.MockTransport(handler))
+
+    assert "hooks.slack.com" not in str(error.value)

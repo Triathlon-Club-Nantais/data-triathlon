@@ -201,6 +201,10 @@ class Settings(BaseSettings):
     # le lancement est alors annoncé comme non configuré, et rien d'autre ne
     # change. Un jeton expire (un an au plus) ; l'erreur rendue le nomme.
     github_batch_token: SecretStr = SecretStr("")
+    # Webhook Slack dédié au récap du lundi (#1363), distinct de
+    # `SLACK_OPS_WEBHOOK_URL` : il écrit sur le tableau du club, pas dans le canal
+    # d'exploitation. Vide, la commande `weekend-digest` journalise et ne poste rien.
+    slack_digest_webhook_url: SecretStr = SecretStr("")
     github_repository: str = "Triathlon-Club-Nantais/data-triathlon"
     github_workflow_file: str = "batch.yml"
     # Base que les batches lancés depuis **cette** instance doivent écrire.
