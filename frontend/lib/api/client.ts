@@ -44,6 +44,7 @@ import type {
   SeasonGoalWrite,
   Teammate,
   AthleteLink,
+  MemberRequestReview,
   ResultClaim,
   ResultClaimReview,
   TeamResult,
@@ -964,6 +965,11 @@ export const apiClient = {
   requestMembership: (body: MemberRequestInput) =>
     request<MemberRequest>("/auth/me/member-request", { method: "POST", body: JSON.stringify(body) }),
   cancelMembershipRequest: () => request<null>("/auth/me/member-request", { method: "DELETE" }),
+  getMemberRequests: () => request<MemberRequestReview[]>("/admin/member-requests"),
+  approveMemberRequest: (id: number) =>
+    request<null>(`/admin/member-requests/${id}/approve`, { method: "POST" }),
+  rejectMemberRequest: (id: number) =>
+    request<null>(`/admin/member-requests/${id}/reject`, { method: "POST" }),
   detachAthlete: () => request<null>("/auth/me/athlete", { method: "DELETE" }),
   // Droit d'opposition exercé par le membre rattaché lui-même (#1673).
   previewMyOpposition: () => request<OppositionPreview>("/auth/me/opposition/preview", { method: "POST" }),

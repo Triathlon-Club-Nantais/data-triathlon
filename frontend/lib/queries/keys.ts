@@ -25,6 +25,7 @@ export const queryKeys = {
   // Les pastilles du rail en une requête (#1385), invalidée par toute
   // mutation réussie (`app/providers.tsx`) : une clé hors des préfixes des listes.
   adminBadgeCounts: () => ["admin-badge-counts"] as const,
+  memberRequests: () => ["member-requests"] as const,
   athleteClaims: () => ["athlete-claims"] as const,
   myTeammates: (seasons: number[], federalOnly: boolean) => ["my-teammates", federalOnly, seasons] as const,
   myVolunteerActions: () => ["my-volunteer-actions"] as const,

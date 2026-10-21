@@ -1113,6 +1113,16 @@ export interface MemberRequest {
   decided_at: string | null;
 }
 
+export interface MemberRequestReview {
+  id: number;
+  created_at: string;
+  first_name: string;
+  last_name: string;
+  birth_date: string | null;
+  phone: string | null;
+  user: { id: number; display_name: string; email: string };
+}
+
 export interface MemberRequestInput {
   first_name: string;
   last_name: string;
@@ -1804,7 +1814,7 @@ export interface Feedback {
  */
 export type AdminBadgeCounts = Partial<
   Record<
-    "quality" | "duplicates" | "providers" | "feedback" | "identities" | "members" | "volunteer" | "validation",
+    "quality" | "duplicates" | "providers" | "feedback" | "identities" | "members" | "volunteer" | "validation" | "member_requests",
     number
   >
 >;

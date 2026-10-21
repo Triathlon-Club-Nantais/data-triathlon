@@ -1696,6 +1696,30 @@ export function useRemoveMemberEmail() {
   });
 }
 
+// ── Demandes d'adhésion (#1785) ──────────────────────────────────────────────
+
+export function useMemberRequests() {
+  return useQuery({
+    queryKey: queryKeys.memberRequests(),
+    queryFn: () => apiClient.getMemberRequests(),
+    retry: false,
+  });
+}
+
+export function useDecideMemberRequest() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, decision }: { id: number; decision: "approve" | "reject" }) =>
+      decision === "approve" ? apiClient.approveMemberRequest(id) : apiClient.rejectMemberRequest(id),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: queryKeys.adminBadgeCounts() });
+      // Une validation ajoute l'adresse du compte à la liste des adhérents.
+      void qc.invalidateQueries({ queryKey: MEMBER_EMAILS });
+      return qc.invalidateQueries({ queryKey: queryKeys.memberRequests() });
+    },
+  });
+}
+
 // ── Rattachements de fiche (#1325) ───────────────────────────────────────────
 // La pastille suit d'elle-même : toute mutation réussie invalide les compteurs
 // du rail (`app/providers.tsx`).
