@@ -87,10 +87,12 @@ def training_session_detail_view(
     }
 
 
-def list_training_session_views(db: Session) -> list[dict]:
+def list_training_session_views(
+    db: Session, *, profile_id: int | None = None, on: date_ | None = None
+) -> list[dict]:
     """Toute la liste du calendrier en trois requêtes, quel que soit le nombre
     de séances : les séances et leurs groupes, puis leurs comptes d'inscrits agrégés."""
-    training_sessions = training_session_repository.list_all(db)
+    training_sessions = training_session_repository.list_all(db, profile_id=profile_id, on=on)
     counts = training_session_repository.count_participants_by_training_session(
         db, [training_session.id for training_session in training_sessions]
     )

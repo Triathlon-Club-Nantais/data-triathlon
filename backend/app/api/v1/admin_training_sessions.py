@@ -7,7 +7,9 @@ participants et leur statut de présence — même patron que `admin_groups.py`.
 Aucune route n'est protégée par son préfixe : chaque route porte sa garde
 individuellement.
 """
-from fastapi import APIRouter, Depends
+from datetime import date
+
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_permission
@@ -42,11 +44,13 @@ def _detail_for(db: Session, actor: User, training_session: TrainingSession) -> 
 
 @router.get("/admin/training-sessions", response_model=list[TrainingSessionRead])
 def list_training_sessions(
+    profile_id: DbId | None = Query(default=None),
+    on: date | None = Query(default=None, alias="date"),
     db: Session = Depends(get_db),
     _: User = Depends(require_permission(P.YOUTH_READ)),
 ):
     """Les entraînements, triés par date puis heure de début."""
-    return training_session_service.list_training_session_views(db)
+    return training_session_service.list_training_session_views(db, profile_id=profile_id, on=on)
 
 
 @router.get(
