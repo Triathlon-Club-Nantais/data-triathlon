@@ -696,6 +696,8 @@ production sur Azure PostgreSQL Flexible Server (voir `docs/infra-azure.md`).
 | `AZURE_SUBSCRIPTION_ID` | environment `batch-production` | Souscription contenant le serveur PG |
 | `AZURE_RESOURCE_GROUP` | environment `batch-production` | RG du serveur PG (`TCN_Data_BDD`) |
 | `AZURE_POSTGRES_SERVER` | environment `batch-production` | Nom du serveur (`tcndatabdd`) |
+| `SLACK_DIGEST_WEBHOOK_URL` | environment `batch-production` | Webhook Slack du bureau pour le point du week-end (#1363), distinct de `SLACK_OPS_WEBHOOK_URL` (ops, secret de dépôt) |
+| `AUTH_REDIRECT_BASE_URL` | environment `batch-production` | URL publique du site, pour lier les épreuves du point du week-end (sans lien si vide) |
 
 C'est l'environment, et lui seul, qui décide de la base écrite : rien dans le
 script du workflow ne la nomme. La cible est choisie par l'entrée `target`, avec
@@ -906,9 +908,14 @@ schedule:
   - cron: "0 3 * * 1"   # lundi 3 h UTC
 ```
 
-Une occurrence planifiée ne lance **que** trois étapes, en production : la purge
-de rétention (#1158), la relecture des licenciés (#1202) puis le balayage des
-athlètes orphelins (`purge-orphans`, #1271). Elle ne lance
+Une occurrence planifiée ne lance **que** quatre étapes, en production : la purge
+de rétention (#1158), la relecture des licenciés (#1202), le balayage des
+athlètes orphelins (`purge-orphans`, #1271), puis le point du week-end
+(`weekend-digest`, #1363, étape « Post weekend digest »). Ce dernier poste sur
+le webhook Slack du bureau les podiums des membres du club du week-end écoulé,
+ne dépend d'aucune étape précédente, et un échec Slack rougit le run (donc
+`notify-failure`). À 3 h UTC, seules les épreuves déjà importées sont citées.
+Elle ne lance
 **ni** `rescrape-db` **ni** le géocodage (#1271) : les étapes « Run batch » et
 « Geocode new courses » portent `github.event_name != 'schedule'`, et le résumé
 comme les artefacts du batch sont sautés avec elles. La reprise ne réconcilie
