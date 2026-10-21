@@ -57,6 +57,7 @@ vi.mock("@/lib/queries/admin", () => ({
 
 import AthletePage from "./page";
 
+const NEUTRE = { hidden: [], links: [], goal: null, pinned_participation_id: null };
 const ATHLETE = { id: 7, nom: "DUPONT", prenom: "Jean", gender: "M", club: "TCN" };
 
 function part(over: Partial<Participation> & { id: number }): Participation {
@@ -103,7 +104,7 @@ function renderPage(ui: Awaited<ReturnType<typeof AthletePage>>) {
 }
 
 async function renderAthlete(participations: Participation[]) {
-  getAthlete.mockResolvedValue({ athlete: ATHLETE, participations, challenges: [] });
+  getAthlete.mockResolvedValue({ athlete: ATHLETE, participations, challenges: [], public_page: NEUTRE });
   const ui = await AthletePage({ params: Promise.resolve({ id: "7" }) });
   return renderPage(ui);
 }
@@ -149,7 +150,7 @@ function ligneDe(container: HTMLElement, href: string): HTMLElement | null {
 describe("AthletePage ?comparer= (#1701)", () => {
   it("preselects the teammate but ignores the page's own athlete", async () => {
     const charger = vi.spyOn(apiClient, "getAthlete").mockResolvedValue({ athlete: { ...ATHLETE, id: 9 }, participations: [], challenges: [] } as never);
-    getAthlete.mockResolvedValue({ athlete: ATHLETE, participations: [part({ id: 1 })], challenges: [] });
+    getAthlete.mockResolvedValue({ athlete: ATHLETE, participations: [part({ id: 1 })], challenges: [], public_page: NEUTRE });
     renderPage(await AthletePage({ params: Promise.resolve({ id: "7" }), searchParams: Promise.resolve({ comparer: "7" }) }));
     expect(charger).not.toHaveBeenCalled();
     renderPage(await AthletePage({ params: Promise.resolve({ id: "7" }), searchParams: Promise.resolve({ comparer: "9" }) }));
@@ -159,7 +160,7 @@ describe("AthletePage ?comparer= (#1701)", () => {
 
   it("says why there is nothing to compare when the page has no validated result (#1675)", async () => {
     const pending = [part({ id: 1, is_pending_validation: true })];
-    getAthlete.mockResolvedValue({ athlete: ATHLETE, participations: pending, challenges: [] });
+    getAthlete.mockResolvedValue({ athlete: ATHLETE, participations: pending, challenges: [], public_page: NEUTRE });
     renderPage(await AthletePage({ params: Promise.resolve({ id: "7" }), searchParams: Promise.resolve({ comparer: "9" }) }));
     expect(screen.getByText("Vous n'avez pas encore de résultat validé à comparer.")).toBeInTheDocument();
   });
@@ -666,6 +667,7 @@ describe("AthletePage — l'en-tête identifie l'athlète (PROF-5, #488)", () =>
     // participation, et on veut viser le surtitre sans ambiguïté.
     getAthlete.mockResolvedValue({
       challenges: [],
+      public_page: NEUTRE,
       athlete: { ...ATHLETE, club: "Triathlon Club Nantais" },
       participations: [part({ id: 1, rank_overall: 12, category: "V2H" })],
     });
@@ -692,6 +694,7 @@ describe("AthletePage — l'en-tête identifie l'athlète (PROF-5, #488)", () =>
   it("retombe sur « Résultats enregistrés » quand l'athlète n'a pas de club", async () => {
     getAthlete.mockResolvedValue({
       challenges: [],
+      public_page: NEUTRE,
       athlete: { ...ATHLETE, club: null },
       participations: [part({ id: 1, rank_overall: 12 })],
     });
@@ -744,7 +747,7 @@ describe("AthletePage — l'en-tête identifie l'athlète (PROF-5, #488)", () =>
 
 describe("AthletePage: claimed athlete badge (#1693)", () => {
   async function renderClaimed(claimed: boolean) {
-    getAthlete.mockResolvedValue({ athlete: { ...ATHLETE, gender: null }, participations: [], challenges: [], claimed });
+    getAthlete.mockResolvedValue({ athlete: { ...ATHLETE, gender: null }, participations: [], challenges: [], claimed, public_page: NEUTRE });
     renderPage(await AthletePage({ params: Promise.resolve({ id: "7" }) }));
   }
 
@@ -873,5 +876,61 @@ describe("AthletePage — absence et panne du backend (#923)", () => {
 
     await expect(rendre()).rejects.toBe(coupure);
     expect(notFound).not.toHaveBeenCalled();
+  });
+});
+
+describe("AthletePage: public page settings (#1692)", () => {
+  const six = [1, 2, 3, 4, 5, 6].map((id) => part({ id, rank_overall: id }));
+  async function rendre(public_page: object) {
+    getAthlete.mockResolvedValue({ athlete: ATHLETE, participations: six, challenges: [], claimed: true, public_page: { ...NEUTRE, ...public_page } });
+    return renderPage(await AthletePage({ params: Promise.resolve({ id: "7" }) }));
+  }
+
+  it("shows every block on a neutral page", async () => {
+    await rendre({});
+    expect(screen.getByText("Meilleurs temps")).toBeInTheDocument();
+    expect(screen.getByText("Progression")).toBeInTheDocument();
+    expect(screen.getByTestId("repartition-saison")).toBeInTheDocument();
+    expect(screen.queryByText("Résultat épinglé")).not.toBeInTheDocument();
+    expect(screen.queryByText("Objectif de la saison")).not.toBeInTheDocument();
+  });
+
+  it("removes only the best times block when hidden", async () => {
+    const { container } = await rendre({ hidden: ["best_times"] });
+    expect(container.innerHTML).not.toContain("Meilleurs temps");
+    expect(screen.getByText("Progression")).toBeInTheDocument();
+  });
+
+  it("removes only the progression card when hidden", async () => {
+    await rendre({ hidden: ["progression"] });
+    expect(screen.queryByText("Progression")).not.toBeInTheDocument();
+    expect(screen.getByText("Meilleurs temps")).toBeInTheDocument();
+    expect(screen.getByTestId("repartition-saison")).toBeInTheDocument();
+  });
+
+  it("removes the comparison chart when hidden", async () => {
+    const avec = await rendre({});
+    const longueur = avec.container.innerHTML.length;
+    avec.unmount();
+    const sans = await rendre({ hidden: ["comparison"] });
+    expect(sans.container.innerHTML.length).toBeLessThan(longueur);
+  });
+
+  it("shows links and the pinned result", async () => {
+    await rendre({ links: [{ url: "https://strava.com/x", label: "Strava" }], pinned_participation_id: 3 });
+    expect(screen.getByRole("link", { name: "Strava" })).toHaveAttribute("rel", "noopener nofollow ugc");
+    expect(screen.getByText("Résultat épinglé")).toBeInTheDocument();
+  });
+
+  it("renders nothing for a pin missing from the participations", async () => {
+    await rendre({ pinned_participation_id: 999 });
+    expect(screen.queryByText("Résultat épinglé")).not.toBeInTheDocument();
+  });
+
+  it("shows the public goal", async () => {
+    const goal = { id: 1, season: 2026, kind: "count", event_type: null, target: 3, best_time: null, count: 1,
+      reached: false, course_id: null, race_name: null, race_date: null, major: false, public: true, outcome: "upcoming" };
+    await rendre({ goal });
+    expect(screen.getByText("3 épreuves")).toBeInTheDocument();
   });
 });

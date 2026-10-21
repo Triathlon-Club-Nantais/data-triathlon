@@ -162,3 +162,28 @@ sépare le modèle (`resultCardModel`, la seule ligne de l'adhérent), le dessin
 séparation permet de passer le dessin côté serveur (`next/og`) si les appareils
 des adhérents s'avèrent trop lents. Aucune URL publique ni balise OG : le site
 reste derrière le code d'accès.
+
+## Réglages de la fiche publique (#1692)
+
+`GET /athletes/{id}` porte `public_page` (`hidden`, `links`, `goal`,
+`pinned_participation_id`). La page `athletes/[id]/page.tsx` le lit côté
+serveur et **ne rend pas** un bloc masqué (`best_times`, `progression`,
+`comparison`) : ni CSS, ni `hidden`, le HTML servi au visiteur ne le contient
+pas. Une fiche sans réglage (`public_page` neutre) se rend comme avant.
+
+- Liens, objectif et résultat épinglé (`components/athletes/PublicPageExtras.tsx`)
+  : liens et objectif sous les pastilles de l'en-tête, résultat épinglé en tête
+  de la pile. Les liens sont des `<a target="_blank" rel="noopener nofollow ugc">`
+  portant le libellé fourni par le serveur (`Strava`, `Garmin Connect`,
+  `Polar Flow`, `Suunto`), jamais un libellé saisi.
+- Un épinglage absent de `participations` (réattribué, anonymisé, en attente)
+  ne rend rien, silencieusement.
+- Plusieurs comptes rattachés à une fiche : un bloc est masqué dès qu'un compte
+  le masque ; liens, objectif et épinglage ne s'affichent que si un seul compte
+  est rattaché (règle appliquée par le serveur).
+- Limite de confidentialité assumée : masquer un bloc retire son affichage, pas
+  la donnée, que l'API `/athletes/{id}` continue de servir (les participations
+  restent publiques derrière le code d'accès du site).
+- `libelle`, `progression`, `hms` et `joursAvant` vivent dans
+  `lib/utils/season-goal.ts` (réexportés par `SeasonGoals.tsx`) : un composant
+  serveur ne peut pas appeler une fonction exportée d'un module `"use client"`.

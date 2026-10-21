@@ -866,6 +866,23 @@ export interface AthleteDetail {
   challenges: AthleteChallenge[];
   /** Un compte de membre est rattaché à la fiche (#1693). */
   claimed: boolean;
+  /** Ce que le membre rattaché choisit d'afficher (#1692) ; neutre sans compte ou avec plusieurs. */
+  public_page: PublicPage;
+}
+
+export type PublicPageBlock = "best_times" | "progression" | "comparison";
+
+/** Un lien de profil sportif ; `label` est choisi par le serveur d'après l'hôte. */
+export interface PublicLink {
+  url: string;
+  label: string;
+}
+
+export interface PublicPage {
+  hidden: PublicPageBlock[];
+  links: PublicLink[];
+  goal: SeasonGoal | null;
+  pinned_participation_id: number | null;
 }
 
 /** Une ligne de `GET /courses/{id}/sources` — miroir de `CourseSourceOut` (#284). */
@@ -1154,11 +1171,13 @@ export interface SeasonGoal {
   race_name: string | null;
   race_date: string | null;
   major: boolean;
+  /** L'objectif s'affiche sur la fiche publique (#1692). */
+  public: boolean;
   outcome: "upcoming" | "awaiting_results" | "reached" | "missed";
 }
 
 export type SeasonGoalWrite = Pick<SeasonGoal, "kind" | "event_type" | "target" | "major"> &
-  Partial<Pick<SeasonGoal, "course_id" | "race_name" | "race_date">>;
+  Partial<Pick<SeasonGoal, "course_id" | "race_name" | "race_date" | "public">>;
 
 /** Ma réclamation d'un résultat rangé sur une autre fiche (#1637). */
 export interface ResultClaim {

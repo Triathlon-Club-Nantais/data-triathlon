@@ -14,11 +14,11 @@ import { RecapObjectifs } from "./RecapObjectifs";
 const TEMPS: SeasonGoal = {
   id: 1, season: 2024, kind: "time", event_type: "triathlon-m", target: 9000,
   best_time: "2:35:10", count: null, reached: false,
-  course_id: null, race_name: null, race_date: null, major: false, outcome: "missed",
+  course_id: null, race_name: null, race_date: null, major: false, public: false, outcome: "missed",
 };
 const NOMBRE: SeasonGoal = {
   id: 2, season: 2024, kind: "count", event_type: null, target: 6, best_time: null, count: 6, reached: true,
-  course_id: null, race_name: null, race_date: null, major: false, outcome: "reached",
+  course_id: null, race_name: null, race_date: null, major: false, public: false, outcome: "reached",
 };
 
 function afficher() {
