@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.core.time import utcnow
 from app.models.member_request import STATUS_PENDING, STATUS_REJECTED, MemberRequest
+from app.models.organisation import Organisation
 from app.repositories.dialect import dialect_insert
 
 
@@ -14,6 +15,18 @@ def get_for_user(db: Session, user_id: int, organisation_id: int) -> MemberReque
     return db.scalar(
         select(MemberRequest).where(
             MemberRequest.user_id == user_id, MemberRequest.organisation_id == organisation_id
+        )
+    )
+
+
+def get_for_user_in_default_organisation(db: Session, user_id: int) -> MemberRequest | None:
+    """Une seule requête : la lecture de `/auth/me` tient dans son budget."""
+    first_organisation = (
+        select(Organisation.id).order_by(Organisation.id).limit(1).scalar_subquery()
+    )
+    return db.scalar(
+        select(MemberRequest).where(
+            MemberRequest.user_id == user_id, MemberRequest.organisation_id == first_organisation
         )
     )
 

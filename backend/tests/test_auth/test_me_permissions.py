@@ -151,7 +151,8 @@ def test_me_tient_en_un_nombre_de_requetes_fixe_quel_que_soit_le_nombre_de_roles
     # preuve tient dans la comparaison avec le total attendu avant #625 (1 par
     # rôle en plus, 1 par groupe en plus), pas dans ce chiffre précis. Deux de
     # plus depuis #1322 : la saison qui compte et la recherche de l'adresse.
-    assert len(requetes) <= 10, requetes
+    # Une de plus depuis #1785 : la demande d'adhésion du compte (une requête, sous-requête comprise).
+    assert len(requetes) <= 11, requetes
 
 
 def test_me_says_whether_the_session_can_administer(client, ouvrir_session):

@@ -47,11 +47,13 @@ def test_a_member_cannot_ask(db_session, ana):
 
 def test_a_pending_request_is_replaced(db_session, ana):
     first = member_requests.request_membership(db_session, ana, _data(), now=utcnow())
+    first_created_at = first.created_at
     second = member_requests.request_membership(
         db_session, ana, _data(last_name="López"), now=utcnow()
     )
 
     assert second.id == first.id
+    assert second.created_at > first_created_at
     assert (second.last_name, second.status) == ("López", STATUS_PENDING)
 
 

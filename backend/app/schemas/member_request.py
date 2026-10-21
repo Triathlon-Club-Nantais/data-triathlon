@@ -6,6 +6,7 @@ from typing import Annotated, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, StringConstraints, field_validator, model_validator
 
+from app.core.time import utcnow
 from app.schemas.athlete_claim import ClaimantRead
 from app.schemas.utc_datetime import UtcDatetime
 
@@ -24,7 +25,7 @@ class MemberRequestCreate(BaseModel):
     @field_validator("birth_date")
     @classmethod
     def _plausible_birth_date(cls, value: date | None) -> date | None:
-        if value is not None and not _EARLIEST_BIRTH_DATE <= value <= date.today():
+        if value is not None and not _EARLIEST_BIRTH_DATE <= value <= utcnow().date():
             raise ValueError("Date de naissance invalide.")
         return value
 
