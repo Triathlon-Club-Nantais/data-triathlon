@@ -23,6 +23,7 @@ import { useDangerConfirm } from "@/components/admin/DangerConfirm";
 import { calculerAge } from "@/lib/utils/age";
 import { profilePurgeDate } from "@/lib/utils/season";
 import { EmergencyContact } from "@/components/admin/jeunes/EmergencyContact";
+import { PresenceDuProfil } from "@/components/admin/jeunes/PresenceDuProfil";
 
 const REFUS = { sujet: "jeunes", action: "consulter ce profil" };
 
@@ -235,6 +236,7 @@ export function ProfileDetail({ profileId }: { profileId: number }) {
         )}
       </Card>
 
+      {data.attendance && <PresenceDuProfil attendance={data.attendance} />}
       <GroupesDuProfil profileId={profileId} groupes={data.groups} peutEcrire={peutEcrire} />
 
       <Card className="space-y-3 p-4">

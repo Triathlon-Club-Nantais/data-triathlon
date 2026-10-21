@@ -11,9 +11,14 @@ import { GroupeDetail } from "@/components/admin/jeunes/GroupeDetail";
 import { useCreateTrainingGroup, useTrainingGroups } from "@/lib/queries/admin";
 import { useSession } from "@/lib/queries/auth";
 import { messageDeRefus } from "@/lib/api/refus";
-import { motCompte } from "@/lib/utils/format";
+import { motCompte, tauxAssiduite } from "@/lib/utils/format";
 
 const REFUS = { sujet: "groupes", action: "consulter les groupes" };
+
+function assiduite(attended: number, pointed: number): string {
+  const taux = tauxAssiduite(attended, pointed);
+  return taux === null ? "Assiduité : aucun appel" : `Assiduité : ${taux} %`;
+}
 
 /** Les groupes d'entraînement (#1291) : cartes seules, l'écran se tient au téléphone. */
 export function GroupesList() {
@@ -85,6 +90,9 @@ export function GroupesList() {
               <div className="font-medium">{groupe.name}</div>
               <div className="text-[var(--tcn-text-faint)] text-sm">
                 {motCompte(groupe.member_count, "membre")}
+              </div>
+              <div className="text-[var(--tcn-text-faint)] text-sm">
+                {assiduite(groupe.attended, groupe.pointed)}
               </div>
             </Card>
           ))}

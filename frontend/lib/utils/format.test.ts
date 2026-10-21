@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { disciplineOf, disciplineBreakdownBySeason, formatCount, motCompte, ordinalFr, pctFr, plural } from "./format";
+import { disciplineOf, disciplineBreakdownBySeason, formatCount, motCompte, ordinalFr, tauxAssiduite, pctFr, plural } from "./format";
 import type { Participation } from "@/lib/types";
 
 let nextId = 1;
@@ -153,5 +153,15 @@ describe("pctFr (#1587)", () => {
   it("renders the sign after a narrow no-break space", () => {
     expect(pctFr(62.5)).toBe("62,5\u202f%");
     expect(pctFr(59.4, 0)).toBe("59\u202f%");
+  });
+});
+
+describe("tauxAssiduite (#1364)", () => {
+  it("is null without any roll call", () => {
+    expect(tauxAssiduite(0, 0)).toBeNull();
+  });
+  it("rounds to a whole percent", () => {
+    expect(tauxAssiduite(2, 3)).toBe(67);
+    expect(tauxAssiduite(3, 3)).toBe(100);
   });
 });
