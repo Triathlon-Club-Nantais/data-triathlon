@@ -1077,6 +1077,8 @@ export interface SessionUser {
   athlete: ClaimedAthlete | null;
   /** Demande de rattachement en cours (#1325) : en attente, ou refusée jusqu'à la suivante. */
   athlete_claim: AthleteClaim | null;
+  /** Demande d'adhésion d'un connecté non adhérent (#1785) : en attente, ou refusée jusqu'à la suivante. */
+  member_request: MemberRequest | null;
 }
 
 /** Moyen de connexion lié au compte de la session (#1663). */
@@ -1098,6 +1100,24 @@ export interface AthleteClaim {
   athlete: ClaimedAthlete;
   status: "pending" | "rejected";
   created_at: string;
+}
+
+export interface MemberRequest {
+  id: number;
+  status: "pending" | "rejected";
+  first_name: string;
+  last_name: string;
+  birth_date: string | null;
+  phone: string | null;
+  created_at: string;
+  decided_at: string | null;
+}
+
+export interface MemberRequestInput {
+  first_name: string;
+  last_name: string;
+  birth_date: string | null;
+  phone: string | null;
 }
 
 export interface Teammate {

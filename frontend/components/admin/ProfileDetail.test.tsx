@@ -93,6 +93,7 @@ const AVEC_ECRITURE: SessionUser = {
   is_member: false,
   athlete: null,
   athlete_claim: null,
+  member_request: null,
   can_administer: false,
   can_supervise: true,
 };

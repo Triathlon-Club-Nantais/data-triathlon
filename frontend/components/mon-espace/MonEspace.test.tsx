@@ -57,8 +57,17 @@ describe("MonEspace access", () => {
     expect(getAthlete).not.toHaveBeenCalled();
   });
 
+  it("invites a logged-in non-member to ask to join the club", async () => {
+    getSession.mockResolvedValue(session({ is_member: false }));
+    afficher();
+
+    expect(await screen.findByText("Mon espace est réservé aux adhérents du club.")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Demander à rejoindre le club" })).toHaveAttribute("href", "/mon-compte#adhesion");
+    expect(screen.queryByRole("button", { name: /Trouvez votre fiche/ })).toBeNull();
+  });
+
   it("invites a logged-in member without a linked athlete to claim a profile", async () => {
-    getSession.mockResolvedValue(session({}));
+    getSession.mockResolvedValue(session({ is_member: true }));
     afficher();
 
     expect(await screen.findByRole("button", { name: /Trouvez votre fiche/ })).toBeInTheDocument();
@@ -67,7 +76,7 @@ describe("MonEspace access", () => {
   });
 
   it("says a pending claim is awaiting the club", async () => {
-    getSession.mockResolvedValue(session({ athlete_claim: { id: 1, athlete: LEA, status: "pending", created_at: "" } }));
+    getSession.mockResolvedValue(session({ is_member: true, athlete_claim: { id: 1, athlete: LEA, status: "pending", created_at: "" } }));
     afficher();
 
     expect(await screen.findByText(/demande de rattachement.*en attente/i)).toBeInTheDocument();
