@@ -48,7 +48,7 @@ def collect(db: Session, saturday: date, sunday: date) -> list[DigestCourse]:
         rows_by_course[row.course_id].append(row)
 
     digest = []
-    for course in courses:
+    for course in sorted(courses, key=lambda course: (course.event_date, course.name)):
         finishers = 0
         podiums = []
         for row in rows_by_course[course.id]:

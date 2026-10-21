@@ -1,12 +1,14 @@
 """`weekend-digest`: Monday Slack board of the club's weekend results (#1363)."""
 import logging
 
+import httpx
 import pytest
 from pydantic import SecretStr
 from typer.testing import CliRunner
 
 from app.cli import app
 from app.cli.commands import weekend_digest as cmd
+from app.core import http
 from app.core.config import Settings
 from app.services.weekend_digest import DigestDeliveryError
 from tests.test_services.test_weekend_digest import SAT, _course, _result
@@ -77,3 +79,21 @@ def test_a_delivery_failure_exits_one(monkeypatch, brancher_session, db_session)
     monkeypatch.setattr(cmd.weekend_digest_service, "send", fail)
 
     assert runner.invoke(app, ARGS).exit_code == 1
+
+
+def test_the_webhook_url_never_reaches_the_logs(monkeypatch, brancher_session, db_session, caplog):
+    brancher_session(cmd)
+    _webhook(monkeypatch, "https://hooks.slack.com/services/T/B/SECRET")
+    _result(db_session, _course(db_session, SAT), "Jean", "Dupont")
+    monkeypatch.setattr(http, "_resolve", lambda host, port: ["93.184.216.34"])
+    real_send = cmd.weekend_digest_service.send
+    transport = httpx.MockTransport(lambda request: httpx.Response(200))
+    monkeypatch.setattr(cmd.weekend_digest_service, "send", lambda text, url: real_send(text, url, transport=transport))
+    httpx_logger = logging.getLogger("httpx")
+    monkeypatch.setattr(httpx_logger, "level", httpx_logger.level)
+
+    with caplog.at_level(logging.INFO):
+        result = runner.invoke(app, ARGS)
+
+    assert result.exit_code == 0
+    assert "SECRET" not in caplog.text
