@@ -170,7 +170,10 @@ Score = tués / (tués + survivants), timeouts exclus.
   test exécuté (relevé au lot 3). Sur un composant React, comparer deux bras
   avec `--concurrency 3` : au défaut (7), la charge fait passer des centaines
   de mutants en timeout, et pas les mêmes d'un bras à l'autre (lot 3 : 325
-  contre 0 timeouts, même fichier de test).
+  contre 0 timeouts, même fichier de test). Si les timeouts diffèrent encore
+  entre les deux bras, relancer seulement leurs lignes, sur le bras où ils ont
+  expiré et à la même concurrence : `--mutate <fichier>:<L>-<L> --timeoutMS
+  60000`.
 - **Où vivent les résultats** : backend dans `backend/mutants/` (copie de `app/`
   et `tests/`, base de résultats `mutmut-stats.json` et `*.meta`) ; frontend dans
   `frontend/reports/` (JSON et fichier incrémental) et `frontend/.stryker-tmp/`.

@@ -152,24 +152,27 @@ describe("RaceFinishers", () => {
 
   // Une page de 3 lignes sur une épreuve de 1811 : le pied annonce l'épreuve.
   it.each([
-    ["participants · arrivants · abandons, pas « X arrivants au total »", {}, "3 participants · 1 arrivant · 2 abandons"],
+    ["participants · arrivants · abandons, pas « X arrivants au total »", {}, 3, "3 participants · 1 arrivant · 2 abandons"],
     [
       "les « indéterminés », pour réconcilier avec le total",
       { total: 4, finishers: 1, non_finishers: 1, dnf: 1, unknown: 2 },
+      3,
       "4 participants · 1 arrivant · 1 abandon · 2 indéterminés",
     ],
     [
       "le décompte de la synthèse, pas celui de la page affichée",
       { total: 1811, finishers: 1768, non_finishers: 43, dnf: 43 },
+      1811,
       "1811 participants · 1768 arrivants · 43 abandons",
     ],
     [
       "abandons, non-partants et disqualifiés distingués (#331)",
       { total: 11, finishers: 3, non_finishers: 8, dnf: 5, dns: 2, dsq: 1 },
+      3,
       "11 participants · 3 arrivants · 5 abandons · 2 non-partants · 1 disqualifié",
     ],
-  ])("ventile le pied de tableau : %s", (_cas, decompte: Partial<CourseSummary>, pied) => {
-    afficher({ summary: synthese(decompte), total: decompte.total ?? 3 });
+  ])("ventile le pied de tableau : %s", (_cas, decompte: Partial<CourseSummary>, total, pied) => {
+    afficher({ summary: synthese(decompte), total });
     expect(screen.getByText(pied)).toBeInTheDocument();
   });
 
@@ -653,7 +656,7 @@ describe("RaceFinishers", () => {
 
       // `useLinkStatus` saute la phase d'attente sur une route déjà préchargée
       // (doc de Next 16.3.1). Sans `prefetch={false}`, l'indicateur de FR-005
-      // serait mort en production — et 20 routes dynamiques seraient préchargées
+      // serait mort en production, et 20 routes dynamiques seraient préchargées
       // par page, le coût que #425 a déjà refusé sur `RecentCourses`.
       expect(ligne.querySelector("a[href]")).toHaveAttribute("data-prefetch", "false");
 
@@ -991,7 +994,7 @@ describe("RaceFinishers — ma ligne dans le classement (NAV-10, #503)", () => {
     expect(marques[0].closest("tr")).toHaveTextContent("DNFGUY");
 
     // Régression relevée en revue finale #461 : la boucle des cartes ne lisait
-    // jamais `moi`, donc sur téléphone rien ne distinguait ma ligne — alors
+    // jamais `moi`, donc sur téléphone rien ne distinguait ma ligne, alors
     // que « Aller à ma ligne » y reste offert.
     expect(dansLesCartes("classement-cartes").texte("Vous")).toBeInTheDocument();
   });
@@ -1013,7 +1016,7 @@ describe("RaceFinishers — ma ligne dans le classement (NAV-10, #503)", () => {
     expect(dansLesCartes("classement-cartes").texte("Vous")).toBeInTheDocument();
   });
 
-  it("peint le fond de ma ligne seule, y compris sur un non-finisher — par une classe, pas un style en ligne", () => {
+  it("peint le fond de ma ligne seule, y compris sur un non-finisher (par une classe, pas un style en ligne)", () => {
     // Le fond vit en CSS (`.tcn-rowlink--moi`, globals.css) : un style en
     // ligne battrait `.tcn-rowlink:hover` et couperait le retour au survol
     // (#439, correctif de revue #503).
