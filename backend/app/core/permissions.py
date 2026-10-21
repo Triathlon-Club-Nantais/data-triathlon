@@ -18,7 +18,6 @@ d'effacer des attributions en production parce qu'un module n'a pas été import
 Aucune session, aucun état, aucune sortie : c'est ce qui autorise `core/`
 (Principe II).
 """
-
 from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Literal
@@ -268,7 +267,8 @@ class P:
     PARTICIPATIONS_REASSIGN = Permission(
         "participations:reassign",
         "Rattacher un résultat",
-        "Associer un résultat au bon athlète, quand un scraper a créé un doublon d'identité.",
+        "Associer un résultat au bon athlète, quand un scraper a créé un doublon "
+        "d'identité.",
         FEATURE_PARTICIPATIONS,
     )
     PARTICIPATIONS_WIPE_ALL = Permission(
@@ -474,7 +474,8 @@ def supervises(codes: Iterable[str]) -> bool:
 
 def _any_of_kind(codes: Iterable[str], kind: PermissionKind) -> bool:
     return any(
-        (permission := _BY_CODE.get(code)) is not None and permission.kind == kind for code in codes
+        (permission := _BY_CODE.get(code)) is not None and permission.kind == kind
+        for code in codes
     )
 
 
