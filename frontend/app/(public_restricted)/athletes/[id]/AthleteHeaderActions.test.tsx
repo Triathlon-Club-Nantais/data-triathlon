@@ -146,7 +146,7 @@ describe("AthleteHeaderActions, rattachement de la fiche (#1325)", () => {
     afficher();
 
     const lien = await screen.findByRole("link", { name: "Rejoindre le club pour rattacher votre fiche" });
-    expect(lien).toHaveAttribute("href", "/mon-compte#adhesion");
+    expect(lien).toHaveAttribute("href", "/mon-compte#demande-adhesion");
     expect(screen.queryByRole("button", { name: /c'est moi/i })).not.toBeInTheDocument();
   });
 
@@ -155,7 +155,7 @@ describe("AthleteHeaderActions, rattachement de la fiche (#1325)", () => {
     afficher();
 
     const lien = await screen.findByRole("link", { name: "Voir ma demande d'adhésion (en attente)" });
-    expect(lien).toHaveAttribute("href", "/mon-compte#adhesion");
+    expect(lien).toHaveAttribute("href", "/mon-compte#demande-adhesion");
     expect(screen.queryByRole("link", { name: /Rejoindre le club/ })).toBeNull();
   });
 

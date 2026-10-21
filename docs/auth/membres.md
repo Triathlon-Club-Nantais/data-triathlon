@@ -109,10 +109,14 @@ Avenant RGPD : `docs/superpowers/specs/2026-10-01-base-legale-decision.md`.
 ## Demande d'adhésion (#1785)
 
 Un compte connecté non adhérent (`is_member` faux) demande à rejoindre le club
-depuis `/mon-compte#adhesion` : prénom, nom, et date de naissance ou téléphone
+depuis `/mon-compte#demande-adhesion` : prénom, nom, et date de naissance ou téléphone
 (`POST /auth/me/member-request`). La demande ne rend jamais adhérent d'office.
 Une demande en attente est remplacée par la suivante ; `DELETE` ne supprime que
 l'attente.
+
+L'ancre n'est jamais `adhesion` seul : EasyList masque `###adhesion` (et les
+classes `.adhesion`), si bien que la carte disparaissait sous uBlock ou AdBlock
+(#1798).
 
 La file vit sur la page du back-office `/admin/adresses-adherents`, à côté des
 adresses d'adhérents (API `/admin/member-requests`, pouvoir `member_requests:review`,

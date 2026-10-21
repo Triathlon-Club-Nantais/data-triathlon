@@ -43,6 +43,17 @@ beforeEach(() => vi.clearAllMocks());
 afterEach(() => vi.useRealTimers());
 
 describe("MemberRequestCard", () => {
+  // EasyList masque `###adhesion` : l'ancre ne doit pas reprendre ce mot seul (#1798).
+  it.each([
+    ["le formulaire", null],
+    ["la demande en cours", REQUEST],
+  ])("porte l'ancre #demande-adhesion sur %s", (_etat, memberRequest) => {
+    const { container } = afficher(memberRequest);
+
+    expect(container.querySelector("#demande-adhesion")).toBeInTheDocument();
+    expect(container.querySelector("#adhesion")).toBeNull();
+  });
+
   it("envoie prénom, nom et téléphone", async () => {
     requestMembership.mockResolvedValue(REQUEST);
     afficher();

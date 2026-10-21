@@ -48,7 +48,7 @@ export function AthleteHeaderActions({ athlete }: { athlete: CoureurACorriger })
       <AthleteSelection athlete={athlete} primary={!panneauEnTete} />
       {session.data?.is_member && <AthleteClaimAction athlete={athlete} session={session.data} />}
       {session.data && !session.data.is_member && (
-        <Link href="/mon-compte#adhesion" className="tcn-cible-tactile inline-flex items-center text-sm underline underline-offset-2">
+        <Link href="/mon-compte#demande-adhesion" className="tcn-cible-tactile inline-flex items-center text-sm underline underline-offset-2">
           {session.data.member_request?.status === "pending"
             ? "Voir ma demande d'adhésion (en attente)"
             : "Rejoindre le club pour rattacher votre fiche"}

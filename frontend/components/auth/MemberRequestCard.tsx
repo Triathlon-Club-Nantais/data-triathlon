@@ -47,7 +47,7 @@ export function MemberRequestCard({ session }: { session: SessionUser }) {
 
   if (demande?.status === "pending") {
     return (
-      <Card id="adhesion">
+      <Card id="demande-adhesion">
         <h2 ref={titre} tabIndex={-1} style={TITRE}>Adhésion au club</h2>
         <p role="status" style={DISCRET}>
           Votre demande d&apos;adhésion est en attente : un administrateur du club la valide.
@@ -103,7 +103,7 @@ export function MemberRequestCard({ session }: { session: SessionUser }) {
   const invalide = (id: string) =>
     erreurLocale?.champs.includes(id) ? { "aria-invalid": true as const, "aria-describedby": ID_ERREUR } : {};
   return (
-    <Card id="adhesion">
+    <Card id="demande-adhesion">
       <h2 ref={titre} tabIndex={-1} style={TITRE}>Adhésion au club</h2>
       {finRefus ? (
         <p style={DISCRET}>

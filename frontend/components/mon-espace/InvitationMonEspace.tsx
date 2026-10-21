@@ -30,7 +30,7 @@ export function InvitationMonEspace({ session }: { session: SessionUser | null }
         ) : !session.is_member ? (
           <>
             <p style={{ margin: "0 0 8px", color: "var(--tcn-text-muted)" }}>Mon espace est réservé aux adhérents du club.</p>
-            <Link href="/mon-compte#adhesion" className="tcn-cible-tactile inline-flex items-center font-semibold underline underline-offset-2">
+            <Link href="/mon-compte#demande-adhesion" className="tcn-cible-tactile inline-flex items-center font-semibold underline underline-offset-2">
               {session.member_request?.status === "pending"
                 ? "Voir ma demande d'adhésion (en attente)"
                 : "Demander à rejoindre le club"}
