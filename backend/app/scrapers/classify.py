@@ -15,6 +15,7 @@ import re
 # valeur peut être raffinée. `trail` est volontairement nu (distance via km).
 BARE_TYPES = frozenset({
     "triathlon", "duathlon", "swimrun", "cyclisme", "course-a-pied", "trail",
+    "natation",
 })
 
 # Tous les slugs canoniques produits par le classifieur. Sert à garantir
@@ -36,6 +37,7 @@ CANONICAL_TYPES = frozenset({
     "course-a-pied", "course-a-pied-5k", "course-a-pied-10k",
     "course-a-pied-semi", "course-a-pied-marathon",
     "trail", "cyclisme", "cyclisme-route", "cyclisme-clm",
+    "natation",
 })
 
 
@@ -187,6 +189,8 @@ def _sport_base(t: str) -> str | None:
     #    (half-marathon vs half-ironman).
     if "triathlon" in t:
         return "triathlon"
+    if "natation" in t or "eau libre" in t or re.search(r"\bnage\b", t):
+        return "natation"
 
     # 3. Mono-sports.
     if "trail" in t:

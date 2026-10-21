@@ -136,6 +136,22 @@ def test_classify_mono_sport(text, expected):
     assert classify_event_type(text) == expected
 
 
+@pytest.mark.parametrize("text,expected", [
+    ("Traversée de l'Erdre à la nage", "natation"),
+    ("Championnat natation eau libre 5 km", "natation"),
+    ("Coupe de natation", "natation"),
+    ("Swimrun eau libre de Belle-Île", "swimrun"),
+    ("Aquathlon à la nage", "aquathlon"),
+    ("Course à pied des nageurs", "course-a-pied"),
+])
+def test_classify_swimming(text, expected):
+    assert classify_event_type(text) == expected
+
+
+def test_normalize_natation_is_idempotent():
+    assert normalize_event_type("natation") == "natation"
+
+
 # --- Contexte d'appoint (titre d'événement) : ne nomme le sport qu'à défaut ---
 @pytest.mark.parametrize("epreuve,evenement,expected", [
     # Le contexte ne doit **jamais** écraser un sport nommé par l'épreuve : une
