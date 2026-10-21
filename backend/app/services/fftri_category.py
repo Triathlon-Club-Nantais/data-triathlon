@@ -34,6 +34,12 @@ def fftri_season_bounds(on: date) -> tuple[date, date]:
     return date(season - 1, SEASON_SWITCH_MONTH, 1), date(season, SEASON_SWITCH_MONTH - 1, 31)
 
 
+def fftri_season_to_date(today: date) -> tuple[date, date]:
+    """Saison en cours bornée à aujourd'hui : les séances à venir ne comptent pas encore."""
+    season_start, season_end = fftri_season_bounds(today)
+    return season_start, min(season_end, today)
+
+
 def fftri_category(birth_date: date | None, on: date) -> str | None:
     if birth_date is None:
         return None

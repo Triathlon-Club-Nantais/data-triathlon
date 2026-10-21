@@ -15,7 +15,7 @@ from app.repositories import (
     training_session_repository,
 )
 from app.services import profile_service, training_session_service
-from app.services.fftri_category import fftri_season_bounds
+from app.services.fftri_category import fftri_season_to_date
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +46,7 @@ def get_group_or_404(db: Session, training_group_id: int) -> TrainingGroup:
 
 
 def list_group_views(db: Session) -> list[dict]:
-    date_from, date_to = fftri_season_bounds(utcnow().date())
+    date_from, date_to = fftri_season_to_date(utcnow().date())
     attendance = training_session_repository.attendance_by_group(db, date_from=date_from, date_to=date_to)
     views = []
     for group, member_count in training_group_repository.list_with_member_counts(db):
