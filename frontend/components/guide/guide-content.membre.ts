@@ -141,7 +141,7 @@ export const GUIDE_MEMBRE: GuideSection[] = [
       "Cliquer sur « Ce résultat est à moi » en haut de la page.",
       "Attendre le club : « Réclamation en attente » s'affiche, il vérifie qu'il s'agit bien de vous puis déplace le résultat sur votre fiche. Vous pouvez la retirer avec « Annuler la réclamation ».",
       "Sur un relais, le bouton se lit « Je faisais partie de cette équipe » : le club ajoute alors votre fiche à l'équipe.",
-      "Un relais, un swimrun ou un raid publié sous le seul nom d'équipe : dans « Mon espace », carte « Un résultat d'équipe manque ? », chercher le nom de l'équipe puis cliquer sur « C'était mon équipe ».",
+      "Un relais, un swimrun ou un raid publié sous le seul nom d'équipe : dans « Mon espace », carte « Un résultat d'équipe manque ? », chercher le nom de l'équipe puis cliquer sur « C'était mon équipe », qui envoie la même demande au club.",
       "En cas de refus, un message le rappelle sur ce résultat. Le bouton n'apparaît pas sur un résultat encore en attente de validation, ni sur un résultat déjà rangé sur votre fiche.",
     ],
     captures: [],

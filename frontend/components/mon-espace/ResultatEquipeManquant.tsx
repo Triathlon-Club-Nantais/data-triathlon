@@ -23,6 +23,7 @@ export function ResultatEquipeManquant() {
   const demandes = useMyResultClaims(true);
   const demander = useRequestResultClaim();
   const [annonce, setAnnonce] = useState("");
+  const [tropCourt, setTropCourt] = useState(false);
   const aFocaliser = useRef<number | null>(null);
   const assez = saisie.trim().length >= MIN_CARACTERES;
 
@@ -90,6 +91,7 @@ export function ResultatEquipeManquant() {
       <form
         onSubmit={(e) => {
           e.preventDefault();
+          setTropCourt(!assez);
           if (assez) {
             demander.reset();
             setRecherche(saisie.trim());
@@ -104,7 +106,10 @@ export function ResultatEquipeManquant() {
         <Input
           id="resultat-equipe-nom"
           value={saisie}
-          onChange={(e) => setSaisie(e.target.value)}
+          onChange={(e) => {
+            setSaisie(e.target.value);
+            setTropCourt(false);
+          }}
           autoComplete="off"
           maxLength={MAX_CARACTERES}
           aria-describedby="resultat-equipe-aide"
@@ -112,6 +117,11 @@ export function ResultatEquipeManquant() {
         <p id="resultat-equipe-aide" style={{ ...texteDiscret, margin: 0 }}>
           Au moins {MIN_CARACTERES} caractères.
         </p>
+        {tropCourt && (
+          <p role="alert" style={{ margin: 0, fontSize: 13, color: "var(--tcn-danger-text)" }}>
+            Saisissez au moins {MIN_CARACTERES} caractères.
+          </p>
+        )}
         <Button type="submit" variant="secondary" aria-disabled={!assez || undefined} aria-describedby="resultat-equipe-aide">
           Chercher
         </Button>
