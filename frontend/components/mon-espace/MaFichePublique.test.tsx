@@ -46,7 +46,8 @@ describe("MaFichePublique (#1692)", () => {
     expect(screen.queryByRole("option", { name: /En attente/ })).toBeNull();
     expect(choix).toHaveValue("");
     expect(screen.getByRole("option", { name: "Aucun" })).toBeInTheDocument();
-    expect(screen.getByText("Masquer un bloc n'efface rien : vos résultats restent publics et permettent de le recalculer.")).toBeInTheDocument();
+    expect(screen.getByText(/Masquer un bloc n'efface rien : vos résultats restent publics et permettent de le recalculer\./)).toBeInTheDocument();
+    expect(screen.getByText(/Votre fiche reste trouvable comme adversaire dans la comparaison d'une autre fiche\./)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Voir ma fiche" })).toHaveAttribute("href", "/athletes/42");
   });
 
@@ -77,6 +78,14 @@ describe("MaFichePublique (#1692)", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Enregistrer" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Ce lien n'est pas accepté.");
+  });
+
+  it("shows an inline error, without crashing, when the settings cannot be loaded", async () => {
+    getPublicPageSettings.mockRejectedValue(new ApiError(500, "Réglages indisponibles."));
+    afficher();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Réglages indisponibles.");
+    expect(screen.queryByRole("button", { name: "Enregistrer" })).toBeNull();
   });
 
   it("warns when several accounts share the fiche", async () => {

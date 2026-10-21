@@ -10,7 +10,7 @@ export const PRIVACY_POLICY: LegalDocument = {
   title: "Politique de confidentialité",
   description:
     "Ce que le Triathlon Club Nantais fait des données de ce site, pourquoi, combien de temps, et comment faire valoir vos droits.",
-  updatedAt: "2026-10-20",
+  updatedAt: "2026-10-21",
   sections: [
     {
       id: "responsable",
@@ -82,9 +82,9 @@ export const PRIVACY_POLICY: LegalDocument = {
             Microsoft du club ; le club l&apos;efface dans le mois qui suit la suppression du compte, à l&apos;aide de
             l&apos;identifiant Microsoft que le journal d&apos;administration garde 12 mois à cette seule fin. Un compte n&apos;a, par
             lui-même, aucun droit d&apos;administration. Un compte peut être rattaché à la fiche athlète de
-            la personne, à la demande de son titulaire, après vérification par le club ; la fiche indique alors aux visiteurs qu&apos;elle est rattachée à son athlète, sans montrer le compte ni son adresse ; le compte rattaché est
+            la personne, à la demande de son titulaire, après vérification par le club ; la fiche indique alors aux visiteurs qu&apos;elle est rattachée à son athlète, sans montrer le compte ni son adresse. Son titulaire peut toutefois y ajouter des liens vers ses profils Strava, Garmin Connect, Polar Flow ou Suunto, y afficher un objectif de saison et un résultat épinglé, et y masquer ses records, sa progression ou la comparaison, depuis la page Mon espace ; le compte rattaché est
             reconnu adhérent tant que la fiche est licenciée au club pour la saison, et son titulaire s&apos;en détache quand il le souhaite depuis la page Mon compte
-            (« Me détacher de ma fiche »). Un compte rattaché peut se fixer des objectifs de saison, que lui seul voit, et qui sont supprimés avec le compte. Il peut aussi réclamer un résultat rangé sur une autre fiche ; le club vérifie la demande avant de le déplacer, et la demande part avec le compte. Le site garde la trace des actions d&apos;administration. Vous pouvez supprimer votre compte
+            (« Me détacher de ma fiche »). Un compte rattaché peut se fixer des objectifs de saison, que lui seul voit, sauf un qu&apos;il peut choisir d&apos;afficher sur sa fiche publique (« Afficher sur ma fiche publique »), et qui sont supprimés avec le compte. Il peut aussi réclamer un résultat rangé sur une autre fiche ; le club vérifie la demande avant de le déplacer, et la demande part avec le compte. Le site garde la trace des actions d&apos;administration. Vous pouvez supprimer votre compte
             vous-même, depuis la page Mon compte (« Supprimer mon compte ») : vos résultats et votre fiche athlète
             restent publiés, seul le compte disparaît.
           </p>
@@ -242,7 +242,7 @@ export const PRIVACY_POLICY: LegalDocument = {
               <strong>accéder</strong> aux données qui vous concernent et en obtenir une copie dans un format
               réutilisable (<strong>portabilité</strong>). Si vous avez un compte, téléchargez-la vous-même depuis
               la page Mon compte (« Télécharger mes données (JSON) ») : une copie de ce que le site conserve à
-              votre sujet (compte, connexions, demandes de rattachement, objectifs, déclarations de bénévolat,
+              votre sujet (compte, connexions, demandes de rattachement, objectifs, réglages de la fiche publique, déclarations de bénévolat,
               signalements et résultats de votre fiche), dans un fichier au format JSON, lisible par un logiciel.
               La liste des licenciés et la liste des adresses d&apos;adhérents ne figurent pas dans ce fichier :
               écrivez au club pour les obtenir ;

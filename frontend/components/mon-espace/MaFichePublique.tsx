@@ -75,7 +75,7 @@ function Formulaire({ athleteId, initial }: { athleteId: number; initial: Public
         Ma fiche publique
       </h2>
       <p style={{ margin: "8px 0 0", fontSize: 13, color: "var(--tcn-text-muted)" }}>
-        Masquer un bloc n&apos;efface rien : vos résultats restent publics et permettent de le recalculer.{" "}
+        Masquer un bloc n&apos;efface rien : vos résultats restent publics et permettent de le recalculer. Votre fiche reste trouvable comme adversaire dans la comparaison d&apos;une autre fiche.{" "}
         <Link href={`/athletes/${athleteId}`} className="underline underline-offset-2">Voir ma fiche</Link>
       </p>
       {initial.shared && (
