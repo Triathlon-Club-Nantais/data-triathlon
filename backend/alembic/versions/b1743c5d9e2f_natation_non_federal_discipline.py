@@ -23,23 +23,19 @@ __all__ = ["revision", "down_revision", "branch_labels", "depends_on", "upgrade"
 
 
 def upgrade() -> None:
-    table = sa.table(
-        "counter_scope_entries",
-        sa.column("kind", sa.String),
-        sa.column("value", sa.String),
-        sa.column("created_at", sa.DateTime),
-        sa.column("created_by_user_id", sa.Integer),
-    )
-    op.bulk_insert(
-        table,
-        [
-            {
-                "kind": "non_federal_discipline",
-                "value": "natation",
-                "created_at": datetime.now(UTC).replace(tzinfo=None),
-                "created_by_user_id": None,
-            }
-        ],
+    # Gardé : une ligne ajoutée à la main depuis l'administration ferait échouer l'unicité.
+    op.get_bind().execute(
+        sa.text(
+            "INSERT INTO counter_scope_entries (kind, value, created_at, created_by_user_id) "
+            "SELECT :kind, :value, :created_at, NULL "
+            "WHERE NOT EXISTS (SELECT 1 FROM counter_scope_entries "
+            "WHERE kind = :kind AND value = :value)"
+        ),
+        {
+            "kind": "non_federal_discipline",
+            "value": "natation",
+            "created_at": datetime.now(UTC).replace(tzinfo=None),
+        },
     )
 
 
