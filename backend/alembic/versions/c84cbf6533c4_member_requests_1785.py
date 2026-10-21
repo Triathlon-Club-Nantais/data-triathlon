@@ -5,7 +5,7 @@ déjà `member_emails:manage` reçoivent `member_requests:review`, pour que ceux
 qui tiennent la liste des adhérents puissent aussi traiter les demandes.
 
 Revision ID: c84cbf6533c4
-Revises: c38bc1342485
+Revises: a1745e7c0b2d
 Create Date: 2026-10-21 15:13:33.365703
 """
 from typing import Sequence, Union
@@ -15,7 +15,7 @@ import sqlalchemy as sa
 
 
 revision: str = 'c84cbf6533c4'
-down_revision: Union[str, None] = 'c38bc1342485'
+down_revision: Union[str, None] = 'a1745e7c0b2d'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
