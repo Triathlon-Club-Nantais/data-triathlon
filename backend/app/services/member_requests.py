@@ -14,9 +14,9 @@ from app.core.season import current_season
 from app.core.time import utcnow
 from app.models.member_request import STATUS_REJECTED, MemberRequest
 from app.models.user import User
-from app.repositories import member_request_repository, role_repository
+from app.repositories import member_request_repository
 from app.schemas.member_request import MemberRequestCreate
-from app.services import audit, member_emails_service, membership
+from app.services import audit, member_emails_service, membership, profile_service
 from app.services.member_emails_service import AlreadyListedError
 
 logger = logging.getLogger(__name__)
@@ -46,11 +46,12 @@ def _not_pending() -> NotFoundError:
 
 
 def _organisation_id(db: Session) -> int:
-    return role_repository.default_organisation(db).id
+    return profile_service.default_organisation_id(db)
 
 
 def current_for(db: Session, user: User) -> MemberRequest | None:
-    return member_request_repository.get_for_user(db, user.id, _organisation_id(db))
+    """Sans organisation, il n'y a pas de demande : les lectures ne lèvent rien."""
+    return member_request_repository.get_for_user_in_default_organisation(db, user.id)
 
 
 def request_membership(
@@ -64,7 +65,7 @@ def request_membership(
         previous is not None
         and previous.status == STATUS_REJECTED
         and previous.decided_at is not None
-        and now < previous.decided_at + REQUEST_AGAIN_AFTER
+        and now.date() < (previous.decided_at + REQUEST_AGAIN_AFTER).date()
     ):
         raise RejectedRecentlyError(previous.decided_at)
     request = member_request_repository.upsert_pending(
