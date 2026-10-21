@@ -217,6 +217,8 @@ def render_retention_report(outcome: RetentionOutcome) -> str:
             f"Adresses d'adhérents de saisons anciennes {'à supprimer' if outcome.dry_run else 'supprimées'}",
             outcome.member_emails,
         ),
+        _line(f"Demandes d'adhésion refusées {verb}", outcome.member_requests_rejected),
+        _line(f"Demandes d'adhésion sans décision {verb}", outcome.member_requests_pending),
         _line(f"Comptes inactifs depuis 5 ans {verb}", outcome.accounts_deleted),
         _line("Comptes inactifs conservés (cités par le club)", outcome.accounts_skipped),
     ])

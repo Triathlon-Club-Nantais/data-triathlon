@@ -1,4 +1,5 @@
 """La commande `purge-retention` (#1158)."""
+
 import json
 import re
 from datetime import timedelta
@@ -28,7 +29,18 @@ def test_dry_run_reports_counts_and_deletes_nothing(brancher_session, db_session
     result = runner.invoke(app, ["purge-retention", "--dry-run", "--json"])
 
     assert result.exit_code == 0
-    assert json.loads(result.stdout) == {"dry_run": True, "feedback": 1, "admin_log": 0, "profiles": 0, "club_members": 0, "member_emails": 0, "accounts_deleted": 0, "accounts_skipped": 0}
+    assert json.loads(result.stdout) == {
+        "dry_run": True,
+        "feedback": 1,
+        "admin_log": 0,
+        "profiles": 0,
+        "club_members": 0,
+        "member_emails": 0,
+        "member_requests_rejected": 0,
+        "member_requests_pending": 0,
+        "accounts_deleted": 0,
+        "accounts_skipped": 0,
+    }
     assert db_session.get(UserFeedback, entry.id) is not None
 
 
@@ -52,3 +64,12 @@ def test_report_counts_deleted_and_skipped_accounts(brancher_session, db_session
 
     assert re.search(r"Comptes inactifs depuis 5 ans à supprimer\s+: 0", result.stdout)
     assert re.search(r"Comptes inactifs conservés \(cités par le club\)\s+: 0", result.stdout)
+
+
+def test_report_counts_member_requests(brancher_session):
+    brancher_session(cmd)
+
+    result = runner.invoke(app, ["purge-retention", "--dry-run"])
+
+    assert re.search(r"Demandes d'adhésion refusées à supprimer\s+: 0", result.stdout)
+    assert re.search(r"Demandes d'adhésion sans décision à supprimer\s+: 0", result.stdout)

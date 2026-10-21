@@ -73,6 +73,12 @@ describe("Politique de confidentialité (#333)", () => {
     expect(texte).toMatch(/90 jours/);
   });
 
+  it("annonce la durée de conservation des demandes d'adhésion", () => {
+    const texte = rendre();
+    expect(texte).toMatch(/Demandes d'adhésion/);
+    expect(texte).toMatch(/6 mois sans décision/);
+  });
+
   it("liste les sous-traitants et signale les transferts hors Union européenne", () => {
     const texte = rendre();
     for (const prestataire of ["Vercel", "Render", "Microsoft", "Supabase", "GitHub", "PostHog"]) {

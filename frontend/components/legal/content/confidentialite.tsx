@@ -177,6 +177,10 @@ export const PRIVACY_POLICY: LegalDocument = {
             ["Session de connexion", "7 jours"],
             ["Mémorisation du code d'accès au site", "90 jours"],
             ["École de triathlon", "Durée de l'adhésion, plus une saison"],
+            [
+              "Demandes d'adhésion (prénom, nom, date de naissance ou téléphone, adresse e-mail)",
+              "Supprimées à la validation ou à l'annulation ; 30 jours après un refus ; 6 mois sans décision. Elles servent à vérifier la demande et à recontacter la personne.",
+            ],
           ]}
         />
       ),

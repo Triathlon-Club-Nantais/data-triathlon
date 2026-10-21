@@ -4,7 +4,7 @@ Les durées viennent de la décision `docs/superpowers/specs/2026-10-01-base-leg
 (#332) et sont publiées dans `frontend/components/legal/content/confidentialite.tsx` :
 changer l'une sans l'autre rend la politique fausse. Les durées couvrent aussi la
 liste des licenciés du club (#1202), les adresses d'adhérents (#1334) et les
-comptes sans rôle inactifs depuis 5 ans (#1326).
+comptes sans rôle inactifs depuis 5 ans (#1326) et les demandes d'adhésion (#1785).
 """
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
@@ -17,6 +17,7 @@ from app.repositories import (
     club_member_repository,
     feedback_repository,
     member_email_repository,
+    member_request_repository,
     profile_repository,
     training_group_repository,
     training_session_repository,
@@ -25,6 +26,9 @@ from app.services.auth import accounts
 
 FEEDBACK_RETENTION = timedelta(days=365)
 ADMIN_LOG_RETENTION = timedelta(days=365)
+# Doit valoir le délai de nouvelle demande de services/member_requests.py.
+MEMBER_REQUEST_REJECTED_RETENTION = timedelta(days=30)
+PENDING_MEMBER_REQUEST_RETENTION = timedelta(days=183)
 
 
 @dataclass(frozen=True)
@@ -34,6 +38,8 @@ class RetentionOutcome:
     profiles: int
     club_members: int
     member_emails: int
+    member_requests_rejected: int
+    member_requests_pending: int
     accounts_deleted: int
     accounts_skipped: int
     dry_run: bool
@@ -56,6 +62,8 @@ def purge_expired(db: Session, *, now: datetime, dry_run: bool = False) -> Reten
     """Supprime et commite, ou compte seulement avec `dry_run`, ce qui a dépassé sa durée."""
     feedback_cutoff = now - FEEDBACK_RETENTION
     admin_log_cutoff = now - ADMIN_LOG_RETENTION
+    rejected_cutoff = now - MEMBER_REQUEST_REJECTED_RETENTION
+    pending_cutoff = now - PENDING_MEMBER_REQUEST_RETENTION
     members_cutoff = club_members_cutoff(now.date())
     profiles = profile_repository.list_membership_ended_before(db, youth_profile_cutoff(now.date()))
 
@@ -69,6 +77,8 @@ def purge_expired(db: Session, *, now: datetime, dry_run: bool = False) -> Reten
             profiles=len(profiles),
             club_members=club_member_repository.purge_before(db, members_cutoff, dry_run=True),
             member_emails=member_email_repository.purge_before(db, members_cutoff, dry_run=True),
+            member_requests_rejected=member_request_repository.count_rejected_before(db, rejected_cutoff),
+            member_requests_pending=member_request_repository.count_pending_before(db, pending_cutoff),
             accounts_deleted=accounts_deleted,
             accounts_skipped=accounts_skipped,
             dry_run=True,
@@ -88,6 +98,8 @@ def purge_expired(db: Session, *, now: datetime, dry_run: bool = False) -> Reten
         profiles=len(profiles),
         club_members=club_member_repository.purge_before(db, members_cutoff, dry_run=False),
         member_emails=member_email_repository.purge_before(db, members_cutoff, dry_run=False),
+        member_requests_rejected=member_request_repository.delete_rejected_before(db, rejected_cutoff),
+        member_requests_pending=member_request_repository.delete_pending_before(db, pending_cutoff),
         accounts_deleted=accounts_deleted,
         accounts_skipped=accounts_skipped,
         dry_run=False,

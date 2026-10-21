@@ -4,6 +4,7 @@ Décision : `docs/superpowers/specs/2026-10-01-base-legale-decision.md` (#332).
 Signalements et journal d'administration : 12 mois. Profils de l'école de
 triathlon : durée de l'adhésion, plus une saison.
 """
+
 from datetime import date, datetime, timedelta
 
 import pytest
@@ -12,6 +13,7 @@ from app.models.admin_action_log import AdminActionLog
 from app.models.athlete import Athlete
 from app.models.club_member import LINK_AUTO, LINK_UNLINKED, SOURCE_FFTRI, ClubMember
 from app.models.member_email import SOURCE_IMPORT, MemberEmail
+from app.models.member_request import STATUS_PENDING, STATUS_REJECTED, MemberRequest
 from app.models.organisation import Organisation
 from app.models.personal_profile import PersonalProfile
 from app.models.profile_log_entry import ProfileLogEntry
@@ -48,7 +50,9 @@ def organisation(db_session):
 
 
 def _feedback(db, created_at):
-    entry = feedback_repository.create(db, type="bug", title="t", body="b", ip_address="203.0.113.7")
+    entry = feedback_repository.create(
+        db, type="bug", title="t", body="b", ip_address="203.0.113.7"
+    )
     entry.created_at = created_at
     db.flush()
     return entry
@@ -95,7 +99,9 @@ def test_admin_log_older_than_twelve_months_is_deleted_the_rest_stays(db_session
     assert db_session.get(AdminActionLog, recent.id) is not None
 
 
-def test_youth_profile_is_kept_through_the_season_after_its_membership_ended(db_session, organisation):
+def test_youth_profile_is_kept_through_the_season_after_its_membership_ended(
+    db_session, organisation
+):
     # Saison 2027 en cours (15 septembre 2027) : une adhésion close pendant la
     # saison 2025 a eu sa saison de grâce (2026), une close en saison 2026 la vit.
     expire = _profile(db_session, organisation, date(2026, 8, 31))
@@ -112,7 +118,9 @@ def test_youth_profile_is_kept_through_the_season_after_its_membership_ended(db_
 
 def test_purging_a_profile_takes_its_log_and_attendance_with_it(db_session, organisation):
     profile = _profile(db_session, organisation, date(2025, 6, 30))
-    entry = profile_repository.add_log_entry(db_session, profile_id=profile.id, text="Nage : progrès")
+    entry = profile_repository.add_log_entry(
+        db_session, profile_id=profile.id, text="Nage : progrès"
+    )
     seance = training_session_repository.create(db_session, date=date(2025, 5, 3))
     inscription, _ = training_session_repository.add_participant(
         db_session, training_session_id=seance.id, profile_id=profile.id, present=True
@@ -127,7 +135,11 @@ def test_purging_a_profile_takes_its_log_and_attendance_with_it(db_session, orga
 def test_purging_a_profile_takes_its_measurements_with_it(db_session, organisation):
     profile = _profile(db_session, organisation, date(2025, 6, 30))
     measurement = profile_repository.add_measurement(
-        db_session, profile_id=profile.id, measured_on=date(2025, 5, 3), event="1000 m", duration_tenths=3000
+        db_session,
+        profile_id=profile.id,
+        measured_on=date(2025, 5, 3),
+        event="1000 m",
+        duration_tenths=3000,
     )
 
     retention_service.purge_expired(db_session, now=NOW)
@@ -137,8 +149,12 @@ def test_purging_a_profile_takes_its_measurements_with_it(db_session, organisati
 
 def test_purging_a_profile_removes_its_group_memberships(db_session, organisation):
     profile = _profile(db_session, organisation, date(2025, 6, 30))
-    group = training_group_repository.create(db_session, organisation_id=organisation.id, name="Benjamins")
-    training_group_repository.add_member(db_session, training_group_id=group.id, profile_id=profile.id)
+    group = training_group_repository.create(
+        db_session, organisation_id=organisation.id, name="Benjamins"
+    )
+    training_group_repository.add_member(
+        db_session, training_group_id=group.id, profile_id=profile.id
+    )
 
     retention_service.purge_expired(db_session, now=NOW)
 
@@ -189,12 +205,29 @@ def test_purge_handles_old_member_seasons(db_session):
     athlete = Athlete(nom="MARTIN", prenom="Anne")
     db_session.add(athlete)
     db_session.flush()
-    club_member_repository.replace_season(db_session, 2023, [
-        ClubMember(season=2023, nom="MARTIN", prenom="Anne", licence_id="C1", athlete_id=athlete.id,
-                   link_status=LINK_AUTO, source=SOURCE_FFTRI),
-        ClubMember(season=2023, nom="X", prenom="Y", licence_id="C2",
-                   link_status=LINK_UNLINKED, source=SOURCE_FFTRI),
-    ])
+    club_member_repository.replace_season(
+        db_session,
+        2023,
+        [
+            ClubMember(
+                season=2023,
+                nom="MARTIN",
+                prenom="Anne",
+                licence_id="C1",
+                athlete_id=athlete.id,
+                link_status=LINK_AUTO,
+                source=SOURCE_FFTRI,
+            ),
+            ClubMember(
+                season=2023,
+                nom="X",
+                prenom="Y",
+                licence_id="C2",
+                link_status=LINK_UNLINKED,
+                source=SOURCE_FFTRI,
+            ),
+        ],
+    )
 
     outcome = retention_service.purge_expired(db_session, now=datetime(2026, 10, 6))
 
@@ -204,11 +237,13 @@ def test_purge_handles_old_member_seasons(db_session):
 
 
 def test_member_emails_older_than_the_previous_season_are_purged(db_session):
-    db_session.add_all([
-        MemberEmail(email="old@exemple.fr", season=2024, source=SOURCE_IMPORT),
-        MemberEmail(email="prev@exemple.fr", season=2025, source=SOURCE_IMPORT),
-        MemberEmail(email="now@exemple.fr", season=2026, source=SOURCE_IMPORT),
-    ])
+    db_session.add_all(
+        [
+            MemberEmail(email="old@exemple.fr", season=2024, source=SOURCE_IMPORT),
+            MemberEmail(email="prev@exemple.fr", season=2025, source=SOURCE_IMPORT),
+            MemberEmail(email="now@exemple.fr", season=2026, source=SOURCE_IMPORT),
+        ]
+    )
     db_session.flush()
 
     dry = retention_service.purge_expired(db_session, now=datetime(2026, 10, 6), dry_run=True)
@@ -218,6 +253,98 @@ def test_member_emails_older_than_the_previous_season_are_purged(db_session):
     outcome = retention_service.purge_expired(db_session, now=datetime(2026, 10, 6))
     assert outcome.member_emails == 1
     assert member_email_repository.seasons(db_session) == [2026, 2025]
+
+
+# --- Join requests (#1785) --------------------------------------------------
+
+REQUEST_NOW = datetime(2026, 10, 21, 12, 0)
+
+
+def _member_request(db, organisation, email, **fields):
+    user = User(email=email)
+    db.add(user)
+    db.flush()
+    row = MemberRequest(
+        user_id=user.id,
+        organisation_id=organisation.id,
+        first_name="Ana",
+        last_name="Lopez",
+        **fields,
+    )
+    db.add(row)
+    db.flush()
+    return row
+
+
+def test_purge_deletes_requests_rejected_more_than_30_days_ago(db_session, organisation):
+    old = _member_request(
+        db_session,
+        organisation,
+        "old@exemple.fr",
+        status=STATUS_REJECTED,
+        created_at=REQUEST_NOW - timedelta(days=90),
+        decided_at=REQUEST_NOW - timedelta(days=31),
+    )
+    recent = _member_request(
+        db_session,
+        organisation,
+        "recent@exemple.fr",
+        status=STATUS_REJECTED,
+        created_at=REQUEST_NOW - timedelta(days=90),
+        decided_at=REQUEST_NOW - timedelta(days=29),
+    )
+
+    outcome = retention_service.purge_expired(db_session, now=REQUEST_NOW)
+
+    assert outcome.member_requests_rejected == 1
+    assert db_session.get(MemberRequest, old.id) is None
+    assert db_session.get(MemberRequest, recent.id) is not None
+
+
+def test_purge_deletes_requests_pending_for_more_than_6_months(db_session, organisation):
+    old = _member_request(
+        db_session,
+        organisation,
+        "old@exemple.fr",
+        status=STATUS_PENDING,
+        created_at=REQUEST_NOW - timedelta(days=184),
+    )
+    recent = _member_request(
+        db_session,
+        organisation,
+        "recent@exemple.fr",
+        status=STATUS_PENDING,
+        created_at=REQUEST_NOW - timedelta(days=182),
+    )
+
+    outcome = retention_service.purge_expired(db_session, now=REQUEST_NOW)
+
+    assert outcome.member_requests_pending == 1
+    assert db_session.get(MemberRequest, old.id) is None
+    assert db_session.get(MemberRequest, recent.id) is not None
+
+
+def test_purge_dry_run_counts_member_requests_without_deleting(db_session, organisation):
+    _member_request(
+        db_session,
+        organisation,
+        "a@exemple.fr",
+        status=STATUS_REJECTED,
+        created_at=REQUEST_NOW - timedelta(days=90),
+        decided_at=REQUEST_NOW - timedelta(days=40),
+    )
+    _member_request(
+        db_session,
+        organisation,
+        "b@exemple.fr",
+        status=STATUS_PENDING,
+        created_at=REQUEST_NOW - timedelta(days=200),
+    )
+
+    outcome = retention_service.purge_expired(db_session, now=REQUEST_NOW, dry_run=True)
+
+    assert (outcome.member_requests_rejected, outcome.member_requests_pending) == (1, 1)
+    assert db_session.query(MemberRequest).count() == 2
 
 
 # --- Accounts inactive for 5 years (#1326) ----------------------------------
@@ -250,7 +377,11 @@ def test_an_account_without_role_inactive_for_five_years_is_deleted(db_session, 
     assert db_session.get(User, stale_id) is None
     assert db_session.get(User, recent.id) is not None
     line = db_session.query(AdminActionLog).filter_by(action="account.delete").one()
-    assert (line.entity_id, line.payload, line.user_id) == (stale_id, {"origin": "inactivity", "entra_oids": []}, system_user.id)
+    assert (line.entity_id, line.payload, line.user_id) == (
+        stale_id,
+        {"origin": "inactivity", "entra_oids": []},
+        system_user.id,
+    )
 
 
 def test_an_account_with_a_role_never_expires(db_session, system_user, organisation):
@@ -258,7 +389,9 @@ def test_an_account_with_a_role_never_expires(db_session, system_user, organisat
     role = Role(slug="lecteur", name="Lecteur")
     db_session.add(role)
     db_session.flush()
-    user_role_repository.grant(db_session, user_id=holder.id, role_id=role.id, organisation_id=organisation.id)
+    user_role_repository.grant(
+        db_session, user_id=holder.id, role_id=role.id, organisation_id=organisation.id
+    )
 
     outcome = retention_service.purge_expired(db_session, now=NOW)
 
@@ -277,7 +410,9 @@ def test_an_eligible_account_cited_by_a_required_reference_is_skipped(db_session
     athlete = Athlete(nom="Martin", prenom="Alix")
     db_session.add(athlete)
     db_session.flush()
-    db_session.add(SeasonValidation(athlete_id=athlete.id, season=2020, validated_by_user_id=cited.id))
+    db_session.add(
+        SeasonValidation(athlete_id=athlete.id, season=2020, validated_by_user_id=cited.id)
+    )
     db_session.flush()
 
     outcome = retention_service.purge_expired(db_session, now=NOW)
