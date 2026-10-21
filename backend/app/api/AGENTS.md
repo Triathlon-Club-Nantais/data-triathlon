@@ -772,6 +772,17 @@ secrets distincts, l'un personnel, l'autre commun à tous les adhérents, et un
 contributeur qui se déconnecte reste un adhérent qui consulte le site.
 
 
+## `public_page` de `GET /athletes/{id}` (#1692)
+
+Champ additif `{hidden, links, goal, pinned_participation_id}`, neutre (`[]`, `[]`,
+`null`, `null`) sans réglage, sans compte rattaché et sur une fiche anonyme
+(`opposition_service.is_anonymous`). `hidden` ⊂ `best_times`, `progression`,
+`comparison` : un bloc est masqué dès qu'**un** compte rattaché le masque. Liens,
+objectif public et résultat épinglé ne sortent que pour **exactement un** compte
+rattaché. L'épingle est revérifiée à la lecture contre les résultats **validés**
+de la réponse (la FK est inerte en SQLite) : réattribué, anonymisé, supprimé ou
+en attente, il disparaît sans trace, même pour un bénévole.
+
 ## Export CSV d'une fiche athlète (#1375)
 
 `GET /athletes/{id}/participations.csv` rend les lignes de `GET /athletes/{id}`

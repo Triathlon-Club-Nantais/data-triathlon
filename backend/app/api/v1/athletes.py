@@ -18,7 +18,8 @@ from app.repositories import (
 from app.schemas.athlete import AthleteBrief, AthleteSearchResult, AthleteSeasonActivity
 from app.schemas.ids import DbId
 from app.schemas.participation import AthleteDetail, AthleteParticipationOut
-from app.services import athlete_csv, challenge_service, not_found
+from app.schemas.public_page import PublicPageRead
+from app.services import athlete_csv, challenge_service, not_found, opposition_service, public_page
 
 router = APIRouter(tags=["athletes"])
 
@@ -166,6 +167,11 @@ def get_athlete(
         "participations": items,
         "challenges": challenge_service.for_athlete(db, athlete_id),
         "claimed": bool(user_repository.ids_linked_to_athlete(db, athlete_id)),
+        "public_page": PublicPageRead()
+        if opposition_service.is_anonymous(athlete.prenom, athlete.nom)
+        else public_page.for_athlete(
+            db, athlete_id, validated_ids={p.id for p in participations if not p.is_pending_validation}
+        ),
     }
 
 
