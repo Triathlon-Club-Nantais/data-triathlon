@@ -749,6 +749,24 @@ def test_natation_seed_downgrade_removes_only_its_row(sqlite_url):
     assert ("natation",) in _lignes(sqlite_url, sql)
 
 
+def test_natation_seed_is_idempotent_when_the_row_already_exists(sqlite_url):
+    cfg = _alembic_config()
+    command.upgrade(cfg, "a1745e7c0b2d")
+    engine = sa.create_engine(sqlite_url)
+    with engine.begin() as connexion:
+        connexion.execute(sa.text(
+            "INSERT INTO counter_scope_entries (kind, value, created_at) "
+            "VALUES ('non_federal_discipline', 'natation', '2026-10-01 00:00:00')"
+        ))
+    engine.dispose()
+
+    command.upgrade(cfg, "b1743c5d9e2f")
+    assert _lignes(
+        sqlite_url,
+        "SELECT COUNT(*) FROM counter_scope_entries WHERE value = 'natation'",
+    ) == [(1,)]
+
+
 def test_upgrade_head_adds_participation_validation_timestamp_columns(base_migree):
     assert {"validated_at", "rejected_at"} <= _columns(base_migree, "participations")
 
