@@ -73,6 +73,7 @@ function CarteObjectifs({ saison, plusieurs }: { saison: number; plusieurs: bool
                   <div style={{ fontSize: 13, color: "var(--tcn-text-muted)" }}>{progression(goal)}</div>
                 </div>
                 {goal.major && <MetaPill accent>Majeur</MetaPill>}
+                {goal.public && <MetaPill>Public</MetaPill>}
                 {goal.reached && <MetaPill accent dot>Atteint</MetaPill>}
                 {goal.outcome === "missed" && <MetaPill>Non atteint</MetaPill>}
                 {modifiable && (
@@ -126,6 +127,7 @@ function GoalForm({ goal, onDone }: { goal: SeasonGoal | null; onDone: () => voi
   const [eventType, setEventType] = useState(goal?.event_type ?? "");
   const [cible, setCible] = useState(goal?.target ? (goal.kind === "time" ? hms(goal.target) : String(goal.target)) : "");
   const [major, setMajor] = useState(goal?.major ?? false);
+  const [publique, setPublique] = useState(goal?.public ?? false);
   const [connue, setConnue] = useState<{ id: number; name: string } | null>(
     goal?.course_id && goal.race_name ? { id: goal.course_id, name: goal.race_name } : null,
   );
@@ -153,7 +155,7 @@ function GoalForm({ goal, onDone }: { goal: SeasonGoal | null; onDone: () => voi
       target = DUREE.test(saisie) ? secondsFromHms(saisie) : null;
       if (!target) return echec(MESSAGE_DUREE, "cible");
     }
-    const body: SeasonGoalWrite = { kind, event_type: eventType || null, target, major };
+    const body: SeasonGoalWrite = { kind, event_type: eventType || null, target, major, public: publique };
     if (kind === "race") {
       if (libre) {
         if (!nom.trim()) return echec("Indiquez le nom de l'épreuve.", "nom");
@@ -227,6 +229,10 @@ function GoalForm({ goal, onDone }: { goal: SeasonGoal | null; onDone: () => voi
       <label {...CIBLE}>
         <input type="checkbox" checked={major} onChange={(e) => setMajor(e.target.checked)} />
         Objectif majeur de la saison
+      </label>
+      <label {...CIBLE}>
+        <input type="checkbox" checked={publique} onChange={(e) => setPublique(e.target.checked)} />
+        Afficher sur ma fiche publique
       </label>
       {message && <p id={idErreur} role="alert" style={{ margin: 0, color: "var(--tcn-danger)", fontSize: 13 }}>{message}</p>}
       <div style={{ display: "flex", gap: 10 }}>

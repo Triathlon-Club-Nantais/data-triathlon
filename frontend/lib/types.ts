@@ -878,6 +878,20 @@ export interface PublicLink {
   label: string;
 }
 
+/** Réglages du compte rattaché, miroir de `PublicPageSettingsWrite` (#1692). */
+export interface PublicPageSettingsWrite {
+  hide_best_times: boolean;
+  hide_progression: boolean;
+  hide_comparison: boolean;
+  links: string[];
+  pinned_participation_id: number | null;
+}
+
+export interface PublicPageSettings extends PublicPageSettingsWrite {
+  /** Plusieurs comptes sont rattachés à la fiche : liens, objectif et épingle n'y sont pas montrés. */
+  shared: boolean;
+}
+
 export interface PublicPage {
   hidden: PublicPageBlock[];
   links: PublicLink[];
@@ -1176,8 +1190,9 @@ export interface SeasonGoal {
   outcome: "upcoming" | "awaiting_results" | "reached" | "missed";
 }
 
-export type SeasonGoalWrite = Pick<SeasonGoal, "kind" | "event_type" | "target" | "major"> &
-  Partial<Pick<SeasonGoal, "course_id" | "race_name" | "race_date" | "public">>;
+// `public` obligatoire : le PUT remplace tout, l'omettre remettrait l'objectif en privé (#1692).
+export type SeasonGoalWrite = Pick<SeasonGoal, "kind" | "event_type" | "target" | "major" | "public"> &
+  Partial<Pick<SeasonGoal, "course_id" | "race_name" | "race_date">>;
 
 /** Ma réclamation d'un résultat rangé sur une autre fiche (#1637). */
 export interface ResultClaim {
