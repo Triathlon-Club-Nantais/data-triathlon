@@ -58,7 +58,9 @@ icône seule y passait pour une action, sans survol au doigt pour la nommer
 (revue UI/UX de #1353). La palette ⌘K garde les écrans de tous les espaces ouverts.
 L'espace Encadrement (Jeunes, Crédits bénévoles) vit sous `/encadrement`, gardé
 par `can_supervise` via `components/layout/space-guard.tsx`, partagé avec
-`/admin` ; `/encadrement` mène au premier écran ouvert.
+`/admin` ; `/encadrement` mène au premier écran ouvert. Les anciennes adresses
+`/admin/jeunes/*` et `/admin/benevolat/*` y renvoient en 308 (`next.config.ts`,
+#1783).
 
 ## Rail replié, cookie de largeur, nav mobile (#482)
 

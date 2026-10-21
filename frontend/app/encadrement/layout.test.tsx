@@ -18,6 +18,7 @@ vi.mock("next/navigation", async (importOriginal) => ({
   redirect,
 }));
 
+import { useDangerConfirm } from "@/components/admin/DangerConfirm";
 import SupervisionLayout from "./layout";
 
 const SESSION = {
@@ -56,6 +57,17 @@ describe("Supervision space guard", () => {
     listAuthMethods.mockResolvedValue(GITHUB);
     render(await SupervisionLayout({ children: <p>secret</p> }));
     expect(screen.getByText("secret")).toBeInTheDocument();
+  });
+
+  it("mounts the DangerConfirm provider the youth and volunteer screens need (#1783)", async () => {
+    getSession.mockResolvedValue(SESSION);
+    listAuthMethods.mockResolvedValue(GITHUB);
+    function GesteDestructif() {
+      useDangerConfirm();
+      return <p>geste</p>;
+    }
+    render(await SupervisionLayout({ children: <GesteDestructif /> }));
+    expect(screen.getByText("geste")).toBeInTheDocument();
   });
 
   it("refuses in place an administrator without supervision power", async () => {

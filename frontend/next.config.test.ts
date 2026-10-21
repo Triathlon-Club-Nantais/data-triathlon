@@ -26,6 +26,15 @@ describe("redirects()", () => {
       permanent: true,
     });
   });
+
+  it.each(["jeunes", "benevolat"])("renvoie /admin/%s vers /encadrement en 308 (#1783)", async (ecran) => {
+    const regles = await nextConfig.redirects!();
+    expect(regles).toContainEqual({
+      source: `/admin/${ecran}/:path*`,
+      destination: `/encadrement/${ecran}/:path*`,
+      permanent: true,
+    });
+  });
 });
 
 describe("headers()", () => {
