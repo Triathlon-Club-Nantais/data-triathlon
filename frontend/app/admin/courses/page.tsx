@@ -40,6 +40,7 @@ export default async function AdminCoursesPage({
             event_type: sp.event_type,
             date_from: sp.date_from,
             date_to: sp.date_to,
+            event_type_to_review: sp.type_a_verifier === "1" ? true : undefined,
           }}
         />
       </div>

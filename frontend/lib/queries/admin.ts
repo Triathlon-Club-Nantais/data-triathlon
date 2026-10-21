@@ -110,6 +110,8 @@ export type FiltresCourses = {
   unreliable?: true;
   /** La même file, réduite à ce que compte sa pastille (#1232). */
   awaiting_review?: true;
+  /** Les épreuves dont le type vient du repli triathlon, à confirmer. */
+  event_type_to_review?: true;
 };
 
 export function useAdminCourses(page = 1, filtres: FiltresCourses = {}, enabled = true) {

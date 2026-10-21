@@ -396,6 +396,7 @@ export const apiClient = {
       unreliable?: true;
       // La file telle que la compte sa pastille : sans avis humain (#1232).
       awaiting_review?: true;
+      event_type_to_review?: true;
       page?: number;
       page_size?: number;
     } = {},
@@ -409,6 +410,7 @@ export const apiClient = {
       date_to?: string;
       unreliable?: true;
       awaiting_review?: true;
+      event_type_to_review?: true;
     } = {},
   ) => request<{ total: number }>(`/courses/count${toQuery(opts)}`),
   getCourseDeletionImpact: (id: number) =>
