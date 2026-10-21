@@ -109,6 +109,51 @@ describe("MemberRequestCard", () => {
     expect(requestMembership).not.toHaveBeenCalled();
   });
 
+  it("signale les champs en erreur, les relie à l'alerte et y place le focus", async () => {
+    afficher();
+
+    await userEvent.type(screen.getByLabelText("Prénom"), "   ");
+    await userEvent.type(screen.getByLabelText("Nom"), "Martin");
+    await userEvent.click(screen.getByRole("button", { name: /Demander à rejoindre/ }));
+
+    const alerte = screen.getByRole("alert");
+    const prenom = screen.getByLabelText("Prénom");
+    expect(prenom).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByLabelText("Nom")).not.toHaveAttribute("aria-invalid");
+    expect(prenom).toHaveAttribute("aria-describedby", alerte.id);
+    expect(prenom).toHaveFocus();
+    expect(screen.getByLabelText("Téléphone")).not.toHaveAttribute("aria-invalid");
+
+    await userEvent.clear(screen.getByLabelText("Prénom"));
+    await userEvent.type(screen.getByLabelText("Prénom"), "Camille");
+    await userEvent.click(screen.getByRole("button", { name: /Demander à rejoindre/ }));
+    expect(screen.getByLabelText("Prénom")).not.toHaveAttribute("aria-invalid");
+  });
+
+  it("signale date de naissance et téléphone quand les deux manquent", async () => {
+    afficher();
+
+    await userEvent.type(screen.getByLabelText("Prénom"), "Camille");
+    await userEvent.type(screen.getByLabelText("Nom"), "Martin");
+    await userEvent.click(screen.getByRole("button", { name: /Demander à rejoindre/ }));
+
+    expect(screen.getByLabelText("Date de naissance")).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByLabelText("Téléphone")).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByLabelText("Date de naissance")).toHaveFocus();
+  });
+
+  it("affiche « Envoi… » pendant l'envoi", async () => {
+    requestMembership.mockReturnValue(new Promise(() => {}));
+    afficher();
+
+    await userEvent.type(screen.getByLabelText("Prénom"), "Camille");
+    await userEvent.type(screen.getByLabelText("Nom"), "Martin");
+    await userEvent.type(screen.getByLabelText("Téléphone"), "0612345678");
+    await userEvent.click(screen.getByRole("button", { name: /Demander à rejoindre/ }));
+
+    expect(await screen.findByRole("button", { name: "Envoi…" })).toBeInTheDocument();
+  });
+
   it("masque le formulaire jusqu'à la fin du délai après un refus", () => {
     vi.useFakeTimers({ toFake: ["Date"], now: new Date("2026-11-20T10:00:00Z") });
     afficher({ ...REQUEST, status: "rejected", decided_at: "2026-10-22T23:30:00Z" });

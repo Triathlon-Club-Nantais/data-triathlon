@@ -70,7 +70,7 @@ describe("MonEspace access", () => {
     getSession.mockResolvedValue(session({ is_member: false, member_request: { status: "pending" } as never }));
     afficher();
 
-    expect(await screen.findByRole("link", { name: "Votre demande d'adhésion est en attente de validation." })).toHaveAttribute(
+    expect(await screen.findByRole("link", { name: "Voir ma demande d'adhésion (en attente)" })).toHaveAttribute(
       "href",
       "/mon-compte#adhesion",
     );

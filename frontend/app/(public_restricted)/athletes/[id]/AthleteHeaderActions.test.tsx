@@ -154,7 +154,7 @@ describe("AthleteHeaderActions, rattachement de la fiche (#1325)", () => {
     getSession.mockResolvedValue(avec({ is_member: false, member_request: { status: "pending" } as never }));
     afficher();
 
-    const lien = await screen.findByRole("link", { name: "Votre demande d'adhésion est en attente de validation." });
+    const lien = await screen.findByRole("link", { name: "Voir ma demande d'adhésion (en attente)" });
     expect(lien).toHaveAttribute("href", "/mon-compte#adhesion");
     expect(screen.queryByRole("link", { name: /Rejoindre le club/ })).toBeNull();
   });

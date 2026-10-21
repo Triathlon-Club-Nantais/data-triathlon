@@ -42,7 +42,7 @@ export function MemberRequestsTable() {
             <TableHead>Téléphone</TableHead>
             <TableHead>Adresse du compte</TableHead>
             <TableHead>Demandée le</TableHead>
-            <TableHead className="sr-only">Actions</TableHead>
+            <TableHead className="sticky right-0 bg-card"><span className="sr-only">Actions</span></TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -55,7 +55,7 @@ export function MemberRequestsTable() {
                 <TableCell>{demande.phone ?? "Non renseigné"}</TableCell>
                 <TableCell>{demande.user.email}</TableCell>
                 <TableCell>{formatDate(demande.created_at)}</TableCell>
-                <TableCell>
+                <TableCell className="sticky right-0 bg-card">
                   <div className="flex gap-2">
                     <Button
                       size="sm"

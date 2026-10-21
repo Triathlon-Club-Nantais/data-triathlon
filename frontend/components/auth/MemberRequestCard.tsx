@@ -19,6 +19,7 @@ function Champ({ id, label, ...rest }: { id: string; label: string } & React.Com
   );
 }
 
+const ID_ERREUR = "adhesion-erreur";
 const DELAI_NOUVELLE_DEMANDE_JOURS = 30;
 
 /** Date (JJ/MM/AAAA) à partir de laquelle une nouvelle demande est permise, ou `null` si le délai est écoulé. */
@@ -34,7 +35,7 @@ export function MemberRequestCard({ session }: { session: SessionUser }) {
   const demander = useRequestMembership();
   const annuler = useCancelMembershipRequest();
   const demande = session.member_request;
-  const [erreurLocale, setErreurLocale] = useState<string | null>(null);
+  const [erreurLocale, setErreurLocale] = useState<{ texte: string; champs: string[] } | null>(null);
   const titre = useRef<HTMLHeadingElement>(null);
   const statut = demande?.status;
   const precedent = useRef(statut);
@@ -71,6 +72,11 @@ export function MemberRequestCard({ session }: { session: SessionUser }) {
     );
   }
 
+  function echec(texte: string, champs: string[]) {
+    setErreurLocale({ texte, champs });
+    document.getElementById(champs[0])?.focus();
+  }
+
   function soumettre(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (demander.isPending) return;
@@ -79,20 +85,23 @@ export function MemberRequestCard({ session }: { session: SessionUser }) {
     const first_name = lire("first_name");
     const last_name = lire("last_name");
     if (!first_name || !last_name) {
-      setErreurLocale("Indiquez votre prénom et votre nom.");
-      return;
+      return echec("Indiquez votre prénom et votre nom.", [
+        ...(first_name ? [] : ["adhesion-prenom"]),
+        ...(last_name ? [] : ["adhesion-nom"]),
+      ]);
     }
     const birth_date = lire("birth_date") || null;
     const phone = lire("phone") || null;
     if (!birth_date && !phone) {
-      setErreurLocale("Indiquez votre date de naissance ou votre téléphone.");
-      return;
+      return echec("Indiquez votre date de naissance ou votre téléphone.", ["adhesion-naissance", "adhesion-telephone"]);
     }
     setErreurLocale(null);
     demander.mutate({ first_name, last_name, birth_date, phone });
   }
 
-  const erreur = erreurLocale ?? demander.error?.message;
+  const erreur = erreurLocale?.texte ?? demander.error?.message;
+  const invalide = (id: string) =>
+    erreurLocale?.champs.includes(id) ? { "aria-invalid": true as const, "aria-describedby": ID_ERREUR } : {};
   return (
     <Card id="adhesion">
       <h2 ref={titre} tabIndex={-1} style={TITRE}>Adhésion au club</h2>
@@ -102,25 +111,25 @@ export function MemberRequestCard({ session }: { session: SessionUser }) {
         </p>
       ) : (
         <>
-      {demande?.status === "rejected" && <p style={{ ...DISCRET, marginBottom: 8 }}>Votre précédente demande a été refusée.</p>}
-      <p style={{ ...DISCRET, marginBottom: 16 }}>
-        Ces informations permettent au club de vérifier votre demande ou de vous recontacter. Indiquez votre date de
-        naissance ou votre téléphone.
-      </p>
-      <form onSubmit={soumettre} className="space-y-4" style={{ maxWidth: 380 }}>
-        <Champ id="adhesion-prenom" label="Prénom" name="first_name" required autoComplete="given-name" />
-        <Champ id="adhesion-nom" label="Nom" name="last_name" required autoComplete="family-name" />
-        <Champ id="adhesion-naissance" label="Date de naissance" name="birth_date" type="date" autoComplete="bday" />
-        <Champ id="adhesion-telephone" label="Téléphone" name="phone" type="tel" autoComplete="tel" />
-        <Button type="submit" aria-disabled={demander.isPending || undefined}>
-          Demander à rejoindre le {CLUB_NAME_SHORT}
-        </Button>
-        {erreur && (
-          <div role="alert">
-            <Alert status="error" title="Demande non envoyée">{erreur}</Alert>
-          </div>
-        )}
-      </form>
+        {demande?.status === "rejected" && <p style={{ ...DISCRET, marginBottom: 8 }}>Votre précédente demande a été refusée.</p>}
+        <p style={{ ...DISCRET, marginBottom: 16 }}>
+          Ces informations permettent au club de vérifier votre demande ou de vous recontacter. Indiquez votre date de
+          naissance ou votre téléphone.
+        </p>
+        <form onSubmit={soumettre} className="space-y-4" style={{ maxWidth: 380 }}>
+          <Champ id="adhesion-prenom" label="Prénom" name="first_name" required autoComplete="given-name" {...invalide("adhesion-prenom")} />
+          <Champ id="adhesion-nom" label="Nom" name="last_name" required autoComplete="family-name" {...invalide("adhesion-nom")} />
+          <Champ id="adhesion-naissance" label="Date de naissance" name="birth_date" type="date" autoComplete="bday" {...invalide("adhesion-naissance")} />
+          <Champ id="adhesion-telephone" label="Téléphone" name="phone" type="tel" autoComplete="tel" {...invalide("adhesion-telephone")} />
+          <Button type="submit" aria-disabled={demander.isPending || undefined}>
+            {demander.isPending ? "Envoi…" : `Demander à rejoindre le ${CLUB_NAME_SHORT}`}
+          </Button>
+          {erreur && (
+            <div role="alert" id={ID_ERREUR}>
+              <Alert status="error" title="Demande non envoyée">{erreur}</Alert>
+            </div>
+          )}
+        </form>
         </>
       )}
     </Card>
