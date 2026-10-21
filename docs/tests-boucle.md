@@ -44,7 +44,7 @@ désélectionnés par défaut, quel que soit `-m`. Seul le test fumée
 boucle. `--migrations` les réintègre :
 
 ```bash
-uv run pytest -m "not integration" --migrations
+FULL_SUITE=1 uv run pytest -m "not integration" --migrations
 uv run pytest tests/test_migrations.py --migrations -n 0
 ```
 
