@@ -62,7 +62,7 @@ describe("MonEspace access", () => {
     afficher();
 
     expect(await screen.findByText("Mon espace est réservé aux adhérents du club.")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Demander à rejoindre le club" })).toHaveAttribute("href", "/mon-compte#adhesion");
+    expect(screen.getByRole("link", { name: "Demander à rejoindre le club" })).toHaveAttribute("href", "/mon-compte#demande-adhesion");
     expect(screen.queryByRole("button", { name: /Trouvez votre fiche/ })).toBeNull();
   });
 
@@ -72,7 +72,7 @@ describe("MonEspace access", () => {
 
     expect(await screen.findByRole("link", { name: "Voir ma demande d'adhésion (en attente)" })).toHaveAttribute(
       "href",
-      "/mon-compte#adhesion",
+      "/mon-compte#demande-adhesion",
     );
     expect(screen.queryByRole("link", { name: "Demander à rejoindre le club" })).toBeNull();
   });

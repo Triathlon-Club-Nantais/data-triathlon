@@ -95,7 +95,7 @@ export function SiteAccessGate({
         {connexion === "non-adherent" && (
           <p style={{ fontSize: 14, color: "var(--tcn-text-body)", margin: 0, marginBottom: 20 }}>
             Votre compte n&apos;est pas reconnu comme adhérent : saisissez le code d&apos;accès ou{" "}
-            <Link href="/mon-compte#adhesion" className="underline underline-offset-2">
+            <Link href="/mon-compte#demande-adhesion" className="underline underline-offset-2">
               demandez à rejoindre le club
             </Link>
             .
