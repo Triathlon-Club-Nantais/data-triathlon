@@ -33,6 +33,7 @@ _NO_SOURCE = ""
 #: ni rescrape ne le réécrit. Une troisième valeur, `fallback`, viendra de #1744.
 EVENT_TYPE_ORIGIN_CLASSIFIED = "classified"
 EVENT_TYPE_ORIGIN_MANUAL = "manual"
+EVENT_TYPE_ORIGIN_FALLBACK = "fallback"
 
 
 def _from_active_source(course: "Course", field: str) -> str:
