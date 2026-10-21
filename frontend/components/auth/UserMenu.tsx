@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type Ref } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { usePathname, useRouter } from "next/navigation";
@@ -37,9 +37,12 @@ const UserMenuDropdown = dynamic(
 export function UserMenu({
   pleineLargeur = false,
   onNavigate,
+  triggerRef,
 }: {
   pleineLargeur?: boolean;
   onNavigate?: () => void;
+  /** Déclencheur du menu sur le rail, posé seulement une fois monté (#1772). */
+  triggerRef?: Ref<HTMLButtonElement>;
 }) {
   const { data: session, isPending, errorUpdateCount, refetch, isFetching } = useSession();
   const logout = useLogout();
@@ -157,6 +160,7 @@ export function UserMenu({
         nom={nom}
         deconnexionEnCours={logout.isPending}
         onDeconnexion={seDeconnecter}
+        triggerRef={triggerRef}
       >
         <Identite session={session} />
       </UserMenuDropdown>

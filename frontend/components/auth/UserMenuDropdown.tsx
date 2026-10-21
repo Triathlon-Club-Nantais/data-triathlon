@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import type { ReactNode } from "react";
+import type { ReactNode, Ref } from "react";
 import { Avatar } from "@/components/tcn";
 import {
   DropdownMenu,
@@ -16,17 +16,20 @@ export function UserMenuDropdown({
   nom,
   deconnexionEnCours,
   onDeconnexion,
+  triggerRef,
   children,
 }: {
   email: string;
   nom: string;
   deconnexionEnCours: boolean;
   onDeconnexion: () => void;
+  triggerRef?: Ref<HTMLButtonElement>;
   children: ReactNode;
 }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
+        ref={triggerRef}
         aria-label={`Compte — ${email}`}
         style={{
           display: "inline-flex",

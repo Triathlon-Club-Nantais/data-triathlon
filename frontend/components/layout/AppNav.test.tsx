@@ -643,8 +643,8 @@ describe("AppNav: unreadable session (#954)", () => {
     expect(region).toHaveTextContent("Réessayer");
   });
 
-  // Gardé à part, après le test du 503 : lancé seul, il échoue sur le code
-  // intact (il ne passe qu'après une relance antérieure dans le même fichier).
+  // Lancé seul, le menu du compte n'est pas encore chargé (#1603) : c'est le
+  // premier chargement d'un visiteur dont la session a échoué (#1772).
   it("moves focus to the account trigger once the rail retry succeeds", async () => {
     afficherEnPanne();
     const reessayer = await screen.findByRole("button", { name: "Session indisponible, réessayer" });
