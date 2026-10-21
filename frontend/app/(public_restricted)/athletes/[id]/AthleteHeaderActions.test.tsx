@@ -150,6 +150,15 @@ describe("AthleteHeaderActions, rattachement de la fiche (#1325)", () => {
     expect(screen.queryByRole("button", { name: /c'est moi/i })).not.toBeInTheDocument();
   });
 
+  it("dit que la demande d'adhésion est en attente plutôt que de la reproposer", async () => {
+    getSession.mockResolvedValue(avec({ is_member: false, member_request: { status: "pending" } as never }));
+    afficher();
+
+    const lien = await screen.findByRole("link", { name: "Votre demande d'adhésion est en attente de validation." });
+    expect(lien).toHaveAttribute("href", "/mon-compte#adhesion");
+    expect(screen.queryByRole("link", { name: /Rejoindre le club/ })).toBeNull();
+  });
+
   it("dit qu'une demande sur cette fiche est en attente, sans la reproposer", async () => {
     getSession.mockResolvedValue(
       avec({ athlete_claim: { id: 1, athlete: JEAN, status: "pending", created_at: "2026-10-17T10:00:00Z" } }),

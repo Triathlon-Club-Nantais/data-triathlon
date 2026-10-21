@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ApiError, apiClient } from "./client";
+import { ApiError, apiClient, messageDErreur } from "./client";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -105,5 +105,9 @@ describe("request() error messages (#1045)", () => {
     expect((erreur as ApiError).message).toBe(
       "Erreur réseau : vérifiez votre connexion puis réessayez.",
     );
+  });
+
+  it("strips Pydantic's « Value error, » prefix from a displayed message", () => {
+    expect(messageDErreur([{ msg: "Value error, Indiquez un nom." }], "")).toBe("Indiquez un nom.");
   });
 });

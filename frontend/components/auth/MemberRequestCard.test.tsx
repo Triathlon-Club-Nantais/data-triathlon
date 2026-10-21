@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/lib/api/client";
 import type { MemberRequest, SessionUser } from "@/lib/types";
 
@@ -40,6 +40,7 @@ function afficher(memberRequest: MemberRequest | null = null) {
 }
 
 beforeEach(() => vi.clearAllMocks());
+afterEach(() => vi.useRealTimers());
 
 describe("MemberRequestCard", () => {
   it("envoie prénom, nom et téléphone", async () => {
@@ -85,7 +86,7 @@ describe("MemberRequestCard", () => {
     requestMembership.mockRejectedValue(
       new ApiError(409, "Votre demande a été refusée. Vous pourrez en envoyer une nouvelle à partir du 01/12/2026."),
     );
-    afficher({ ...REQUEST, status: "rejected", decided_at: "2026-10-22T10:00:00Z" });
+    afficher({ ...REQUEST, status: "rejected", decided_at: "2026-01-02T10:00:00Z" });
 
     expect(screen.getByText("Votre précédente demande a été refusée.")).toBeInTheDocument();
     await userEvent.type(screen.getByLabelText("Prénom"), "Camille");
@@ -94,5 +95,51 @@ describe("MemberRequestCard", () => {
     await userEvent.click(screen.getByRole("button", { name: /Demander à rejoindre/ }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("à partir du 01/12/2026");
+  });
+
+  it("refuse un prénom ou un nom vide", async () => {
+    afficher();
+
+    await userEvent.type(screen.getByLabelText("Prénom"), "   ");
+    await userEvent.type(screen.getByLabelText("Nom"), "Martin");
+    await userEvent.type(screen.getByLabelText("Téléphone"), "0612345678");
+    await userEvent.click(screen.getByRole("button", { name: /Demander à rejoindre/ }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Indiquez votre prénom et votre nom.");
+    expect(requestMembership).not.toHaveBeenCalled();
+  });
+
+  it("masque le formulaire jusqu'à la fin du délai après un refus", () => {
+    vi.useFakeTimers({ toFake: ["Date"], now: new Date("2026-11-20T10:00:00Z") });
+    afficher({ ...REQUEST, status: "rejected", decided_at: "2026-10-22T23:30:00Z" });
+
+    expect(
+      screen.getByText("Votre précédente demande a été refusée. Vous pourrez en envoyer une nouvelle à partir du 21/11/2026."),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText("Prénom")).toBeNull();
+  });
+
+  it("rouvre le formulaire le jour de la date annoncée", () => {
+    vi.useFakeTimers({ toFake: ["Date"], now: new Date("2026-11-21T00:30:00Z") });
+    afficher({ ...REQUEST, status: "rejected", decided_at: "2026-10-22T23:30:00Z" });
+
+    expect(screen.getByLabelText("Prénom")).toBeInTheDocument();
+  });
+
+  it("déplace le focus sur le titre quand la carte change d'état", () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    const avec = (memberRequest: MemberRequest | null) => (
+      <QueryClientProvider client={client}>
+        <MemberRequestCard session={{ id: 1, member_request: memberRequest } as unknown as SessionUser} />
+      </QueryClientProvider>
+    );
+    const { rerender } = render(avec(null));
+    expect(screen.getByRole("heading", { name: "Adhésion au club" })).not.toHaveFocus();
+
+    rerender(avec(REQUEST));
+    expect(screen.getByRole("heading", { name: "Adhésion au club" })).toHaveFocus();
+
+    rerender(avec(null));
+    expect(screen.getByRole("heading", { name: "Adhésion au club" })).toHaveFocus();
   });
 });
