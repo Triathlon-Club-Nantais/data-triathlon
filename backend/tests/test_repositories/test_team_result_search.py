@@ -8,6 +8,7 @@ from app.models.athlete import Athlete
 from app.models.course import Course
 from app.models.participation import Participation, ParticipationTeammate
 from app.repositories import participation_repository
+from app.scrapers.utils import MAX_RELAY_TEAMMATES
 
 _NUMBER = count(1)
 
@@ -131,6 +132,14 @@ def test_anonymised_carrier_of_a_composed_relay_is_not_returned(db_session, memb
     _relay(db_session, carrier, team_name="Tri Again", teammates=(carrier, paul))
 
     assert _search(db_session, member, "tri again") == []
+
+
+def test_full_relays_are_not_offered(db_session, member):
+    athletes = [_athlete(db_session, f"EQUIPIER{n}", "Jo") for n in range(MAX_RELAY_TEAMMATES)]
+    _relay(db_session, athletes[0], team_name="Tri Again", teammates=athletes)
+    kept = _relay(db_session, athletes[0], team_name="Tri Again", teammates=athletes[:-1])
+
+    assert _search(db_session, member, "tri again") == [kept.id]
 
 
 def test_like_wildcards_match_literally(db_session, member):
