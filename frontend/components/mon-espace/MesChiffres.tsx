@@ -51,7 +51,7 @@ export function MesChiffres({ courant, precedent }: { courant: ChiffresSaison; p
           Récap de la saison passée
         </Link>
       </div>
-      <dl className="grid grid-cols-[repeat(auto-fill,minmax(8rem,1fr))] gap-4" style={{ margin: "14px 0 0" }}>
+      <dl className="grid grid-cols-[repeat(auto-fit,minmax(8rem,1fr))] gap-4" style={{ margin: "14px 0 0" }}>
         {chiffres.map((chiffre) => (
           <div key={chiffre.libelle} style={{ minWidth: 0 }}>
             <dt style={{ fontSize: 12, color: "var(--tcn-text-muted)" }}>{chiffre.libelle}</dt>

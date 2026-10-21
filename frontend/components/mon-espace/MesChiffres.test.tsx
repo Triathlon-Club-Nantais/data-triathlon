@@ -11,7 +11,7 @@ describe("MesChiffres", () => {
     render(<MesChiffres courant={COURANT} precedent={null} />);
 
     const grille = screen.getByText("Épreuves").closest("dl");
-    expect(grille?.className).toContain("grid-cols-[repeat(auto-fill,minmax(8rem,1fr))]");
+    expect(grille?.className).toContain("grid-cols-[repeat(auto-fit,minmax(8rem,1fr))]");
     expect(grille?.className).not.toContain("sm:");
   });
 
