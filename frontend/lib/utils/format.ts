@@ -20,6 +20,7 @@ export function formatToken(
   if (t.startsWith("trail")) return "TR";
   if (t.startsWith("course-a-pied")) return "CAP";
   if (t.startsWith("cyclisme")) return "CYC";
+  if (t.startsWith("natation")) return "NAT";
   return "—";
 }
 
@@ -41,6 +42,7 @@ const DISCIPLINES = [
   "course-a-pied",
   "trail",
   "cyclisme",
+  "natation",
 ];
 
 /**

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { disciplineOf, disciplineBreakdownBySeason, formatCount, motCompte, ordinalFr, tauxAssiduite, pctFr, plural } from "./format";
+import { disciplineOf, disciplineBreakdownBySeason, formatCount, formatToken, motCompte, ordinalFr, tauxAssiduite, pctFr, plural } from "./format";
+import { eventTypeLabel } from "@/lib/constants";
 import type { Participation } from "@/lib/types";
 
 let nextId = 1;
@@ -65,14 +66,30 @@ describe("disciplineOf", () => {
     expect(disciplineOf("raid-multisport")).toBe("raid-multisport");
   });
 
+  it("reconnaît la natation, sans taille", () => {
+    expect(disciplineOf("natation")).toBe("natation");
+  });
+
   it("ne confond pas le cross triathlon avec le triathlon", () => {
     expect(disciplineOf("cross-triathlon")).toBe("cross-triathlon");
   });
 
   it("rend tel quel un type inconnu, et la chaîne vide pour une absence", () => {
-    expect(disciplineOf("natation-eau-libre")).toBe("natation-eau-libre");
+    expect(disciplineOf("biathlon-sprint")).toBe("biathlon-sprint");
     expect(disciplineOf(null)).toBe("");
     expect(disciplineOf(undefined)).toBe("");
+  });
+});
+
+describe("formatToken (natation)", () => {
+  it("abrège la natation en NAT", () => {
+    expect(formatToken("natation")).toBe("NAT");
+  });
+});
+
+describe("eventTypeLabel (natation)", () => {
+  it("nomme la natation", () => {
+    expect(eventTypeLabel("natation")).toBe("Natation");
   });
 });
 
