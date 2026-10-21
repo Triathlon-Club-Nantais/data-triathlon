@@ -617,6 +617,21 @@ def test_update_course_ecrit_les_champs_fournis(db_session, auteur):
     assert course_repository.get(db_session, course.id).name == "Triathlon de Nantes"
 
 
+def test_update_course_marks_a_changed_event_type_as_manual(db_session, auteur):
+    course = _epreuve(db_session)
+    assert course.event_type_origin == "classified"
+
+    admin_actions.update_course(
+        db_session, course_id=course.id, fields={"name": "Autre nom"}, user_id=auteur.id
+    )
+    assert course.event_type_origin == "classified"
+
+    admin_actions.update_course(
+        db_session, course_id=course.id, fields={"event_type": "duathlon-s"}, user_id=auteur.id
+    )
+    assert course.event_type_origin == "manual"
+
+
 def test_update_course_redating_clears_the_weather(db_session, auteur):
     """#1468 : corriger la date redemande la météo du vrai jour."""
     course = _epreuve(db_session, event_date=date(2025, 6, 1))
@@ -840,6 +855,28 @@ def test_rescrape_refuse_une_epreuve_divergente_et_ne_modifie_rien(db_session, a
     assert "Une tout autre épreuve" in events[-1]["message"]
     assert participation_repository.count_for_course(db_session, course.id) == 1
     assert _rescrapes(db_session, course.id) == []
+
+
+def test_rescrape_accepts_a_manually_corrected_event_type(db_session, auteur, scrape):
+    """#1745 : le scrape classe autrement l'épreuve corrigée, le rescrape l'accepte."""
+    course = _epreuve(db_session)
+    coureur = _coureur(db_session, "RESTE")
+    _inscrit(db_session, coureur, course, "1")
+    db_session.commit()
+    scraped = _resultat(course, "1", "RESTE", prenom="Coureur")
+    admin_actions.update_course(
+        db_session, course_id=course.id, fields={"event_type": "duathlon-s"}, user_id=auteur.id
+    )
+    db_session.commit()
+    scrape([scraped])
+
+    events = list(course_rescrape_service.iter_rescrape_course(
+        db_session, course_id=course.id, user_id=auteur.id, settings=_settings()
+    ))
+
+    assert events[-1]["phase"] == "done", events[-1]
+    assert course.event_type == "duathlon-s"
+    assert participation_repository.count_for_course(db_session, course.id) == 1
 
 
 def test_rescrape_emet_un_battement_pendant_une_phase_de_scraping_lente(

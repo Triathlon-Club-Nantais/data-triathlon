@@ -29,7 +29,7 @@ from app.core.exceptions import DomainError, DuplicateError, NotFoundError
 from app.core.season import SEASON_QUOTA_EVENTS, season_quota_met
 from app.core.time import utcnow
 from app.models.athlete import Athlete
-from app.models.course import Course
+from app.models.course import EVENT_TYPE_ORIGIN_MANUAL, Course
 from app.models.participation import Participation
 from app.repositories import (
     admin_action_log_repository,
@@ -776,6 +776,8 @@ def update_course(db: Session, *, course_id: int, fields: dict, user_id: int) ->
             f"Une épreuve porte déjà ce nom à cette date (fiche #{conflict.id})."
         )
 
+    if requested.get("event_type", course.event_type) != course.event_type:
+        requested["event_type_origin"] = EVENT_TYPE_ORIGIN_MANUAL
     course_repository.update_identity(db, course, **requested)
     after = snapshot(course, COURSE_FIELDS)
     if after == before:

@@ -29,6 +29,11 @@ from app.models.course_source import CourseSource
 #: source_url = ''` ne ramènerait plus ces épreuves.
 _NO_SOURCE = ""
 
+#: D'où vient `event_type` (#1745). `manual` : un admin l'a corrigé, aucun import
+#: ni rescrape ne le réécrit. Une troisième valeur, `fallback`, viendra de #1744.
+EVENT_TYPE_ORIGIN_CLASSIFIED = "classified"
+EVENT_TYPE_ORIGIN_MANUAL = "manual"
+
 
 def _from_active_source(course: "Course", field: str) -> str:
     """Lit un champ de la source active **dans la collection déjà en mémoire**.
@@ -64,6 +69,10 @@ class Course(Base):
     name: Mapped[str] = mapped_column(String, index=True)
     event_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     event_type: Mapped[str] = mapped_column(String, index=True, default="")
+    event_type_origin: Mapped[str] = mapped_column(
+        String, nullable=False, default=EVENT_TYPE_ORIGIN_CLASSIFIED,
+        server_default=EVENT_TYPE_ORIGIN_CLASSIFIED,
+    )
     # Précision libre du format quand il n'entre dans aucune taille normalisée
     # (« Autre » du formulaire de saisie manuelle, #270). Le format normalisé,
     # lui, reste encodé dans `event_type` (`triathlon-m`) — la taxonomie y est
