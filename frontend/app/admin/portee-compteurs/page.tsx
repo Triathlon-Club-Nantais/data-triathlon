@@ -74,7 +74,7 @@ export default function AdminPorteeCompteursPage() {
               entrees={data?.disciplines}
               isLoading={isLoading}
               libelleChamp="Discipline à exclure"
-              descriptionListeVide="Aucune discipline exclue : toutes les disciplines comptent, trail, cyclisme et course à pied comprises, et le bouton « Inclure les autres disciplines » ne retire plus rien."
+              descriptionListeVide="Aucune discipline exclue : toutes les disciplines comptent, trail, cyclisme, course à pied et natation comprises, et le bouton « Inclure les autres disciplines » ne retire plus rien."
             />
           </>
         )}

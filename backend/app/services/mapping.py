@@ -55,6 +55,7 @@ SPLIT_KEYS_BY_SPORT: dict[str, dict[str, str]] = {
     "course-a-pied": {"run_time": "run"},
     "trail": {"run_time": "run"},
     "cyclisme": {"bike_time": "bike"},
+    "natation": {"swim_time": "swim"},
     # Swim Bike (#270) : pas de course à pied à l'endroit où le slot positionnel
     # l'attend — l'omettre du gabarit jetterait silencieusement un temps saisi
     # par erreur, mais le champ n'est simplement pas proposé côté saisie manuelle.
