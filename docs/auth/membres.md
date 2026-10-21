@@ -114,9 +114,12 @@ depuis `/mon-compte#adhesion` : prénom, nom, et date de naissance ou téléphon
 Une demande en attente est remplacée par la suivante ; `DELETE` ne supprime que
 l'attente.
 
-La file `/admin/member-requests` (pouvoir `member_requests:review`, pastille
-`member_requests` de `GET /admin/badge-counts`) ne liste que les demandes en
-attente.
+La file vit sur la page du back-office `/admin/adresses-adherents`, à côté des
+adresses d'adhérents (API `/admin/member-requests`, pouvoir `member_requests:review`,
+pastille `member_requests` de `GET /admin/badge-counts`) ; elle ne liste que les
+demandes en attente. Aucun e-mail n'est envoyé, ni à la validation ni au refus.
+Depuis cette demande, créer une réclamation de fiche d'athlète est réservé aux
+adhérents.
 
 - **Valider** ajoute l'adresse du compte à la liste de la saison en cours (comme
   `POST /admin/member-emails`) puis supprime la demande ; si l'adresse est déjà
@@ -125,5 +128,6 @@ attente.
   en envoyer une nouvelle avant 30 jours (`REQUEST_AGAIN_AFTER`).
 - Chaque geste va au journal d'administration (`member_request.approve`,
   `member_request.reject`).
-- Rétention : la demande est purgée avec le reste (`purge-retention`) et part avec
-  la suppression du compte.
+- Rétention (`purge-retention`) : une demande refusée est purgée 30 jours après
+  la décision, une demande en attente après 6 mois ; elle part aussi avec la
+  suppression du compte.

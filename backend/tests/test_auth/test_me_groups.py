@@ -9,7 +9,6 @@ n'a pas `groups:read`.
 ce bouton » ; les confondre ferait entrer les groupes dans la décision d'accès
 côté interface, ce que l'AC6 refuse côté serveur.
 """
-
 from app.repositories import group_repository
 
 ME = "/api/v1/auth/me"
@@ -36,7 +35,9 @@ def _join(db_session, organisation, member, slug: str):
     return group
 
 
-def test_the_session_returns_its_bearer_groups(client, db_session, ouvrir_session, organisation):
+def test_the_session_returns_its_bearer_groups(
+    client, db_session, ouvrir_session, organisation
+):
     member = ouvrir_session()
     _join(db_session, organisation, member, "codir")
     _join(db_session, organisation, member, "arbitres")
@@ -55,7 +56,9 @@ def test_without_membership_the_field_is_empty(client, ouvrir_session):
     assert client.get(ME).json()["groups"] == []
 
 
-def test_reading_oneself_requires_no_privilege(client, db_session, ouvrir_session, organisation):
+def test_reading_oneself_requires_no_privilege(
+    client, db_session, ouvrir_session, organisation
+):
     """Contrepartie de `GET /admin/groups`, qui exige `groups:read` : celle-ci ne
     porte que sur soi."""
     member = ouvrir_session()
@@ -75,15 +78,7 @@ def test_the_new_field_is_strictly_additive(client, ouvrir_session):
     keys = set(client.get(ME).json())
 
     assert KEYS_BEFORE_197 < keys
-    assert keys - KEYS_BEFORE_197 == {
-        "groups",
-        "can_administer",
-        "can_supervise",
-        "is_member",
-        "athlete",
-        "athlete_claim",
-        "member_request",
-    }  # #1109, #1297, #1322, #1325, #1785
+    assert keys - KEYS_BEFORE_197 == {"groups", "can_administer", "can_supervise", "is_member", "athlete", "athlete_claim", "member_request"}  # #1109, #1297, #1322, #1325, #1785
 
 
 def test_a_removal_shows_on_the_next_request_without_reconnecting(

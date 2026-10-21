@@ -1702,7 +1702,7 @@ def test_downgrade_puis_upgrade_des_roles_du_club(sqlite_url):
 def test_member_requests_table_up_and_down(sqlite_url):
     """#1785: join requests, and the review power for roles that manage member emails."""
     cfg = _alembic_config()
-    command.upgrade(cfg, "c38bc1342485")
+    command.upgrade(cfg, "a1745e7c0b2d")
     engine = sa.create_engine(sqlite_url)
     try:
         with engine.begin() as connection:
@@ -1743,7 +1743,7 @@ def test_member_requests_table_up_and_down(sqlite_url):
     )
     assert held == [("member_emails:manage",), ("member_requests:review",)]
 
-    command.downgrade(cfg, "c38bc1342485")
+    command.downgrade(cfg, "a1745e7c0b2d")
     assert "member_requests" not in _tables(sqlite_url)
     assert (
         _lignes(

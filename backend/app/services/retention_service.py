@@ -22,12 +22,11 @@ from app.repositories import (
     training_group_repository,
     training_session_repository,
 )
+from app.services import member_requests
 from app.services.auth import accounts
 
 FEEDBACK_RETENTION = timedelta(days=365)
 ADMIN_LOG_RETENTION = timedelta(days=365)
-# Doit valoir le délai de nouvelle demande de services/member_requests.py.
-MEMBER_REQUEST_REJECTED_RETENTION = timedelta(days=30)
 PENDING_MEMBER_REQUEST_RETENTION = timedelta(days=183)
 
 
@@ -62,7 +61,7 @@ def purge_expired(db: Session, *, now: datetime, dry_run: bool = False) -> Reten
     """Supprime et commite, ou compte seulement avec `dry_run`, ce qui a dépassé sa durée."""
     feedback_cutoff = now - FEEDBACK_RETENTION
     admin_log_cutoff = now - ADMIN_LOG_RETENTION
-    rejected_cutoff = now - MEMBER_REQUEST_REJECTED_RETENTION
+    rejected_cutoff = now - member_requests.REQUEST_AGAIN_AFTER
     pending_cutoff = now - PENDING_MEMBER_REQUEST_RETENTION
     members_cutoff = club_members_cutoff(now.date())
     profiles = profile_repository.list_membership_ended_before(db, youth_profile_cutoff(now.date()))

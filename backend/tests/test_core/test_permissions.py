@@ -6,7 +6,6 @@ distinctes, et les confondre a coûté une clarification (2026-08-05).
 
 Aucun accès base, aucun réseau : c'est ce qui autorise `core/` (Principe II).
 """
-
 import dataclasses
 
 import pytest

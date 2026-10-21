@@ -3,7 +3,6 @@
 Jamais un secret (`subject`, `secret_hash`, jeton) ni la donnée d'une autre personne :
 ni l'auteur ou l'athlète d'une déclaration de bénévolat, ni les équipiers d'un relais.
 """
-
 from datetime import date
 
 from pydantic import BaseModel, ConfigDict

@@ -2,7 +2,6 @@
 
 Monté sous `/api/v1` par `app.main`. Une future v2 vivra dans `app/api/v2/`.
 """
-
 from fastapi import APIRouter, Depends
 
 from app.api.deps import require_site_access

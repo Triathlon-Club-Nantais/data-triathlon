@@ -1,5 +1,4 @@
 """Modèle User — l'identité applicative d'un contributeur (#114)."""
-
 from datetime import datetime
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, String
