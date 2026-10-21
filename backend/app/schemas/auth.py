@@ -5,6 +5,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict
 
 from app.schemas.athlete_claim import AthleteClaimRead, ClaimedAthleteRead
+from app.schemas.member_request import MemberRequestRead
 from app.schemas.utc_datetime import UtcDatetime
 
 
@@ -87,3 +88,5 @@ class SessionUserRead(BaseModel):
     #: #1325 : la fiche rattachée (validée par le club) et la demande en cours.
     athlete: ClaimedAthleteRead | None = None
     athlete_claim: AthleteClaimRead | None = None
+    #: #1785 : la demande d'adhésion du compte non adhérent.
+    member_request: MemberRequestRead | None = None
