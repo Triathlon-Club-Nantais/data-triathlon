@@ -162,15 +162,16 @@ def get_athlete(
         item = AthleteParticipationOut.model_validate(p)
         item.course_finishers = counts.get((p.course_id, bool(p.is_relay)))
         items.append(item)
+    linked_user_ids = user_repository.ids_linked_to_athlete(db, athlete_id)
     return {
         "athlete": AthleteBrief.model_validate(athlete),
         "participations": items,
         "challenges": challenge_service.for_athlete(db, athlete_id),
-        "claimed": bool(user_repository.ids_linked_to_athlete(db, athlete_id)),
+        "claimed": bool(linked_user_ids),
         "public_page": PublicPageRead()
         if opposition_service.is_anonymous(athlete.prenom, athlete.nom)
         else public_page.for_athlete(
-            db, athlete_id, validated_ids={p.id for p in participations if not p.is_pending_validation}
+            db, linked_user_ids, validated_ids={p.id for p in participations if not p.is_pending_validation}
         ),
     }
 

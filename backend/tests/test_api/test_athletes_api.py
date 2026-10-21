@@ -640,3 +640,17 @@ def test_public_page_is_neutral_on_an_anonymous_fiche(client, db_session):
     db_session.commit()
 
     assert _page(client, athlete) == NEUTRAL_PUBLIC_PAGE
+
+
+def test_public_page_drops_a_stored_link_outside_the_allowlist(client, db_session):
+    from app.models.public_page_settings import PublicPageSettings
+
+    athlete, _, (user,) = _public_page_fiche(db_session)
+    db_session.add(PublicPageSettings(
+        user_id=user.id, links=["https://evil.example/x", "https://www.strava.com/athletes/1"]
+    ))
+    db_session.commit()
+
+    response = client.get(f"/api/v1/athletes/{athlete.id}")
+    assert response.status_code == 200
+    assert [link["label"] for link in response.json()["public_page"]["links"]] == ["Strava"]

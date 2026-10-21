@@ -103,3 +103,18 @@ def test_shared_when_a_second_account_is_linked(client, db_session, lea):
 def test_pin_accepts_a_relay_where_i_am_a_teammate(client, lea):
     response = client.put(URL, json={"pinned_participation_id": lea["relay"]})
     assert (response.status_code, response.json()["pinned_participation_id"]) == (200, lea["relay"])
+
+
+@pytest.mark.parametrize("leave", ["reassigned", "pending"])
+def test_stale_pin_reads_as_none_and_does_not_block_a_later_save(client, db_session, lea, leave):
+    assert client.put(URL, json={"pinned_participation_id": lea["mine"]}).status_code == 200
+    mine = db_session.get(Participation, lea["mine"])
+    if leave == "reassigned":
+        mine.athlete_id = db_session.get(Participation, lea["his"]).athlete_id
+    else:
+        mine.is_pending_validation = True
+    db_session.commit()
+
+    current = client.get(URL).json()
+    assert current["pinned_participation_id"] is None
+    assert client.put(URL, json={**current, "hide_progression": True}).status_code == 200
