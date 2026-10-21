@@ -13,10 +13,16 @@ from datetime import date
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import DomainError, NotFoundError
+from app.core.time import utcnow
 from app.models.personal_profile import PersonalProfile
 from app.models.user import User
-from app.repositories import profile_repository, role_repository, training_group_repository
-from app.services.fftri_category import fftri_category
+from app.repositories import (
+    profile_repository,
+    role_repository,
+    training_group_repository,
+    training_session_repository,
+)
+from app.services.fftri_category import fftri_category, fftri_season_bounds
 
 #: Sentinelle de `update_profile` : le champ n'a pas été fourni, distinct d'un `None` qui efface.
 UNCHANGED = object()
@@ -74,6 +80,13 @@ def profile_view(profile: PersonalProfile) -> dict:
     }
 
 
+def attendance_summary(history: list[bool]) -> dict:
+    """Assiduité d'un jeune : `history` va de la séance pointée la plus récente
+    à la plus ancienne ; la série d'absences compte les absences en tête."""
+    absence_streak = next((i for i, present in enumerate(history) if present), len(history))
+    return {"attended": sum(history), "pointed": len(history), "absence_streak": absence_streak}
+
+
 def profile_detail_view(
     db: Session, profile: PersonalProfile, *, with_personal_data: bool = False
 ) -> dict:
@@ -93,8 +106,14 @@ def profile_detail_view(
             "notes": None,
             "groups": groups,
             "log_entries": None,
+            "attendance": None,
         }
+    date_from, date_to = fftri_season_bounds(utcnow().date())
+    history = training_session_repository.presence_history_of_profile(
+        db, profile.id, date_from=date_from, date_to=date_to
+    )
     return profile_view(profile) | {
+        "attendance": attendance_summary(history),
         "emergency_contact": profile.emergency_contact,
         "notes": profile.notes,
         "groups": groups,
