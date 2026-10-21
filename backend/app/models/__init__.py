@@ -1,4 +1,5 @@
 """Modèles SQLAlchemy. Importer ce package enregistre toutes les tables sur Base.metadata."""
+
 from app.models.absorbed_course import AbsorbedCourse
 from app.models.admin_action_log import AdminActionLog
 from app.models.allowed_email import AllowedEmail
@@ -29,6 +30,7 @@ from app.models.profile_measurement import ProfileMeasurement
 from app.models.result_claim import ResultClaim
 from app.models.role import Role
 from app.models.role_permission import RolePermission
+from app.models.public_page_settings import PublicPageSettings
 from app.models.season_goal import SeasonGoal
 from app.models.season_validation import SeasonValidation
 from app.models.site_access_config import SiteAccessConfig
@@ -77,6 +79,7 @@ __all__ = [
     "ProfileLogEntry",
     "ProfileMeasurement",
     "ResultClaim",
+    "PublicPageSettings",
     "SeasonGoal",
     "Role",
     "RolePermission",

@@ -461,6 +461,17 @@ ORM `User.season_goals`, `_OWNED_TABLES`). La progression se calcule à la
 lecture (`participation_repository.athlete_season_times`, `athlete_season_count`
 et, pour `race`, `athlete_race_times`), jamais stockée.
 
+## Réglages de fiche publique (#1692)
+
+`public_page_settings` (`user_id` PK et FK, `hide_best_times`,
+`hide_progression`, `hide_comparison`, `links` JSON, `pinned_participation_id`,
+`updated_at`) : une ligne par compte rattaché, créée au premier enregistrement ;
+sans ligne, rien n'est masqué. **Possédé** (cascade ORM
+`User.public_page_settings`, `_OWNED_TABLES`). `pinned_participation_id` est une
+FK `ON DELETE SET NULL`, inerte en SQLite : la lecture revérifie que le résultat
+épinglé appartient encore à la fiche. `season_goals.public` (faux par défaut)
+marque l'objectif montré sur la fiche.
+
 ## Réclamations de résultat (#1637)
 
 `result_claims` (`id`, `user_id`, `participation_id`, `status`, `created_at`,
