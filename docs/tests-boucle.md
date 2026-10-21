@@ -91,20 +91,31 @@ non suivis, sources `backend/**/*.py` et `frontend/**/*.{ts,tsx,js,jsx}`
 seulement). Commandes :
 
 - backend : `uv run pytest --testmon --testmon-forceselect -m "not integration" -n 0 -q`
-  (`testmon_retenu: oui`, cf. le sondage). Si testmon n'était pas retenu
-  (`TESTMON_RETENU` dans le script), il lancerait les tests important
-  directement les modules modifiés ;
+  (`testmon_retenu: oui`, cf. le sondage). Sans `backend/.testmondata` (jamais
+  construit, ou effacé), ou si testmon n'était pas retenu (`TESTMON_RETENU` dans
+  le script), il lance les tests important directement les modules modifiés, et
+  le dit sur stderr : testmon sans données rejouerait toute la suite ;
 - frontend : `npx vitest related --run <fichiers>`.
+
+Une étape qui ne peut pas tourner (`uv` ou `npx` absent du `PATH`,
+`frontend/node_modules/.bin/vitest` absent) est sautée avec un message sur
+stderr qui nomme la pièce manquante, sans bloquer.
 
 Budget total de 180 s partagé entre les étapes : au dépassement, les processus de
 test sont tués (groupe entier), un avertissement sur stderr nomme l'étape
-interrompue et celles sautées (le frontend l'est si le backend épuise le budget),
-l'empreinte est enregistrée (pas de nouvel essai tant que le contenu ne change
-pas) et rien ne bloque. Un test rouge bloque la fin du tour (sortie tronquée aux 40 dernières
-lignes). Garde `stop_hook_active` : pas de second passage dans la foulée d'un
-blocage. L'empreinte du contenu des fichiers modifiés est écrite après un passage
-vert dans `<git-dir>/claude-targeted-tests.sha` ; une empreinte identique ne
-relance rien. Le hook échoue ouvert. Ses tests :
+interrompue et celles sautées (le frontend l'est si le backend épuise le budget)
+et rien ne bloque. Un test rouge bloque la fin du tour (sortie tronquée aux 40
+dernières lignes). Garde `stop_hook_active` : pas de second passage dans la
+foulée d'un blocage. Chaque étape a son empreinte, écrite après tout passage
+achevé, rouge ou vert, ou interrompu au budget, dans
+`<git-dir>/claude-targeted-tests-{backend,frontend}.sha` : un état rouge bloque
+une fois, pas à chaque tour, et une empreinte identique ne relance rien. Une
+étape sautée n'écrit rien. L'empreinte ne porte que les fichiers modifiés qui
+nourrissent l'étape : côté backend les `.py`, `backend/app/`, `backend/tests/`,
+`pyproject.toml` et `uv.lock` ; côté frontend les sources et tests
+`.{ts,tsx,js,jsx}`. Une doc ou un `.coverage` ne relance rien. Tué par SIGTERM
+ou SIGHUP, le hook tue d'abord le groupe de processus de test en cours. Le hook
+échoue ouvert. Ses tests :
 `python3 -m unittest discover -s .claude/hooks -p 'test_targeted_tests.py'`.
 
 ## Répartition de la CI backend

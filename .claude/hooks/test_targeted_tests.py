@@ -7,6 +7,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).parent))
 import targeted_tests as tt  # noqa: E402
@@ -37,8 +38,14 @@ class TargetedTestsTest(unittest.TestCase):
         git(self.repo, "config", "user.name", "t")
         self.write("backend/app/services/foo.py", "x = 1\n")
         self.write("docs/a.md", "a\n")
+        self.write(".gitignore", "node_modules/\n.testmondata\n")
         git(self.repo, "add", ".")
         git(self.repo, "commit", "-qm", "init")
+        self.write("frontend/node_modules/.bin/vitest", "")
+        self.write("backend/.testmondata", "")
+        which = mock.patch.object(tt.shutil, "which", side_effect=lambda name: f"/bin/{name}")
+        self.which = which.start()
+        self.addCleanup(which.stop)
 
     def write(self, rel, text):
         path = self.repo / rel
@@ -118,9 +125,68 @@ class TargetedTestsTest(unittest.TestCase):
         self.assertIn("line99", payload["reason"])
         self.assertIn("line60", payload["reason"])
         self.assertNotIn("line59\n", payload["reason"])
+        follow_up = Runner(code=1, output=output)
+        self.assertEqual(self.run_hook(follow_up)[1], "")
+        self.assertEqual(follow_up.calls, [])  # blocks once per content state
+
+    def test_red_then_new_content_reruns(self):
+        self.write("backend/app/services/foo.py", "x = 2\n")
+        self.run_hook(Runner(code=1))
+        self.write("backend/app/services/foo.py", "x = 3\n")
         follow_up = Runner()
         self.run_hook(follow_up)
-        self.assertEqual(len(follow_up.calls), 1)  # red run left no cache
+        self.assertEqual(len(follow_up.calls), 1)
+
+    def test_docs_and_coverage_changes_do_not_rerun(self):
+        self.write("backend/app/services/foo.py", "x = 2\n")
+        self.run_hook(Runner())
+        self.write("docs/a.md", "changed\n")
+        self.write("backend/.coverage", "data")
+        follow_up = Runner()
+        self.run_hook(follow_up)
+        self.assertEqual(follow_up.calls, [])
+
+    def test_each_side_keeps_its_own_fingerprint(self):
+        self.write("backend/app/services/foo.py", "x = 2\n")
+        self.run_hook(Runner())
+        self.write("frontend/lib/b.ts", "export const b = 1\n")
+        follow_up = Runner()
+        self.run_hook(follow_up)
+        self.assertEqual([cwd for _, cwd in follow_up.calls], [self.repo / "frontend"])
+
+    def test_missing_vitest_skips_frontend_without_blocking(self):
+        (self.repo / "frontend/node_modules/.bin/vitest").unlink()
+        self.write("frontend/lib/b.ts", "export const b = 1\n")
+        runner = Runner(code=1)
+        code, out, err = self.run_hook(runner)
+        self.assertEqual((code, out, runner.calls), (0, "", []))
+        self.assertIn("node_modules/.bin/vitest", err)
+        self.write("frontend/node_modules/.bin/vitest", "")
+        follow_up = Runner()
+        self.run_hook(follow_up)
+        self.assertEqual(len(follow_up.calls), 1)  # no fingerprint for a side that did not run
+
+    def test_missing_tool_on_path_skips_that_side(self):
+        self.which.side_effect = lambda name: None if name == "uv" else f"/bin/{name}"
+        self.write("backend/app/services/foo.py", "x = 2\n")
+        self.write("frontend/lib/b.ts", "export const b = 1\n")
+        runner = Runner()
+        code, out, err = self.run_hook(runner)
+        self.assertEqual((code, out), (0, ""))
+        self.assertEqual([cwd for _, cwd in runner.calls], [self.repo / "frontend"])
+        self.assertIn("uv", err)
+
+    def test_missing_testmondata_runs_importing_tests(self):
+        (self.repo / "backend/.testmondata").unlink()
+        self.write("backend/tests/test_a.py", "from app.services.foo import x\n")
+        git(self.repo, "add", ".")
+        git(self.repo, "commit", "-qm", "test")
+        self.write("backend/app/services/foo.py", "x = 2\n")
+        runner = Runner()
+        _, _, err = self.run_hook(runner)
+        self.assertEqual(runner.calls, [(["uv", "run", "pytest", "tests/test_a.py", "-n", "0", "-q"],
+                                         self.repo / "backend")])
+        self.assertIn(".testmondata", err)
 
     def test_timeout_warns(self):
         self.write("backend/app/services/foo.py", "x = 2\n")
@@ -161,6 +227,29 @@ class TargetedTestsTest(unittest.TestCase):
             time.sleep(0.1)
         os.kill(grandchild, 9)
         self.fail("grandchild survived the timeout")
+
+    def test_sigterm_kills_the_test_process_group(self):
+        pidfile = Path(self._tmp.name) / "grandchild.pid"
+        script = f"sleep 30 & echo $! > {pidfile}; sleep 30"
+        hook = subprocess.Popen([sys.executable, "-c", (
+            "import sys; sys.path.insert(0, sys.argv[1]); import targeted_tests as tt; "
+            "tt.install_signal_handlers(); tt.default_runner(['sh', '-c', sys.argv[2]], '.', 60)"
+        ), str(Path(__file__).parent), script])
+        for _ in range(50):
+            if pidfile.is_file() and pidfile.read_text().strip():
+                break
+            time.sleep(0.1)
+        hook.terminate()
+        hook.wait(timeout=5)
+        grandchild = int(pidfile.read_text())
+        for _ in range(20):
+            try:
+                os.kill(grandchild, 0)
+            except ProcessLookupError:
+                return
+            time.sleep(0.1)
+        os.kill(grandchild, 9)
+        self.fail("grandchild survived SIGTERM")
 
 
 if __name__ == "__main__":
