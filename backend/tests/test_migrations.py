@@ -1755,7 +1755,7 @@ def test_public_page_settings_table_up_and_down(sqlite_url):
         "updated_at",
     }
 
-    command.downgrade(cfg, "a1745e7c0b2d")
+    command.downgrade(cfg, "c84cbf6533c4")
     assert "public_page_settings" not in _tables(sqlite_url)
     assert "public" not in _columns(sqlite_url, "season_goals")
 
@@ -1779,10 +1779,23 @@ def test_result_claims_table_up_and_down(sqlite_url):
 
 CLUB_ROLES = {
     "bureau": [
-        "admin_log:read", "allowed_emails:manage", "athlete_claims:review", "benevole_access:manage",
-        "club_members:manage", "feedback:manage", "feedback:read", "groups:assign", "groups:read",
-        "groups:write", "member_emails:manage", "member_requests:review", "oppositions:manage", "pages:preview", "roles:read",
-        "site_access:manage", "users:read",
+        "admin_log:read",
+        "allowed_emails:manage",
+        "athlete_claims:review",
+        "benevole_access:manage",
+        "club_members:manage",
+        "feedback:manage",
+        "feedback:read",
+        "groups:assign",
+        "groups:read",
+        "groups:write",
+        "member_emails:manage",
+        "member_requests:review",
+        "oppositions:manage",
+        "pages:preview",
+        "roles:read",
+        "site_access:manage",
+        "users:read",
     ],
     "data": [
         "athlete_claims:review",
