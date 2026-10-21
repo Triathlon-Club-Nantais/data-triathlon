@@ -29,7 +29,7 @@ from app.core.exceptions import DomainError, DuplicateError, NotFoundError
 from app.core.season import SEASON_QUOTA_EVENTS, season_quota_met
 from app.core.time import utcnow
 from app.models.athlete import Athlete
-from app.models.course import EVENT_TYPE_ORIGIN_MANUAL, Course
+from app.models.course import EVENT_TYPE_ORIGIN_FALLBACK, EVENT_TYPE_ORIGIN_MANUAL, Course
 from app.models.participation import Participation
 from app.repositories import (
     admin_action_log_repository,
@@ -778,8 +778,12 @@ def update_course(db: Session, *, course_id: int, fields: dict, user_id: int) ->
 
     if requested.get("event_type", course.event_type) != course.event_type:
         requested["event_type_origin"] = EVENT_TYPE_ORIGIN_MANUAL
+    elif "event_type" in requested and course.event_type_origin == EVENT_TYPE_ORIGIN_FALLBACK:
+        # Enregistrer le type inchangé confirme un type déduit par défaut (#1744).
+        requested["event_type_origin"] = EVENT_TYPE_ORIGIN_MANUAL
     course_repository.update_identity(db, course, **requested)
     after = snapshot(course, COURSE_FIELDS)
+    # shortcut: une confirmation pure n'est pas consignée (l'origine est hors COURSE_FIELDS, donc le retour anticipé la passe), à consigner si les confirmations doivent être auditées
     if after == before:
         return course
     if after["event_date"] != before["event_date"]:
