@@ -155,7 +155,7 @@ def test_linked_accounts_require_the_permission(client, db_session):
     assert client.get(LINKS).status_code == 401
 
 
-def test_claim_by_a_non_member_with_the_site_code_is_403(client, db_session, athlete):
+def test_claim_by_a_non_member_is_403(client, db_session, athlete):
     """The response names the athlete: only club members may ask (#1785)."""
     _account(client, db_session)
 
@@ -179,6 +179,7 @@ def test_a_pending_claim_of_a_non_member_can_still_be_approved(client, db_sessio
     _session_etroite(client, db_session, "athlete_claims:review", email="rev@exemple.fr", slug="rev")
     (item,) = client.get(QUEUE).json()
 
+    assert item["email_on_member_list"] is False
     assert client.post(f"{QUEUE}/{item['id']}/approve").status_code == 204
 
 
