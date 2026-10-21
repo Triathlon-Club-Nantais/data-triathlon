@@ -22,7 +22,8 @@ function createRunner(injector) {
         enumerable: true,
         get: () => pattern,
         set: (regex) => {
-          pattern = regex && new RegExp(regex.source.replaceAll(" ", "(?: | > )"));
+          const source = typeof regex === "string" ? regex : regex?.source;
+          pattern = source && new RegExp(source.replaceAll(" ", "(?: | > )"));
         },
       });
     }

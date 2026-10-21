@@ -45,7 +45,7 @@ les tests `integration` et `migrations`.
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | test_raceresult.py | `test_raceresult.py` (sous `backend/tests/`) | `backend/app/scrapers/raceresult.py` | 4132 | 377 | gardé (tâche 12) : tests 381 → 377, mutation 1613/2074 → 1613/2074, couverture 95,6 % → 95,6 % |
 | 2 | test_import_service.py | `test_import_service.py` (sous `backend/tests/test_services/`) | `backend/app/services/import_service.py` | 2962 | 162 | gardé (tâche 13) : tests 169 → 162, mutation 225/389 → 225/389, couverture 96,2 % → 96,2 % |
-| 3 | RaceFinishers.test.tsx | `RaceFinishers.test.tsx` (sous `frontend/components/results/`) | `frontend/components/results/RaceFinishers.tsx` | 1589 | 113 | gardé (tâche 14) : tests 134 → 113, mutation 451/749 → 447/730, couverture 98,5 % → 98,5 % |
+| 3 | RaceFinishers.test.tsx | `RaceFinishers.test.tsx` (sous `frontend/components/results/`) | `frontend/components/results/RaceFinishers.tsx` | 1589 | 113 | gardé (tâche 14) : tests 134 → 113, mutation 451/749 → 451/749, couverture 98,5 % → 98,5 % |
 | 4 | AppNav.test.tsx | `AppNav.test.tsx` (sous `frontend/components/layout/`) | `frontend/components/layout/AppNav.tsx` | 1925 | 137 | à faire (tâche 15) |
 | 5 | backend test_api/ | 48 fichiers (sous `backend/tests/test_api/`) | `backend/app/api/` | 11936 | 888 | à faire (tâche 16) |
 | 6 | backend test_auth/ | 56 fichiers (sous `backend/tests/test_auth/`) | `backend/app/services/auth/` | 11209 | 1075 | à faire (tâche 16) |
@@ -335,14 +335,17 @@ instructions, 754 mutants, fichier entier : pas de restriction).
 | Tests collectés | 134 | 113 |
 | Appels `it` et `it.each` | 134 | 103 |
 | Lignes | 1758 | 1589 |
-| Mutation, concurrence 3 (tués / tués + survivants) | 451/749 (60,2 %) | 447/730 (61,2 %) |
-| Timeouts | 0 | 19 |
+| Mutation, concurrence 3, même ensemble (tués / tués + survivants) | 451/749 (60,2 %) | 451/749 (60,2 %) |
+| Timeouts de l'exécution complète | 0 | 19 |
 | Couverture de lignes (fichier seul) | 135/137 (98,5 %) | 135/137 (98,5 %) |
 
-Verdict identique sur les 730 mutants tranchés par les deux exécutions. Des 19
-timeouts de l'après, 15 survivaient avant et 4 étaient tués : ces 4 sont tués
-par le fichier consolidé dans l'exécution à concurrence 7. Aucun mutant tué
-avant n'est perdu. Couverture identique sur les quatre mesures (instructions
+Comparaison à ensemble égal, les 749 mutants tranchés avant. L'exécution
+complète de l'après en tranche 730, verdict identique mutant par mutant (447
+tués). Des 19 timeouts de l'après, 4 étaient tués avant, tous sur la ligne 735 :
+la relance ciblée de cette ligne sur le fichier consolidé, `npx stryker run --force --concurrency 3 --timeoutMS 60000 --mutate "components/results/RaceFinishers.tsx:735-735"`,
+en tue 8 sur 8 (dont ces 4, 17 s). Les 15 autres survivaient avant et sont
+comptés survivants après ; les compter tués ne ferait que monter le score.
+Aucun mutant tué avant n'est perdu. Couverture identique sur les quatre mesures (instructions
 160/162, branches 253/262, fonctions 51/53), mêmes lignes manquées (550-557).
 La mesure a d'abord exigé de corriger le runner Stryker (tout test sous un
 `describe` était sauté, cf. `docs/tests-boucle.md`, « Mutation »).

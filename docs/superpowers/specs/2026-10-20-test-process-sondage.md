@@ -158,6 +158,8 @@ exécution par bras et par concurrence.
 timeouts, et deux bras n'ont plus le même ensemble de mutants tranchés : la
 comparaison se fait à concurrence 3. Verdict identique sur les 730 mutants
 tranchés par les deux bras à concurrence 3 ; les 4 mutants tués avant et en
-timeout après sont tués par le fichier consolidé à concurrence 7. Couverture du
+timeout après (ligne 735) sont tués par la relance ciblée,
+`npx stryker run --force --concurrency 3 --timeoutMS 60000 --mutate "components/results/RaceFinishers.tsx:735-735"` sur le fichier consolidé
+(8 tués sur 8, 17 s). À ensemble égal : 451/749 → 451/749. Couverture du
 fichier seul : 135/137 lignes avant et après, mêmes lignes manquées. Détail du
 lot : `2026-10-20-test-consolidation-inventaire.md`.
