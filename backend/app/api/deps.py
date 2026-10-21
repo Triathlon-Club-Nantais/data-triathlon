@@ -281,6 +281,11 @@ VOLUNTEER_LOGIN_RATE_LIMIT_WINDOW_SECONDS = 3600
 CSP_REPORT_RATE_LIMIT_MAX_PER_WINDOW = 120
 CSP_REPORT_RATE_LIMIT_WINDOW_SECONDS = 3600
 
+#: #1773, recherche d'un relais par nom d'équipe : lecture seule, mais tapée au
+#: fil de la saisie et sans index utilisable, d'où un seau à elle.
+TEAM_SEARCH_RATE_LIMIT_MAX_PER_WINDOW = 120
+TEAM_SEARCH_RATE_LIMIT_WINDOW_SECONDS = 3600
+
 
 def reset_rate_limits() -> None:
     """Vide les compteurs. Réservé aux tests (fixture autouse de `conftest`)."""
@@ -406,6 +411,16 @@ def volunteer_action_rate_limit(request: Request) -> None:
         "volunteer_action",
         max_per_window=VOLUNTEER_ACTION_RATE_LIMIT_MAX_PER_WINDOW,
         window_seconds=VOLUNTEER_ACTION_RATE_LIMIT_WINDOW_SECONDS,
+    )
+
+
+def team_search_rate_limit(request: Request) -> None:
+    """Plafond de `GET /auth/me/team-results` (#1773), **seau dédié**."""
+    _enforce_rate_limit(
+        request,
+        "team_search",
+        max_per_window=TEAM_SEARCH_RATE_LIMIT_MAX_PER_WINDOW,
+        window_seconds=TEAM_SEARCH_RATE_LIMIT_WINDOW_SECONDS,
     )
 
 

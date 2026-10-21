@@ -11,6 +11,9 @@ Un relais (#1739) se réclame aussi : la fiche du compte rejoint sa composition
 (#894). Sans composition, elle s'ajoute à côté du porteur, sauf si le porteur
 n'est qu'une étiquette d'équipe (sans prénom) : elle la remplace. Avec une
 composition, l'admin la complète par « Attribuer aux équipiers ».
+
+Le relais se trouve par son nom d'équipe (`search_team_results`), sans rien
+changer au geste de réclamation.
 """
 import logging
 from dataclasses import dataclass
@@ -19,6 +22,7 @@ from datetime import date
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import DomainError, NotFoundError
+from app.core.identity import identity_hash
 from app.core.season import season_of
 from app.core.time import utcnow
 from app.models.athlete import Athlete
@@ -29,6 +33,7 @@ from app.models.user import User
 from app.repositories import (
     athlete_repository,
     club_member_repository,
+    opposition_repository,
     participation_repository,
     result_claim_repository,
 )
@@ -97,6 +102,32 @@ def cancel_claim(db: Session, user: User, claim_id: int) -> None:
 
 def list_mine(db: Session, user: User) -> list[ResultClaim]:
     return result_claim_repository.list_for_user(db, user.id)
+
+
+@dataclass(frozen=True)
+class TeamResultHit:
+    participation: Participation
+    team_name: str
+    teammates: list[str]
+
+
+def search_team_results(db: Session, user: User, term: str) -> list[TeamResultHit]:
+    """Relais à rejoindre (#1773), filtrés comme le classement public : rien d'une identité opposée."""
+    if user.athlete_id is None:
+        return []
+    rows = participation_repository.search_team_results(db, term=term, exclude_athlete_id=user.athlete_id)
+    opposed = opposition_repository.all_hashes(db)
+    hits = []
+    for row in rows:
+        people = [row.athlete, *row.teammates]
+        if any(identity_hash(person.nom, person.prenom) in opposed for person in people):
+            continue
+        hits.append(TeamResultHit(
+            participation=row,
+            team_name=row.team_name or row.athlete.nom,
+            teammates=[f"{mate.prenom} {mate.nom}".strip() for mate in row.teammates],
+        ))
+    return hits
 
 
 def approve(db: Session, claim_id: int, *, actor_id: int) -> None:

@@ -78,6 +78,19 @@ class ResultClaimRead(BaseModel):
     event_date: str | None
 
 
+class TeamResultRead(BaseModel):
+    """Un relais trouvé par son nom d'équipe, que l'adhérent peut demander à rejoindre (#1773)."""
+
+    participation_id: int
+    team_name: str
+    course_id: int
+    course_name: str
+    event_date: str | None
+    rank_overall: int | None
+    total_time: str | None
+    teammates: list[str]
+
+
 class ClaimedResultRead(BaseModel):
     id: int
     course_id: int

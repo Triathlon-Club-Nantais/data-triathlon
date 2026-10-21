@@ -32,7 +32,7 @@ feature).
 
 `app/core/validation.py` (`validated_clause`) est le point
 **unique** de la règle, sur le patron de `core/club.tcn_clause` et
-`core/discipline.federal_clause`. Appliqué à trente-cinq fonctions (dont `list_for_athlete`, décrite plus bas), réparties sur
+`core/discipline.federal_clause`. Appliqué à trente-six fonctions (dont `list_for_athlete`, décrite plus bas), réparties sur
 cinq repositories (le tableau ne liste que les principales) :
 
 | Fonction | Fichier | Alimente |
@@ -55,6 +55,7 @@ cinq repositories (le tableau ne liste que les principales) :
 | `club_outing_rank_rows` | `participation_repository.py` | rang des membres du club sur une sortie (#1699) |
 | `club_split_rows` | `participation_repository.py` | médiane des splits du club par format (#1699) |
 | `teammate_rows` | `participation_repository.py` | `GET /auth/me/teammates` : coéquipiers de course les plus fréquents (#1701) |
+| `search_team_results` | `participation_repository.py` | `GET /auth/me/team-results` : relais à rejoindre, trouvés par nom d'équipe (#1773) |
 | `course_split_gap_rows` | `participation_repository.py` | population de la médiane d'écart de splits d'une épreuve (#1699) : validée **sans clause de club, à dessein** (club ou non) |
 
 **`search_by_relevance` compte par une sous-requête corrélée**, pas par une
@@ -350,7 +351,7 @@ pièges mesurés et invariants dans
 
 ## Plafonds de débit par IP (#395, #398)
 
-Neuf routes publiques sont plafonnées par IP, **route par route** comme les
+Dix routes sont plafonnées par IP, **route par route** comme les
 gardes de pouvoir — `api/deps.scrape_rate_limit` sur `POST /scrape/event` et
 `POST /scrape/event/stream`, `api/deps.authorize_rate_limit` sur
 `GET /auth/{provider}/authorize`, `api/deps.public_write_rate_limit` sur
@@ -358,7 +359,8 @@ gardes de pouvoir — `api/deps.scrape_rate_limit` sur `POST /scrape/event` et
 `api/deps.site_access_rate_limit` sur `POST /site-access/session` (#509),
 `api/deps.volunteer_login_rate_limit` sur `POST /benevoles/session` (#917),
 `api/deps.csp_report_rate_limit` sur `POST /csp-reports` (#1168), et
-`api/deps.volunteer_action_rate_limit` sur `POST /volunteer-actions` (#1397).
+`api/deps.volunteer_action_rate_limit` sur `POST /volunteer-actions` (#1397),
+et `api/deps.team_search_rate_limit` sur `GET /auth/me/team-results` (#1773, seau dédié `team_search`, 120/h).
 Quatre choses à ne pas défaire :
 
 - **Un seul seau par geste, pas par route.** Les deux routes de scraping
@@ -585,8 +587,8 @@ repli, et l'ancien front ne connaît pas `/encadrement` : backend et front sorte
 `/admin/jeunes` et le callback SSO l'envoie vers un `/encadrement` en 404 ; front
 seul, `can_supervise` est indéfini et `/encadrement` refuse tout le monde.
 
-`GET /auth/me/teammates` (#1701), `GET /auth/me/volunteer-actions` (#1696) et
-`GET /auth/me/identities` (#1663) ne portent, comme `GET /auth/me`, que sur soi : liste vide quand aucun athlète
+`GET /auth/me/teammates` (#1701), `GET /auth/me/volunteer-actions` (#1696),
+`GET /auth/me/identities` (#1663) et `GET /auth/me/team-results` (#1773) ne portent, comme `GET /auth/me`, que sur soi : liste vide quand aucun athlète
 n'est rattaché à son compte ; la seconde rend `MyVolunteerActionOut`, sans
 identité de fiche ni auteur de la déclaration. `GET /auth/me/volunteer-declarations`
 (#1672) rend l'autre face : les déclarations **faites par le compte**
