@@ -509,3 +509,134 @@ def test_a_pending_claim_does_not_mark_the_athlete_page_as_claimed(client, db_se
     db_session.commit()
 
     assert client.get(f"/api/v1/athletes/{athlete.id}").json()["claimed"] is False
+
+
+NEUTRAL_PUBLIC_PAGE = {"hidden": [], "links": [], "goal": None, "pinned_participation_id": None}
+
+
+def _public_page_fiche(db_session, *, accounts=1):
+    from app.repositories import (
+        athlete_repository,
+        course_repository,
+        participation_repository,
+        user_repository,
+    )
+
+    athlete = athlete_repository.get_or_create(db_session, nom="PUBLIC", prenom="Lea", club="TCN")
+    course = course_repository.get_or_create(
+        db_session, name="Tri Public", event_date=date(2026, 5, 16), event_type="triathlon-m"
+    )
+    result = participation_repository.create(
+        db_session, athlete_id=athlete.id, course_id=course.id, bib_number="1", club="TCN",
+        status="finisher", rank_overall=1,
+    )
+    users = []
+    for index in range(accounts):
+        user = user_repository.create(db_session, email=f"pp{index}@exemple.fr")
+        user.athlete_id = athlete.id
+        users.append(user)
+    db_session.commit()
+    return athlete, result, users
+
+
+def _page(client, athlete):
+    return client.get(f"/api/v1/athletes/{athlete.id}").json()["public_page"]
+
+
+def test_public_page_is_neutral_for_an_unclaimed_fiche(client, db_session):
+    athlete, _, _ = _public_page_fiche(db_session, accounts=0)
+    assert _page(client, athlete) == NEUTRAL_PUBLIC_PAGE
+
+
+def test_public_page_serves_the_settings_of_the_single_linked_account(client, db_session):
+    from app.core.season import current_season
+    from app.models.public_page_settings import PublicPageSettings
+    from app.models.season_goal import SeasonGoal
+
+    athlete, result, (user,) = _public_page_fiche(db_session)
+    db_session.add_all([
+        PublicPageSettings(
+            user_id=user.id, hide_comparison=True, hide_best_times=True,
+            links=["https://www.strava.com/athletes/1", "https://connect.garmin.com/x"],
+            pinned_participation_id=result.id,
+        ),
+        SeasonGoal(user_id=user.id, season=current_season(), kind="count", target=5, public=True),
+        SeasonGoal(user_id=user.id, season=current_season(), kind="count", target=9, public=False),
+    ])
+    db_session.commit()
+
+    page = _page(client, athlete)
+
+    assert page["hidden"] == ["best_times", "comparison"]
+    assert page["links"] == [
+        {"url": "https://www.strava.com/athletes/1", "label": "Strava"},
+        {"url": "https://connect.garmin.com/x", "label": "Garmin Connect"},
+    ]
+    assert page["goal"]["target"] == 5 and page["goal"]["public"] is True
+    assert page["pinned_participation_id"] == result.id
+
+
+def test_public_page_drops_a_pin_reassigned_to_another_fiche(client, db_session):
+    from app.models.public_page_settings import PublicPageSettings
+    from app.repositories import athlete_repository
+
+    athlete, result, (user,) = _public_page_fiche(db_session)
+    db_session.add(PublicPageSettings(user_id=user.id, pinned_participation_id=result.id))
+    result.athlete_id = athlete_repository.get_or_create(db_session, nom="AUTRE", prenom="Max").id
+    db_session.commit()
+
+    assert _page(client, athlete)["pinned_participation_id"] is None
+
+
+def test_public_page_drops_a_pin_that_became_pending_even_for_a_volunteer(client, db_session):
+    from app.models.public_page_settings import PublicPageSettings
+
+    athlete, result, (user,) = _public_page_fiche(db_session)
+    db_session.add(PublicPageSettings(user_id=user.id, pinned_participation_id=result.id))
+    result.is_pending_validation = True
+    db_session.commit()
+
+    # The conftest session is a volunteer one: the pending row is listed, the pin still goes.
+    detail = client.get(f"/api/v1/athletes/{athlete.id}").json()
+    assert [p["id"] for p in detail["participations"]] == [result.id]
+    assert detail["public_page"]["pinned_participation_id"] is None
+
+
+def test_public_page_is_neutral_for_a_detached_account(client, db_session):
+    from app.models.public_page_settings import PublicPageSettings
+
+    athlete, result, (user,) = _public_page_fiche(db_session)
+    db_session.add(PublicPageSettings(
+        user_id=user.id, hide_progression=True, links=["https://strava.com/a"], pinned_participation_id=result.id
+    ))
+    user.athlete_id = None
+    db_session.commit()
+
+    assert _page(client, athlete) == NEUTRAL_PUBLIC_PAGE
+
+
+def test_public_page_with_two_accounts_hides_if_any_hides_and_shows_no_personal_item(client, db_session):
+    from app.core.season import current_season
+    from app.models.public_page_settings import PublicPageSettings
+    from app.models.season_goal import SeasonGoal
+
+    athlete, result, (first, second) = _public_page_fiche(db_session, accounts=2)
+    db_session.add_all([
+        PublicPageSettings(user_id=first.id, hide_progression=True),
+        PublicPageSettings(user_id=second.id, links=["https://strava.com/a"], pinned_participation_id=result.id),
+        SeasonGoal(user_id=second.id, season=current_season(), kind="count", target=5, public=True),
+    ])
+    db_session.commit()
+
+    assert _page(client, athlete) == {**NEUTRAL_PUBLIC_PAGE, "hidden": ["progression"]}
+
+
+def test_public_page_is_neutral_on_an_anonymous_fiche(client, db_session):
+    from app.models.public_page_settings import PublicPageSettings
+
+    athlete, _, (user,) = _public_page_fiche(db_session)
+    db_session.add(PublicPageSettings(user_id=user.id, hide_progression=True, links=["https://strava.com/a"]))
+    athlete.prenom, athlete.nom = "", "Anonyme 7"
+    db_session.commit()
+
+    assert _page(client, athlete) == NEUTRAL_PUBLIC_PAGE

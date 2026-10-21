@@ -14,7 +14,14 @@ from app.repositories import (
     public_page_settings_repository,
     user_repository,
 )
-from app.schemas.public_page import PublicPageSettingsRead, PublicPageSettingsWrite
+from app.schemas.public_page import (
+    PublicLink,
+    PublicPageRead,
+    PublicPageSettingsRead,
+    PublicPageSettingsWrite,
+)
+from app.schemas.season_goal import SeasonGoalRead
+from app.services import season_goals
 
 MAX_LINK_LENGTH = 200
 #: Browsers (WHATWG) read `\` as `/` and decode percent-escapes in a host, urlsplit does not: accept only plain hosts.
@@ -106,3 +113,27 @@ def save(db: Session, user: User, data: PublicPageSettingsWrite) -> PublicPageSe
         hide_comparison=data.hide_comparison, links=links, pinned_participation_id=pin,
     )
     return _read(db, user, row)
+
+
+def for_athlete(db: Session, athlete_id: int, *, validated_ids: set[int]) -> PublicPageRead:
+    """What visitors see of a fiche: a block is hidden if any linked account hides it, while
+    links, goal and pin (rechecked here, the FK is inert in SQLite) need exactly one account."""
+    user_ids = user_repository.ids_linked_to_athlete(db, athlete_id)
+    rows = public_page_settings_repository.list_for_users(db, user_ids)
+    page = PublicPageRead(hidden=[
+        key for key, hidden in (
+            ("best_times", any(r.hide_best_times for r in rows)),
+            ("progression", any(r.hide_progression for r in rows)),
+            ("comparison", any(r.hide_comparison for r in rows)),
+        ) if hidden
+    ])
+    if len(user_ids) != 1:
+        return page
+    (user_id,) = user_ids
+    if rows:
+        page.links = [PublicLink(url=url, label=link_label(url)) for url in rows[0].links]
+        pin = rows[0].pinned_participation_id
+        page.pinned_participation_id = pin if pin in validated_ids else None
+    progress = season_goals.public_goal(db, user_repository.get(db, user_id))
+    page.goal = SeasonGoalRead.of(progress) if progress else None
+    return page

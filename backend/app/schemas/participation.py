@@ -18,6 +18,7 @@ from app.schemas.challenge import AthleteChallengeOut
 from app.schemas.course import CourseBrief
 from app.schemas.ids import Rank
 from app.schemas.participation_stats import ParticipationStatsOut
+from app.schemas.public_page import PublicPageRead
 from app.scrapers.base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, STATUS_FINISHER
 from app.scrapers.classify import CANONICAL_TYPES
 from app.services import split_gap
@@ -118,6 +119,8 @@ class AthleteDetail(BaseModel):
     #: Un compte de membre est rattaché à la fiche (#1693). Le seul fait public
     #: sur ce compte : ni son adresse ni son identifiant.
     claimed: bool = False
+    #: Réglages du compte rattaché (#1692) ; neutres sans compte, avec plusieurs comptes ou sans réglage.
+    public_page: PublicPageRead = PublicPageRead()
 
 
 class CourseParticipationPage(BaseModel):
