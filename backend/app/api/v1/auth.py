@@ -53,6 +53,7 @@ from app.schemas.auth import (
 from app.schemas.ids import DbId
 from app.schemas.member_request import MemberRequestCreate, MemberRequestRead
 from app.schemas.opposition import OppositionPreviewRead
+from app.schemas.public_page import PublicPageSettingsRead, PublicPageSettingsWrite
 from app.schemas.season_goal import SeasonGoalRead, SeasonGoalWrite
 from app.schemas.teammate import Teammate
 from app.schemas.volunteer_action import MyVolunteerActionOut, MyVolunteerDeclarationOut
@@ -63,6 +64,7 @@ from app.services import (
     member_requests,
     membership,
     opposition_service,
+    public_page,
     result_claims,
     season_goals,
     teammate_service,
@@ -540,6 +542,19 @@ def create_goal(body: SeasonGoalWrite, user: User = Depends(current_user), db: S
     goal = season_goals.create(db, user, body)
     db.commit()
     return _progress_of(db, user, goal)
+
+
+@router.get("/auth/me/public-page", response_model=PublicPageSettingsRead)
+def get_public_page(user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Ce que mon athlète montre sur sa fiche publique (#1692), privé."""
+    return public_page.settings_of(db, user)
+
+
+@router.put("/auth/me/public-page", response_model=PublicPageSettingsRead)
+def put_public_page(body: PublicPageSettingsWrite, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    saved = public_page.save(db, user, body)
+    db.commit()
+    return saved
 
 
 @router.put("/auth/me/goals/{goal_id}", response_model=SeasonGoalRead)

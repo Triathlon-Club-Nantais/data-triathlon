@@ -43,6 +43,16 @@ class ExportedSeasonGoal(BaseModel):
     created_at: UtcDatetime
 
 
+class ExportedPublicPage(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    hide_best_times: bool
+    hide_progression: bool
+    hide_comparison: bool
+    links: list[str]
+    pinned_participation_id: int | None
+
+
 class ExportedResultClaim(BaseModel):
     """Une réclamation de résultat : l'épreuve, sa date et le temps réclamé, sans le club ni la catégorie
     de la ligne, qui peuvent être ceux d'une autre personne."""
@@ -107,6 +117,7 @@ class AccountExport(BaseModel):
     member_request: MemberRequestRead | None
     result_claims: list[ExportedResultClaim]
     season_goals: list[ExportedSeasonGoal]
+    public_page: ExportedPublicPage | None
     volunteer_actions: list[ExportedVolunteerAction]
     feedback: list[ExportedFeedback]
     results: list[ExportedResult]

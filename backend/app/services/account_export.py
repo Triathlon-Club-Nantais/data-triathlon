@@ -44,6 +44,7 @@ def build(db: Session, user: User) -> AccountExport:
             for claim in user.result_claims
         ],
         "season_goals": sorted(user.season_goals, key=lambda goal: (goal.season, goal.created_at)),
+        "public_page": user.public_page_settings,
         "volunteer_actions": [
             ExportedVolunteerAction(
                 season=action.season, title=action.title, description=action.description, status=action.status,
