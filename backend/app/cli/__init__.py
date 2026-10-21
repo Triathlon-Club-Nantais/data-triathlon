@@ -35,6 +35,7 @@ from app.cli.commands.revoke_sessions import revoke_sessions
 from app.cli.commands.set_site_code import set_site_code
 from app.cli.commands.sync_club_members import sync_club_members
 from app.cli.commands.weather_courses import weather_courses
+from app.cli.commands.weekend_digest import weekend_digest
 from app.core.logging import setup_logging
 
 app = typer.Typer(help="Outillage d'import de masse et de rescrape.")
@@ -58,6 +59,7 @@ app.command("revoke-sessions")(revoke_sessions)
 app.command("set-site-code")(set_site_code)
 app.command("sync-club-members")(sync_club_members)
 app.command("weather-courses")(weather_courses)
+app.command("weekend-digest")(weekend_digest)
 
 
 def load_counter_scope() -> None:
