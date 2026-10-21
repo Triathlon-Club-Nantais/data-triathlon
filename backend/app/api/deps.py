@@ -54,6 +54,13 @@ class InsufficientPermissionError(DomainError):
     message = "Vous n'avez pas les droits nécessaires pour cette action."
 
 
+class NotMemberError(DomainError):
+    """Compte connecté mais pas adhérent : la demande de rattachement lui est fermée (#1785)."""
+
+    status_code = 403
+    message = "Réservé aux adhérents du club : demandez d'abord à rejoindre le club depuis Mon compte."
+
+
 def current_user(
     request: Request,
     db: Session = Depends(get_db),
@@ -185,6 +192,13 @@ def require_site_access(
     if membership.is_member(db, optional_user(request, db, settings), utcnow().date()):
         return
     raise SiteAccessRequiredError()
+
+
+def require_member(user: User = Depends(current_user), db: Session = Depends(get_db)) -> User:
+    """Session d'un compte adhérent (#1785), ou 403. Même statut que `require_site_access`."""
+    if not membership.is_member(db, user, utcnow().date()):
+        raise NotMemberError()
+    return user
 
 
 # ── Plafond de débit par IP (#395, constats A04-2 et A07-1 de l'audit OWASP) ──

@@ -19,6 +19,7 @@ from app.api.deps import (
     InsufficientPermissionError,
     authorize_rate_limit,
     current_user,
+    require_member,
     require_site_access,
     team_search_rate_limit,
 )
@@ -377,12 +378,12 @@ def delete_me(
     response_model=AthleteClaimRead,
     status_code=201,
     # Le routeur `auth` est exempté de la garde du site, mais la réponse nomme la
-    # fiche : sans elle, un compte quelconque énumérerait les athlètes (revue de #1624).
-    dependencies=[Depends(require_site_access)],
+    # fiche : sans adhésion, un compte quelconque énumérerait les athlètes (revue
+    # de #1624). Un adhérent passe aussi la garde du site, donc rien ne se perd.
 )
 def request_athlete_claim(
     body: AthleteClaimCreate,
-    user: User = Depends(current_user),
+    user: User = Depends(require_member),
     db: Session = Depends(get_db),
 ):
     """Demande le rattachement de sa fiche (#1325), toujours soumis à la file du club."""

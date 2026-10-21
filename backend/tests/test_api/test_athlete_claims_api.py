@@ -1,12 +1,12 @@
 """Athlete claims over HTTP (#1325): contracts/auth-me-athlete-claim.md and admin-athlete-claims.md."""
 import pytest
 
-from app.api.deps import require_site_access
-from app.main import app
+from app.core.season import current_season
 from app.models.admin_action_log import AdminActionLog
 from app.models.athlete import Athlete
-from app.models.athlete_claim import STATUS_REJECTED, AthleteClaim
+from app.models.athlete_claim import STATUS_PENDING, STATUS_REJECTED, AthleteClaim
 from app.models.user import User
+from app.repositories import member_email_repository
 
 from .test_admin_data_api import _session_etroite
 
@@ -23,8 +23,15 @@ def athlete(db_session):
     return row
 
 
-def _member(client, db_session):
+def _account(client, db_session):
     return _session_etroite(client, db_session, email="lea@exemple.fr", slug="sans-role")
+
+
+def _member(client, db_session):
+    user = _account(client, db_session)
+    member_email_repository.add_manual(db_session, user.email, current_season())
+    db_session.commit()
+    return user
 
 
 def test_request_returns_the_pending_claim_and_me_shows_it(client, db_session, athlete):
@@ -65,7 +72,7 @@ def test_cancel_and_detach_are_idempotent(client, db_session, athlete):
     assert client.delete(MY_ATHLETE).status_code == 204
     assert client.delete(MY_ATHLETE).status_code == 204
     me = client.get("/api/v1/auth/me").json()
-    assert (me["athlete"], me["athlete_claim"], me["is_member"]) == (None, None, False)
+    assert (me["athlete"], me["athlete_claim"], me["is_member"]) == (None, None, True)
 
 
 def test_user_routes_require_a_session(client):
@@ -86,7 +93,7 @@ def test_the_queue_lists_then_approves(client, db_session, athlete):
     (item,) = listed.json()
     assert item["user"] == {"id": user.id, "display_name": "", "email": "lea@exemple.fr"}
     assert item["athlete"]["club"] == "TRIATHLON CLUB NANTAIS"
-    assert (item["licensee"], item["email_on_member_list"], item["linked_accounts"]) == (None, False, 0)
+    assert (item["licensee"], item["email_on_member_list"], item["linked_accounts"]) == (None, True, 0)
 
     assert client.post(f"{QUEUE}/{item['id']}/approve").status_code == 204
     assert client.post(f"{QUEUE}/{item['id']}/approve").status_code == 404
@@ -148,21 +155,31 @@ def test_linked_accounts_require_the_permission(client, db_session):
     assert client.get(LINKS).status_code == 401
 
 
-@pytest.fixture
-def real_site_gate(client):
-    app.dependency_overrides.pop(require_site_access, None)
-    yield
-
-
-def test_a_claim_needs_site_access_or_the_names_would_leak(client, db_session, athlete, real_site_gate):
-    """Review of #1624: the `auth` router skips the site guard, and a 201 names the athlete."""
-    _member(client, db_session)
+def test_claim_by_a_non_member_with_the_site_code_is_403(client, db_session, athlete):
+    """The response names the athlete: only club members may ask (#1785)."""
+    _account(client, db_session)
 
     response = client.post(MY_CLAIM, json={"athlete_id": athlete.id})
 
-    assert response.status_code == 401
-    assert response.json()["code"] == "site_access_required"
+    assert response.status_code == 403
+    assert response.json()["detail"].startswith("Réservé aux adhérents du club")
     assert db_session.query(AthleteClaim).count() == 0
+
+
+def test_claim_by_a_member_still_returns_201(client, db_session, athlete):
+    _member(client, db_session)
+
+    assert client.post(MY_CLAIM, json={"athlete_id": athlete.id}).status_code == 201
+
+
+def test_a_pending_claim_of_a_non_member_can_still_be_approved(client, db_session, athlete):
+    user = _account(client, db_session)
+    db_session.add(AthleteClaim(user_id=user.id, athlete_id=athlete.id, status=STATUS_PENDING))
+    db_session.commit()
+    _session_etroite(client, db_session, "athlete_claims:review", email="rev@exemple.fr", slug="rev")
+    (item,) = client.get(QUEUE).json()
+
+    assert client.post(f"{QUEUE}/{item['id']}/approve").status_code == 204
 
 
 def test_the_queue_requires_a_session(client):
