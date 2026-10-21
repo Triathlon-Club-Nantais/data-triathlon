@@ -270,10 +270,12 @@ describe("AppNav — doublon de prefetch après resynchro localStorage (#428)", 
     expect(montages.get("/admin/fournisseurs")).toBe(2);
   });
 
-  it("ne prefetche pas le logo du rail déplié, qui double la route de « Accueil »", async () => {
+  it("ne prefetche pas le logo du rail déplié, qui double la route de « Accueil », ni ne le double du monogramme (NAV-2)", async () => {
     afficher(null, { initialExpanded: true });
 
     const rail = screen.getByRole("navigation", { name: "Navigation principale" });
+    // Seul le logo image reste une fois le rail déplié.
+    expect(within(rail).getAllByRole("link", { name: "TCN — Accueil" })).toHaveLength(1);
     const logo = within(rail).getByRole("link", { name: "TCN — Accueil" });
     expect(logo).toHaveAttribute("href", "/");
     expect(logo).toHaveAttribute("data-prefetch", "false");
@@ -281,20 +283,16 @@ describe("AppNav — doublon de prefetch après resynchro localStorage (#428)", 
 });
 
 describe("AppNav — largeur du rail décidée avant la peinture (#482, NAV-3)", () => {
-  it("réplique replié par défaut quand aucune prop n'est fournie", () => {
-    afficher(null);
+  // Le stock localStorage reste vide : si le rail lisait encore
+  // `tcn-nav-expanded` depuis là, la prop n'aurait aucun effet.
+  it.each([
+    ["replié", false, "var(--tcn-nav-rail)"],
+    ["déplié", true, "var(--tcn-nav-panel)"],
+  ])("peint le rail %s à sa largeur persistée dès le premier rendu, sans jamais lire localStorage", (_etat, initialExpanded, largeur) => {
+    afficher(null, { initialExpanded });
 
     const rail = screen.getByRole("navigation", { name: "Navigation principale" });
-    expect(rail.style.width).toBe("var(--tcn-nav-rail)");
-  });
-
-  it("peint le rail à sa largeur persistée dès le premier rendu, sans jamais lire localStorage", () => {
-    // Le stock localStorage reste vide : si le rail lisait encore
-    // `tcn-nav-expanded` depuis là, la prop n'aurait aucun effet.
-    afficher(null, { initialExpanded: true });
-
-    const rail = screen.getByRole("navigation", { name: "Navigation principale" });
-    expect(rail.style.width).toBe("var(--tcn-nav-panel)");
+    expect(rail.style.width).toBe(largeur);
     expect(window.localStorage.getItem("tcn-nav-expanded")).toBeNull();
   });
 
@@ -311,20 +309,17 @@ describe("AppNav — largeur du rail décidée avant la peinture (#482, NAV-3)",
 });
 
 describe("AppNav — alignement de l'en-tête du rail (#620)", () => {
-  it("cale bouton et logo à gauche une fois le rail déplié, au lieu de les centrer", () => {
-    afficher(null, { initialExpanded: true });
+  // Déplié, bouton et logo se calent à gauche au lieu d'être centrés ; replié,
+  // bouton et monogramme restent centrés.
+  it.each([
+    ["déplié", true, "Replier la navigation", "flex-start"],
+    ["replié", false, "Déplier la navigation", "center"],
+  ])("aligne l'en-tête du rail %s", (_etat, initialExpanded, nomBouton, justifyContent) => {
+    afficher(null, { initialExpanded });
 
     const rail = screen.getByRole("navigation", { name: "Navigation principale" });
-    const bouton = within(rail).getByRole("button", { name: "Replier la navigation" });
-    expect(bouton.parentElement).toHaveStyle({ justifyContent: "flex-start" });
-  });
-
-  it("garde bouton et monogramme centrés une fois le rail replié", () => {
-    afficher(null);
-
-    const rail = screen.getByRole("navigation", { name: "Navigation principale" });
-    const bouton = within(rail).getByRole("button", { name: "Déplier la navigation" });
-    expect(bouton.parentElement).toHaveStyle({ justifyContent: "center" });
+    const bouton = within(rail).getByRole("button", { name: nomBouton });
+    expect(bouton.parentElement).toHaveStyle({ justifyContent });
   });
 });
 
@@ -336,13 +331,6 @@ describe("AppNav — monogramme du rail replié (#482, NAV-2)", () => {
     const monogramme = within(rail).getByRole("link", { name: "TCN — Accueil" });
     expect(monogramme).toHaveAttribute("href", "/");
     expect(monogramme).toHaveTextContent("TCN");
-  });
-
-  it("ne double pas le monogramme une fois le rail déplié — seul le logo image reste", () => {
-    afficher(null, { initialExpanded: true });
-
-    const rail = screen.getByRole("navigation", { name: "Navigation principale" });
-    expect(within(rail).getAllByRole("link", { name: "TCN — Accueil" })).toHaveLength(1);
   });
 });
 
@@ -402,12 +390,17 @@ describe("AppNav: searching is not choosing (#952)", () => {
     await userEvent.click(await screen.findByRole("option", { name: `${verbe} Paul Martin, TCN, 2 épreuves` }));
   }
 
-  it("keeps the select mode when Ctrl+K is pressed on an open select palette", async () => {
+  // #502, revue UI/UX item 11 : l'invitation de Mon espace n'a ni route ni état
+  // pour ouvrir la palette quand l'athlète retenu a disparu (404) ; elle le
+  // demande par cet événement, qu'`AppNav` seul sait exaucer (`pickerOpen`
+  // est local à ce composant). #503 et #504 en auront besoin aussi.
+  it("opens the select palette on OPEN_PICKER_EVENT, and keeps it when Ctrl+K is pressed", async () => {
     afficher(null);
     act(() => {
       window.dispatchEvent(new Event("tcn-athlete-open-picker"));
     });
-    expect(await screen.findByRole("dialog", { name: "Sélectionnez votre nom" })).toBeInTheDocument();
+    const modale = await screen.findByRole("dialog", { name: "Sélectionnez votre nom" });
+    expect(within(modale).getByText("Sélectionnez votre nom")).toBeInTheDocument();
 
     await userEvent.keyboard("{Control>}k{/Control}");
 
@@ -450,11 +443,13 @@ describe("AppNav: searching is not choosing (#952)", () => {
     expect(readAthlete()).toEqual({ id: 12, prenom: "Jean", nom: "Dupont" });
   });
 
-  it("titles the search palette as a search, without the dashboard promise", async () => {
+  it("opens the search palette on Ctrl+K from anywhere, titled as a search without the dashboard promise", async () => {
     afficher(null);
     await userEvent.keyboard("{Control>}k{/Control}");
 
     const modale = await screen.findByRole("dialog", { name: "Rechercher un athlète" });
+    expect(within(modale).getByText("Rechercher un athlète")).toBeInTheDocument();
+    expect(within(modale).getByText("Saisissez au moins 2 lettres d'un nom ou d'un écran.")).toBeInTheDocument();
     expect(within(modale).queryByText("Sélectionnez votre nom")).not.toBeInTheDocument();
     expect(within(modale).queryByText(/Votre saison s'affichera/)).not.toBeInTheDocument();
   });
@@ -490,7 +485,7 @@ describe("AppNav: searching is not choosing (#952)", () => {
 describe("AppNav — ne plus suivre l'athlète retenu (#442)", () => {
   const JEAN = { id: 12, prenom: "Jean", nom: "Dupont" };
 
-  it("retire l'athlète du rail et du stock d'un clic sur la croix de la tuile", async () => {
+  it("retire l'athlète du rail et du stock d'un clic sur la croix de la tuile, sans emporter la recherche", async () => {
     // Jusqu'ici, la désélection n'existait que sur la page de l'athlète
     // (`SelectAthleteButton`) : depuis la nav, on ne pouvait que remplacer
     // l'athlète retenu par un autre, jamais n'en retenir aucun.
@@ -498,11 +493,34 @@ describe("AppNav — ne plus suivre l'athlète retenu (#442)", () => {
     afficher(null);
     await deplier();
 
-    await userEvent.click(await screen.findByRole("button", { name: "Ne plus choisir Jean Dupont" }));
+    const croix = await screen.findByRole("button", { name: "Ne plus choisir Jean Dupont" });
+    // `SelectAthleteButton` rend « Ne plus choisir cet athlète » et
+    // `AthletePicker` « Choisir <nom>, <club>, <épreuves> », vocabulaire harmonisé après la revue
+    // de #323. « Suivre » y ajoutait un troisième verbe pour le même geste, et
+    // promettait un abonnement qui n'existe pas (revue UI/UX).
+    expect(croix).toHaveAttribute("title", "Ne plus choisir");
+    expect(screen.queryByRole("button", { name: /suivre/i })).not.toBeInTheDocument();
+    // Stylée en ligne, la croix n'avait ni survol ni anneau de focus : il ne
+    // restait que l'anneau UA `outline-ring/50`, mesuré à 1,85:1 sur le fond
+    // de la tuile, sous le seuil WCAG 1.4.11 de 3:1. Même cause commune que
+    // les trois défauts de #299 : un `style` en ligne ne peut pas exprimer
+    // d'état. `.tcn-icon-btn` porte seule :hover et :focus-visible.
+    expect(croix).toHaveClass("tcn-icon-btn");
+    // 28 px tenait WCAG 2.5.8 (24 px) mais pas le plancher tactile de cette
+    // grille, et la croix **est** rendue dans le tiroir mobile
+    // (`contenu(true, …)`). La hauteur ne coûte rien : la tuile fait 44 px.
+    expect(croix.style.width).toBe("44px");
+    expect(croix.style.height).toBe("44px");
+
+    await userEvent.click(croix);
 
     expect(readAthlete()).toBeNull();
     expect(screen.queryByRole("link", { name: "Mon athlète — Jean Dupont" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Ne plus choisir Jean Dupont" })).not.toBeInTheDocument();
+    // La tuile s'affiche en complément de la recherche, jamais à sa place
+    // (#323) : la retirer ne doit pas emporter le seul moyen d'en choisir un
+    // autre.
+    expect(screen.getAllByRole("button", { name: "Rechercher un athlète" }).length).toBeGreaterThan(0);
   });
 
   it("n'offre pas la croix à un compte rattaché, sa fiche n'est pas un choix (#1325)", async () => {
@@ -512,60 +530,6 @@ describe("AppNav — ne plus suivre l'athlète retenu (#442)", () => {
 
     expect(await screen.findByRole("link", { name: "Mon athlète — Jean Dupont" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Ne plus choisir Jean Dupont" })).not.toBeInTheDocument();
-  });
-
-  it("dit « ne plus choisir », le verbe déjà arbitré ailleurs (revue UI/UX)", async () => {
-    // `SelectAthleteButton` rend « Ne plus choisir cet athlète » et
-    // `AthletePicker` « Choisir <nom>, <club>, <épreuves> » — vocabulaire harmonisé après la revue
-    // de #323. « Suivre » y ajoutait un troisième verbe pour le même geste, et
-    // promettait un abonnement qui n'existe pas.
-    window.localStorage.setItem("tcn-athlete", JSON.stringify(JEAN));
-    afficher(null);
-    await deplier();
-
-    const croix = await screen.findByRole("button", { name: "Ne plus choisir Jean Dupont" });
-    expect(croix).toHaveAttribute("title", "Ne plus choisir");
-    expect(screen.queryByRole("button", { name: /suivre/i })).not.toBeInTheDocument();
-  });
-
-  it("porte .tcn-icon-btn, seule à exprimer :hover et :focus-visible (revue UI/UX)", async () => {
-    // Stylée en ligne, la croix n'avait ni survol ni anneau de focus : il ne
-    // restait que l'anneau UA `outline-ring/50`, mesuré à 1,85:1 sur le fond
-    // de la tuile, sous le seuil WCAG 1.4.11 de 3:1. Même cause commune que
-    // les trois défauts de #299 — un `style` en ligne ne peut pas exprimer
-    // d'état.
-    window.localStorage.setItem("tcn-athlete", JSON.stringify(JEAN));
-    afficher(null);
-    await deplier();
-
-    expect(await screen.findByRole("button", { name: "Ne plus choisir Jean Dupont" })).toHaveClass(
-      "tcn-icon-btn",
-    );
-  });
-
-  it("offre une cible de 44 px, la tuile en faisant déjà autant (revue UI/UX)", async () => {
-    // 28 px tenait WCAG 2.5.8 (24 px) mais pas le plancher tactile de cette
-    // grille, et la croix **est** rendue dans le tiroir mobile
-    // (`contenu(true, …)`). La hauteur ne coûte rien : la tuile fait 44 px.
-    window.localStorage.setItem("tcn-athlete", JSON.stringify(JEAN));
-    afficher(null);
-    await deplier();
-
-    const croix = await screen.findByRole("button", { name: "Ne plus choisir Jean Dupont" });
-    expect(croix.style.width).toBe("44px");
-    expect(croix.style.height).toBe("44px");
-  });
-
-  it("laisse l'entrée « Rechercher un athlète » en place après la désélection", async () => {
-    // La tuile s'affiche en complément de la recherche, jamais à sa place
-    // (#323) : la retirer ne doit pas emporter le seul moyen d'en choisir un
-    // autre.
-    window.localStorage.setItem("tcn-athlete", JSON.stringify(JEAN));
-    afficher(null);
-    await deplier();
-    await userEvent.click(await screen.findByRole("button", { name: "Ne plus choisir Jean Dupont" }));
-
-    expect(screen.getAllByRole("button", { name: "Rechercher un athlète" }).length).toBeGreaterThan(0);
   });
 
   it("n'offre pas la croix sur le rail replié, où la tuile se réduit à l'avatar", async () => {
@@ -582,19 +546,12 @@ describe("AppNav — ne plus suivre l'athlète retenu (#442)", () => {
 describe("AppNav — raccourci « Mes résultats » de la tuile (NAV-10, #503)", () => {
   const JEAN = { id: 12, prenom: "Jean", nom: "Dupont" };
 
-  it("pointe vers /resultats avec le nom complet pré-rempli", async () => {
+  it("pointe vers /resultats avec le nom complet pré-rempli, sans prefetch, comme le lien de profil voisin (#425)", async () => {
     window.localStorage.setItem("tcn-athlete", JSON.stringify(JEAN));
     afficher(null, { initialExpanded: true });
 
     const lien = await screen.findByRole("link", { name: "Mes résultats — Jean Dupont" });
     expect(lien).toHaveAttribute("href", "/resultats?name=Jean%20Dupont");
-  });
-
-  it("ne prefetche pas la destination, comme le lien de profil voisin (#425)", async () => {
-    window.localStorage.setItem("tcn-athlete", JSON.stringify(JEAN));
-    afficher(null, { initialExpanded: true });
-
-    const lien = await screen.findByRole("link", { name: "Mes résultats — Jean Dupont" });
     expect(lien).toHaveAttribute("data-prefetch", "false");
   });
 
@@ -615,17 +572,25 @@ describe("AppNav — raccourci « Mes résultats » de la tuile (NAV-10, #503)",
 });
 
 describe("AppNav: unreadable session (#954)", () => {
-  it("does not show « Se connecter » when /auth/me fails with a 503", async () => {
+  function afficherEnPanne(props: { initialExpanded?: boolean } = {}) {
     getSession.mockRejectedValue(new ApiError(503, "indisponible"));
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    render(
+    return render(
       <QueryClientProvider client={client}>
-        <AppNav />
+        <AppNav {...props} />
       </QueryClientProvider>,
     );
+  }
+
+  it("offers a rail retry instead of « Se connecter » on a 503, which brings the account back", async () => {
+    afficherEnPanne();
 
     const reessayer = await screen.findByRole("button", { name: "Session indisponible, réessayer" });
     expect(screen.queryByRole("button", { name: "Se connecter" })).not.toBeInTheDocument();
+    // Anneau de focus orange.
+    expect(reessayer).toHaveClass("tcn-rail-compte");
+    // L'issue de la relance s'annonce dans une région de statut.
+    expect(reessayer.closest("[role=status]")).not.toBeNull();
 
     getSession.mockResolvedValue(SESSION);
     await userEvent.click(reessayer);
@@ -652,27 +617,8 @@ describe("AppNav: unreadable session (#954)", () => {
     expect(screen.queryByRole("button", { name: "Se connecter" })).not.toBeInTheDocument();
   });
 
-  it("does not show « Se connecter » while the session is still pending", async () => {
-    getSession.mockReturnValue(new Promise(() => {}));
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    render(
-      <QueryClientProvider client={client}>
-        <AppNav />
-      </QueryClientProvider>,
-    );
-
-    await waitFor(() => expect(getSession).toHaveBeenCalled());
-    expect(screen.queryByRole("button", { name: "Se connecter" })).not.toBeInTheDocument();
-  });
-
   it("keeps focus on the retry button while the new attempt runs", async () => {
-    getSession.mockRejectedValue(new ApiError(503, "indisponible"));
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    render(
-      <QueryClientProvider client={client}>
-        <AppNav />
-      </QueryClientProvider>,
-    );
+    afficherEnPanne();
     const reessayer = await screen.findByRole("button", { name: "Session indisponible, réessayer" });
 
     getSession.mockReturnValue(new Promise(() => {}));
@@ -688,31 +634,6 @@ describe("AppNav: unreadable session (#954)", () => {
     expect(getSession).toHaveBeenCalledTimes(appels);
   });
 
-  function afficherEnPanne(props: { initialExpanded?: boolean } = {}) {
-    getSession.mockRejectedValue(new ApiError(503, "indisponible"));
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    return render(
-      <QueryClientProvider client={client}>
-        <AppNav {...props} />
-      </QueryClientProvider>,
-    );
-  }
-
-  it("gives the rail retry button the orange focus ring", async () => {
-    afficherEnPanne();
-
-    expect(await screen.findByRole("button", { name: "Session indisponible, réessayer" })).toHaveClass(
-      "tcn-rail-compte",
-    );
-  });
-
-  it("announces the rail retry outcome in a status region", async () => {
-    afficherEnPanne();
-
-    const reessayer = await screen.findByRole("button", { name: "Session indisponible, réessayer" });
-    expect(reessayer.closest("[role=status]")).not.toBeNull();
-  });
-
   it("shows the state and the action in the expanded rail", async () => {
     afficherEnPanne({ initialExpanded: true });
 
@@ -722,6 +643,8 @@ describe("AppNav: unreadable session (#954)", () => {
     expect(region).toHaveTextContent("Réessayer");
   });
 
+  // Gardé à part, après le test du 503 : lancé seul, il échoue sur le code
+  // intact (il ne passe qu'après une relance antérieure dans le même fichier).
   it("moves focus to the account trigger once the rail retry succeeds", async () => {
     afficherEnPanne();
     const reessayer = await screen.findByRole("button", { name: "Session indisponible, réessayer" });
@@ -746,7 +669,7 @@ describe("AppNav: unreadable session (#954)", () => {
     await waitFor(() => expect(compte).toHaveFocus());
   });
 
-  it("shows a neutral busy placeholder while the session is pending", async () => {
+  it("shows a neutral busy placeholder, not « Se connecter », while the session is pending", async () => {
     getSession.mockReturnValue(new Promise(() => {}));
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(
@@ -755,6 +678,8 @@ describe("AppNav: unreadable session (#954)", () => {
       </QueryClientProvider>,
     );
 
+    await waitFor(() => expect(getSession).toHaveBeenCalled());
+    expect(screen.queryByRole("button", { name: "Se connecter" })).not.toBeInTheDocument();
     const attente = await screen.findByRole("status", { name: "Lecture de la session" });
     expect(attente).toHaveAttribute("aria-busy", "true");
     expect(attente).not.toHaveTextContent("Se connecter");
@@ -776,15 +701,6 @@ describe("AppNav — actions primaires", () => {
     expect(screen.getAllByRole("button", { name: "Rechercher un athlète" }).length).toBeGreaterThan(0);
   });
 
-  it("ouvre le picker au ⌘K / Ctrl+K depuis n'importe où", async () => {
-    afficher(null);
-    await userEvent.keyboard("{Control>}k{/Control}");
-
-    const modale = await screen.findByRole("dialog");
-    expect(within(modale).getByText("Rechercher un athlète")).toBeInTheDocument();
-    expect(within(modale).getByText("Saisissez au moins 2 lettres d'un nom ou d'un écran.")).toBeInTheDocument();
-  });
-
   it("offers no athlete search on /acces, where the search can only fail (#953)", async () => {
     chemin.courant = "/acces";
     afficher(null);
@@ -792,20 +708,6 @@ describe("AppNav — actions primaires", () => {
     expect(screen.queryByRole("button", { name: "Rechercher un athlète" })).not.toBeInTheDocument();
     await userEvent.keyboard("{Control>}k{/Control}");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-  });
-
-  // #502, revue UI/UX item 11 : l'invitation de Mon espace n'a ni route ni état
-  // pour ouvrir la palette quand l'athlète retenu a disparu (404) — elle le
-  // demande par cet événement, qu'`AppNav` seul sait exaucer (`pickerOpen`
-  // est local à ce composant). #503 et #504 en auront besoin aussi.
-  it("ouvre le picker sur OPEN_PICKER_EVENT", async () => {
-    afficher(null);
-    act(() => {
-      window.dispatchEvent(new Event("tcn-athlete-open-picker"));
-    });
-
-    const modale = await screen.findByRole("dialog");
-    expect(within(modale).getByText("Sélectionnez votre nom")).toBeInTheDocument();
   });
 
   it("garde la recherche accessible en plus de la tuile, athlète retenu, rail déplié (#323)", async () => {
@@ -841,20 +743,7 @@ describe("AppNav — actions primaires", () => {
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
   });
 
-  it("closes the mobile drawer from a visible close button (#1116)", async () => {
-    afficher(null);
-    await userEvent.click(screen.getByRole("button", { name: "Ouvrir le menu" }));
-    const tiroir = await screen.findByRole("dialog");
-
-    const fermer = within(tiroir).getByRole("button", { name: "Fermer le menu" });
-    // Anneau de focus opaque (3,32:1), pas le halo universel à 1,86:1.
-    expect(fermer).toHaveClass("tcn-icon-btn");
-    await userEvent.click(fermer);
-
-    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-  });
-
-  it("exposes the mobile drawer state on its trigger (#1077)", async () => {
+  it("exposes the mobile drawer state on its trigger (#1077) and closes it from a visible close button (#1116)", async () => {
     afficher(null);
     const bouton = screen.getByRole("button", { name: "Ouvrir le menu" });
     expect(bouton).toHaveAttribute("aria-haspopup", "dialog");
@@ -865,6 +754,13 @@ describe("AppNav — actions primaires", () => {
     const tiroir = await screen.findByRole("dialog");
     expect(bouton).toHaveAttribute("aria-expanded", "true");
     expect(bouton).toHaveAttribute("aria-controls", tiroir.id);
+
+    const fermer = within(tiroir).getByRole("button", { name: "Fermer le menu" });
+    // Anneau de focus opaque (3,32:1), pas le halo universel à 1,86:1.
+    expect(fermer).toHaveClass("tcn-icon-btn");
+    await userEvent.click(fermer);
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 
   it("affiche aussi la recherche et la tuile dans le tiroir mobile, athlète retenu", async () => {
@@ -975,22 +871,16 @@ describe("AppNav — arborescence", () => {
     expect(screen.queryByRole("link", { name: "Fournisseurs en attente" })).not.toBeInTheDocument();
   });
 
-  it("marque l'entrée courante avec aria-current=\"page\"", async () => {
+  it("marque l'entrée courante avec aria-current=\"page\", écrite dans un orange qui tient 4,5:1 (#1078)", async () => {
     afficher(null);
     await deplier();
 
     const rail = screen.getByRole("navigation", { name: "Navigation principale" });
     expect(within(rail).getByRole("link", { name: "Accueil" })).toHaveAttribute("aria-current", "page");
     expect(within(rail).getByRole("link", { name: "Résultats" })).not.toHaveAttribute("aria-current");
-  });
-
-  it("écrit l'entrée courante dans un orange qui tient 4,5:1 (#1078)", async () => {
-    afficher(null);
-    await deplier();
 
     // `--tcn-orange` ne tient que 3,68:1 sur blanc et 3,33:1 sur `--tcn-orange-08` :
     // sous le seuil AA d'un texte de 11 à 14 px.
-    const rail = screen.getByRole("navigation", { name: "Navigation principale" });
     expect(within(rail).getByRole("link", { name: "Accueil" })).toHaveStyle({
       color: "var(--tcn-orange-deeper)",
     });
@@ -1130,18 +1020,9 @@ describe("AppNav — Gestion des utilisateurs (#170)", () => {
     );
   });
 
-  it("ne porte que les entrées dont le pouvoir est détenu", async () => {
+  it("ouvre « Droits des rôles » à qui porte roles:write (#240), et ne porte que les entrées dont le pouvoir est détenu", async () => {
     // Composer les droits d'un rôle et autoriser une adresse sont deux pouvoirs
     // distincts : porter l'un ne doit pas annoncer l'écran de l'autre.
-    afficher(habilite("roles:write"));
-    await deplier();
-    await waitFor(() => expect(screen.getByText("Gestion des utilisateurs")).toBeInTheDocument());
-
-    expect(screen.getByRole("link", { name: "Droits des rôles" })).toBeInTheDocument();
-    expect(screen.queryByText("Accès et mots de passe")).not.toBeInTheDocument();
-  });
-
-  it("ouvre « Droits des rôles » à qui porte roles:write (#240)", async () => {
     afficher(habilite("roles:write"));
     await deplier();
     await waitFor(() => expect(screen.getByText("Gestion des utilisateurs")).toBeInTheDocument());
@@ -1150,6 +1031,7 @@ describe("AppNav — Gestion des utilisateurs (#170)", () => {
       "href",
       "/admin/droits",
     );
+    expect(screen.queryByText("Accès et mots de passe")).not.toBeInTheDocument();
   });
 
   it("garde la section fermée à qui ne porte aucun de ses pouvoirs", async () => {
@@ -1212,25 +1094,18 @@ describe("AppNav — session (#114)", () => {
     expect(push).toHaveBeenCalledWith("/login");
   });
 
-  it("regroupe l'état connecté derrière un déclencheur unique (#176)", async () => {
+  it("regroupe l'état connecté derrière un déclencheur unique (#176), et pose l'action dans le tiroir mobile aussi, sans dupliquer l'entrée Administration", async () => {
     afficher(SESSION);
     await waitFor(() =>
       expect(screen.getByRole("button", { name: `Compte — ${SESSION.email}` })).toBeInTheDocument(),
     );
     expect(screen.queryByRole("button", { name: "Se déconnecter" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Se connecter" })).not.toBeInTheDocument();
-  });
 
-  it("pose l'action dans le tiroir mobile aussi, sans dupliquer l'entrée Administration", async () => {
     // Le tiroir déplie l'état connecté **à plat** : un menu déroulant y
     // sortirait du piège de focus. Le lien « Administration » a été **retiré**
     // du menu compte (revue humaine PR #214) : la catégorie Administration de
     // la nav rend l'entrée redondante.
-    afficher(SESSION);
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: `Compte — ${SESSION.email}` })).toBeInTheDocument(),
-    );
-
     await userEvent.click(screen.getByRole("button", { name: "Ouvrir le menu" }));
 
     const tiroir = await screen.findByRole("dialog");
@@ -1312,6 +1187,22 @@ describe("AppNav — infobulles du rail replié remplacent les title (#482, NAV-
     expect(await screen.findByRole("tooltip", { name: "Se connecter" })).toBeInTheDocument();
   });
 
+  // Le contenu de l'infobulle de recherche reprend le raccourci clavier, comme
+  // le faisait le `title` natif qu'elle remplace ; seul l'`aria-label` du
+  // bouton reste sobre.
+  it.each([
+    ["link", "Ajouter une épreuve", "Ajouter une épreuve"],
+    ["button", "Rechercher un athlète", "Rechercher un athlète (Ctrl K)"],
+    ["link", "Accueil", "Accueil"],
+  ] as const)("porte une infobulle au survol de l'élément replié %s « %s »", async (role, nom, infobulle) => {
+    afficher(null);
+    const rail = screen.getByRole("navigation", { name: "Navigation principale" });
+    const element = within(rail).getByRole(role, { name: nom });
+
+    await userEvent.hover(element);
+    expect(await screen.findByRole("tooltip", { name: infobulle })).toBeInTheDocument();
+  });
+
   it("affiche la même infobulle au focus clavier, pas seulement au survol", async () => {
     afficher(null);
     const rail = screen.getByRole("navigation", { name: "Navigation principale" });
@@ -1330,41 +1221,15 @@ describe("AppNav — infobulles du rail replié remplacent les title (#482, NAV-
     expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
   });
 
-  it("porte une infobulle sur le lien « Ajouter une épreuve » replié", async () => {
-    afficher(null);
-    const rail = screen.getByRole("navigation", { name: "Navigation principale" });
-    const lien = within(rail).getByRole("link", { name: "Ajouter une épreuve" });
-
-    await userEvent.hover(lien);
-    expect(await screen.findByRole("tooltip", { name: "Ajouter une épreuve" })).toBeInTheDocument();
-  });
-
-  it("porte une infobulle sur le bouton « Rechercher un athlète » replié", async () => {
-    afficher(null);
-    const rail = screen.getByRole("navigation", { name: "Navigation principale" });
-    const bouton = within(rail).getByRole("button", { name: "Rechercher un athlète" });
-
-    await userEvent.hover(bouton);
-    // Le contenu de l'infobulle reprend le raccourci clavier, comme le
-    // faisait le `title` natif qu'elle remplace — seul l'`aria-label` du
-    // bouton reste sobre.
-    expect(await screen.findByRole("tooltip", { name: "Rechercher un athlète (Ctrl K)" })).toBeInTheDocument();
-  });
-
-  it("porte une infobulle « Mon athlète » sur la tuile de l'athlète retenu, repliée", async () => {
-    window.localStorage.setItem("tcn-athlete", JSON.stringify({ id: 12, prenom: "Jean", nom: "Dupont" }));
-    afficher(null);
-    const avatar = await screen.findByRole("link", { name: "Mon athlète — Jean Dupont" });
-
-    await userEvent.hover(avatar);
-    expect(await screen.findByRole("tooltip", { name: "Mon athlète" })).toBeInTheDocument();
-  });
-
-  it("nomme la tuile « Mon athlète » (#502)", () => {
+  it("nomme la tuile « Mon athlète » (#502) et lui porte cette infobulle, repliée", async () => {
     window.localStorage.setItem("tcn-athlete", JSON.stringify({ id: 12, prenom: "Jean", nom: "Dupont" }));
     afficher(null);
     expect(screen.getByLabelText("Mon athlète — Jean Dupont")).toBeInTheDocument();
     expect(screen.queryByLabelText("Mon profil — Jean Dupont")).not.toBeInTheDocument();
+    const avatar = await screen.findByRole("link", { name: "Mon athlète — Jean Dupont" });
+
+    await userEvent.hover(avatar);
+    expect(await screen.findByRole("tooltip", { name: "Mon athlète" })).toBeInTheDocument();
   });
 
   it("porte une infobulle sur la tuile de catégorie repliée (« Administration »)", async () => {
@@ -1376,14 +1241,6 @@ describe("AppNav — infobulles du rail replié remplacent les title (#482, NAV-
     expect(await screen.findByRole("tooltip", { name: "Administration" })).toBeInTheDocument();
   });
 
-  it("porte une infobulle sur une entrée repliée du rail (« Accueil »)", async () => {
-    afficher(null);
-    const rail = screen.getByRole("navigation", { name: "Navigation principale" });
-    const lien = within(rail).getByRole("link", { name: "Accueil" });
-
-    await userEvent.hover(lien);
-    expect(await screen.findByRole("tooltip", { name: "Accueil" })).toBeInTheDocument();
-  });
 });
 
 describe("AppNav — barre basse mobile (#482, NAV-4, #1012)", () => {
@@ -1476,10 +1333,12 @@ describe("AppNav — barre basse mobile (#482, NAV-4, #1012)", () => {
     expect(within(barre()).getByRole("button", { name: "Plus" })).toBeInTheDocument();
   });
 
-  it("« Plus » ouvre le tiroir, qui porte l'arbre public complet (#1620)", async () => {
+  it("« Plus », éteint quand la page courante est dans la barre, ouvre le tiroir, qui porte l'arbre public complet (#1620)", async () => {
     afficher(habilite("pages:preview"));
+    expect(within(barre()).getByRole("button", { name: "Plus" }).querySelector("[data-trait-actif]")).toBeNull();
     await waitFor(() => expect(screen.getByRole("button", { name: /^Compte/ })).toBeInTheDocument());
     const plus = within(barre()).getByRole("button", { name: "Plus" });
+    expect(plus.querySelector("[data-trait-actif]")).toBeNull();
     expect(plus).toHaveAttribute("aria-haspopup", "dialog");
     expect(plus).toHaveAttribute("aria-expanded", "false");
 
@@ -1494,22 +1353,16 @@ describe("AppNav — barre basse mobile (#482, NAV-4, #1012)", () => {
     expect(within(tiroir).getByRole("link", { name: "Espace club" })).toBeInTheDocument();
   });
 
-  // Le libellé **visible** raccourcit ; le nom accessible reste entier.
-  it("raccourcit « Validation des épreuves », qui tenait sur trois lignes à 375 px (#890)", () => {
-    afficher(null);
-
-    const lien = within(barre()).getByRole("link", { name: "Validation des épreuves" });
-    expect(lien).toHaveTextContent("Validation");
-    expect(lien).not.toHaveTextContent("des épreuves");
-  });
-
-  // WCAG 2.5.3 : le nom accessible commence par le texte visible, sans quoi la
+  // Le libellé **visible** raccourcit ; le nom accessible reste entier. WCAG
+  // 2.5.3 : le nom accessible commence par le texte visible, sans quoi la
   // commande vocale ne trouve rien.
-  it("nomme un onglet à libellé court par son texte visible, suivi du libellé complet (#1012)", () => {
+  it("raccourcit « Validation des épreuves », qui tenait sur trois lignes à 375 px (#890), et nomme l'onglet par son texte visible suivi du libellé complet (#1012)", () => {
     afficher(null);
 
     // Un libellé court contenu dans le long garde le long, qui commence par lui.
-    expect(within(barre()).getByRole("link", { name: "Validation des épreuves" })).toHaveTextContent("Validation");
+    const lien = within(barre()).getByRole("link", { name: "Validation des épreuves" });
+    expect(lien).toHaveTextContent("Validation");
+    expect(lien).not.toHaveTextContent("des épreuves");
     // Un libellé déjà court n'est pas dupliqué en configuration.
     expect(within(barre()).getByRole("link", { name: "Résultats" })).toHaveTextContent("Résultats");
   });
@@ -1536,12 +1389,6 @@ describe("AppNav — barre basse mobile (#482, NAV-4, #1012)", () => {
     } finally {
       chemin.courant = "/";
     }
-  });
-
-  it("n'allume pas « Plus » quand la page courante est dans la barre", async () => {
-    afficher(habilite("pages:preview"));
-    const plus = await waitFor(() => within(barre()).getByRole("button", { name: "Plus" }));
-    expect(plus.querySelector("[data-trait-actif]")).toBeNull();
   });
 
   it("ne porte aucune destination privée, connecté ou non", async () => {
@@ -1618,11 +1465,16 @@ describe("AppNav — repli sur les sections publiques quand le tiroir n'a aucune
 });
 
 describe("AppNav — le tiroir ne se ferme plus au clic du pied (#482, NAV-4)", () => {
-  it("reste ouvert juste après un clic sur « Se déconnecter », le temps de la mutation", async () => {
+  it("ne se ferme ni au clic sur un élément neutre du pied (l'adresse, hors bouton), ni juste après un clic sur « Se déconnecter », le temps de la mutation", async () => {
     afficher(SESSION);
     await waitFor(() => expect(screen.getByRole("button", { name: `Compte — ${SESSION.email}` })).toBeInTheDocument());
     await userEvent.click(screen.getByRole("button", { name: "Ouvrir le menu" }));
     const tiroir = await screen.findByRole("dialog");
+
+    await userEvent.click(within(tiroir).getByText(SESSION.email));
+
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+
     let resoudre!: () => void;
     logout.mockReturnValue(new Promise<void>((resolve) => { resoudre = resolve; }));
 
@@ -1632,17 +1484,6 @@ describe("AppNav — le tiroir ne se ferme plus au clic du pied (#482, NAV-4)", 
     // câblée sur l'événement de clic du pied (#482, NAV-4).
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     resoudre();
-  });
-
-  it("ne ferme pas le tiroir au clic sur un élément neutre du pied (l'adresse, hors bouton)", async () => {
-    afficher(SESSION);
-    await waitFor(() => expect(screen.getByRole("button", { name: `Compte — ${SESSION.email}` })).toBeInTheDocument());
-    await userEvent.click(screen.getByRole("button", { name: "Ouvrir le menu" }));
-    const tiroir = await screen.findByRole("dialog");
-
-    await userEvent.click(within(tiroir).getByText(SESSION.email));
-
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 });
 
@@ -1762,13 +1603,6 @@ describe("AppNav — espaces (#1296)", () => {
     expect(within(tiroir).getAllByRole("link", { name: /Back-office/ })).toHaveLength(1);
   });
 
-  it("n'offre pas d'entrée Back-office à un membre sans pouvoir", async () => {
-    chemin.courant = "/";
-    afficher(SESSION);
-    await waitFor(() => expect(getSession).toHaveBeenCalled());
-    expect(within(rail()).queryByRole("link", { name: /Back-office/ })).not.toBeInTheDocument();
-  });
-
   it("garde dans la palette les écrans de tous les espaces", async () => {
     chemin.courant = "/";
     afficher(admin());
@@ -1780,32 +1614,23 @@ describe("AppNav — espaces (#1296)", () => {
     expect(within(liste).getAllByRole("link").map((l) => l.getAttribute("href"))).toContain("/admin/courses");
   });
 
-  it("offre le sélecteur d'espace à un administrateur", async () => {
+  it("offre le sélecteur d'espace à un administrateur, sur le rail et en tête du tiroir mobile, pas dans la barre du haut", async () => {
     chemin.courant = "/";
     afficher(admin(), { initialExpanded: true });
     expect(await within(rail()).findByRole("group", { name: "Espaces" })).toBeInTheDocument();
-  });
-
-  it("offre le sélecteur d'espace en tête du tiroir mobile, pas dans la barre du haut", async () => {
-    chemin.courant = "/";
-    afficher(admin(), { initialExpanded: true });
-    await within(rail()).findByRole("group", { name: "Espaces" });
     expect(within(screen.getByRole("banner")).queryByRole("group", { name: "Espaces" })).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Ouvrir le menu" }));
     expect(await within(await screen.findByRole("dialog")).findByRole("group", { name: "Espaces" })).toBeInTheDocument();
   });
 
-  it("n'offre pas de sélecteur à un membre sans pouvoir", async () => {
+  it.each([
+    ["un membre sans pouvoir", SESSION],
+    ["un anonyme", null],
+  ])("n'offre ni sélecteur ni entrée Back-office à %s", async (_profil, session) => {
     chemin.courant = "/";
-    afficher(SESSION);
+    afficher(session);
     await waitFor(() => expect(getSession).toHaveBeenCalled());
-    expect(screen.queryByRole("group", { name: /espaces$/i })).not.toBeInTheDocument();
-  });
-
-  it("n'offre pas de sélecteur à un anonyme", async () => {
-    chemin.courant = "/";
-    afficher(null);
-    await waitFor(() => expect(getSession).toHaveBeenCalled());
+    expect(within(rail()).queryByRole("link", { name: /Back-office/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("group", { name: /espaces$/i })).not.toBeInTheDocument();
   });
 });

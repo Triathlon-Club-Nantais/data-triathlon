@@ -163,3 +163,28 @@ timeout après (ligne 735) sont tués par la relance ciblée,
 (8 tués sur 8, 17 s). À ensemble égal : 451/749 → 451/749. Couverture du
 fichier seul : 135/137 lignes avant et après, mêmes lignes manquées. Détail du
 lot : `2026-10-20-test-consolidation-inventaire.md`.
+
+## Consolidation, lot 4 (`AppNav.test.tsx`)
+
+Stryker sur `components/layout/AppNav.tsx` (794 mutants au rapport, fichier
+entier), runner `vitest-gt`, `--force --concurrency 3`. L'avant dépasse le
+budget de 30 min (2016 s) ; la restriction aux lignes touchées aurait couvert
+presque tout le fichier. Durées indicatives seulement : charge hors seuil, une
+exécution par bras.
+
+| Mesure | load au départ → à la fin | Durée murale | Tués / survivants / timeouts | Statut |
+| --- | --- | --- | --- | --- |
+| Avant | 2,17 → 3,53 | 2016 s | 385 / 369 / 29 | non retenue (charge) |
+| Avant, relance des timeouts (lignes 488 à 547, `--timeoutMS 60000`) | 2,09 → 3,86 | 126 s | 29 timeouts : 6 / 23 / 0 | non retenue (charge) |
+| Après, premier brouillon (écarté) | 2,37 → 4,86 | 1610 s | 414 / 369 / 0 | non retenue (charge) |
+| Après | 2,93 → 4,41 | 1586 s | 391 / 392 / 0 | non retenue (charge) |
+
+Mutants comparés par leur étendue complète (début et fin, mutateur,
+remplacement) : une clé sur le seul début confond 20 mutants d'`AppNav.tsx` et
+en perdait 10. Avant, timeouts tranchés par la relance : 391/783. Après : 391/783, verdict
+identique mutant par mutant (11 sans couverture exclus des deux côtés). Le
+premier brouillon gagnait 23 mutants (lignes 116 à 379) par un faux positif :
+le test de focus fusionné échoue lancé seul sur le code intact, et Stryker ne
+rejoue que les tests couvrant le mutant. Remis à part, l'après a été remesuré.
+Couverture du fichier seul : 116/120 lignes avant et après, mêmes lignes
+manquées. Détail du lot : `2026-10-20-test-consolidation-inventaire.md`.
