@@ -1,4 +1,5 @@
 """Modèle User — l'identité applicative d'un contributeur (#114)."""
+
 from datetime import datetime
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, String
@@ -84,6 +85,10 @@ class User(Base):
     # La demande de rattachement appartient au compte et part avec lui (#1325).
     athlete_claim: Mapped["AthleteClaim | None"] = relationship(  # noqa: F821
         back_populates="user", cascade="all, delete-orphan", uselist=False
+    )
+    # Ses demandes d'adhésion partent avec lui (#1785).
+    member_requests: Mapped[list["MemberRequest"]] = relationship(  # noqa: F821
+        back_populates="user", cascade="all, delete-orphan"
     )
     # Ses réclamations de résultat partent avec lui (#1637).
     result_claims: Mapped[list["ResultClaim"]] = relationship(  # noqa: F821
