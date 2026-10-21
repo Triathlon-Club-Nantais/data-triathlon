@@ -26,6 +26,10 @@ def test_accepted_links(url, label):
     "https://strava.com/" + "a" * 200,
     "",
     "https://www.strava.com/a b",
+    "https://evil.example\\.strava.com/x",
+    "https://strava.com\\@evil.example/",
+    "https://strava.com\\evil",
+    "https://evil%2Estrava.com/",
 ])
 def test_refused_links(url):
     with pytest.raises(InvalidLinkError):

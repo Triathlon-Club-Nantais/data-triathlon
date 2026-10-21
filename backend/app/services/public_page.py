@@ -2,6 +2,7 @@
 
 Possédés par le compte, jamais par la fiche : sans ligne, rien n'est masqué.
 """
+import re
 from urllib.parse import urlsplit
 
 from sqlalchemy.orm import Session
@@ -16,6 +17,8 @@ from app.repositories import (
 from app.schemas.public_page import PublicPageSettingsRead, PublicPageSettingsWrite
 
 MAX_LINK_LENGTH = 200
+#: Browsers (WHATWG) read `\` as `/` and decode percent-escapes in a host, urlsplit does not: accept only plain hosts.
+_PLAIN_HOST = re.compile(r"[a-z0-9.-]+")
 
 #: Domaine accepté (lui-même ou un sous-domaine) et libellé affiché.
 LINK_PROVIDERS = {
@@ -51,6 +54,8 @@ def _provider_domain(url: str) -> str | None:
         parts = urlsplit(url)
         host, port = (parts.hostname or "").lower(), parts.port
     except ValueError:
+        return None
+    if "\\" in url or not _PLAIN_HOST.fullmatch(host):
         return None
     if parts.scheme != "https" or parts.username is not None or parts.password is not None or port is not None:
         return None
