@@ -53,6 +53,8 @@ class CourseBrief(BaseModel):
     name: str
     event_date: date | None = None
     event_type: str = ""
+    #: Additif (#1744) : « classified », « manual » ou « fallback » (type posé par le repli triathlon).
+    event_type_origin: str = "classified"
     provider: str = ""
     source_url: str = ""
     is_relay: bool = False

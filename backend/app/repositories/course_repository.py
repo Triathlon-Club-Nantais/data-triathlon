@@ -12,7 +12,7 @@ from app.core.text import deaccent
 from app.core.time import utcnow
 from app.core.validation import pending_only_clause, validated_clause
 from app.models.absorbed_course import AbsorbedCourse
-from app.models.course import Course
+from app.models.course import EVENT_TYPE_ORIGIN_FALLBACK, Course
 from app.models.course_source import CourseSource
 from app.models.participation import Participation
 from app.models.season_goal import SeasonGoal
@@ -609,6 +609,7 @@ def _filtered(
     date_to: date | None,
     unreliable: bool = False,
     awaiting_review: bool = False,
+    event_type_to_review: bool = False,
     hide_pending_only: bool = False,
 ):
     """Les filtres du catalogue, en un seul endroit — `list_all` et `count_all`.
@@ -637,6 +638,8 @@ def _filtered(
         q = q.filter(Course.is_reliable.is_(False))
     if awaiting_review:
         q = q.filter(Course.reliability_override.is_(None), Course.is_reliable_computed.is_(False))
+    if event_type_to_review:
+        q = q.filter(Course.event_type_origin == EVENT_TYPE_ORIGIN_FALLBACK)
     if club_only:
         # Semi-jointure `IN` et non `join` + `DISTINCT` : PostgreSQL n'a pas
         # d'égalité sur `json` (`quality_issues`), le `DISTINCT` y échoue (#918).
@@ -668,6 +671,7 @@ def list_all(
     date_to: date | None = None,
     unreliable: bool = False,
     awaiting_review: bool = False,
+    event_type_to_review: bool = False,
     page: int = 1,
     page_size: int = 50,
     hide_pending_only: bool,
@@ -682,6 +686,7 @@ def list_all(
         date_to=date_to,
         unreliable=unreliable,
         awaiting_review=awaiting_review,
+        event_type_to_review=event_type_to_review,
         hide_pending_only=hide_pending_only,
     )
     offset = (page - 1) * page_size
@@ -709,6 +714,7 @@ def count_all(
     date_to: date | None = None,
     unreliable: bool = False,
     awaiting_review: bool = False,
+    event_type_to_review: bool = False,
     hide_pending_only: bool,
 ) -> int:
     """Combien d'épreuves la liste rendrait sans pagination — le « sur 7 »."""
@@ -722,6 +728,7 @@ def count_all(
         date_to=date_to,
         unreliable=unreliable,
         awaiting_review=awaiting_review,
+        event_type_to_review=event_type_to_review,
         hide_pending_only=hide_pending_only,
     ).count()
 
