@@ -142,12 +142,19 @@ describe("Politique de confidentialité (#333)", () => {
   });
 
   it("mentionne les objectifs de saison, privés et supprimés avec le compte (#1373)", () => {
-    expect(rendre()).toMatch(/objectifs de saison, que lui seul voit, et qui sont supprimés avec le compte/);
+    expect(rendre()).toMatch(/objectifs de saison, que lui seul voit, sauf un qu.il peut choisir d.afficher sur sa fiche publique/);
+    expect(rendre()).toMatch(/et qui sont supprimés avec le compte/);
   });
 
   it("dit comment un compte se rattache à sa fiche et s'en détache (#1325)", () => {
     expect(rendre()).toMatch(/à la demande de son titulaire, après vérification par le club/);
     expect(rendre()).toMatch(/Me détacher de ma fiche/);
+  });
+
+  it("dit ce que le titulaire peut montrer ou masquer sur sa fiche publique, et l'inclut dans l'export (#1692)", () => {
+    const texte = rendre();
+    expect(texte).toMatch(/liens vers ses profils Strava, Garmin Connect, Polar Flow ou Suunto, y afficher un objectif de saison et un résultat épinglé, et y masquer ses records, sa progression ou la comparaison/);
+    expect(texte).toMatch(/objectifs, réglages de la fiche publique, déclarations de bénévolat/);
   });
 
   it("lets a linked member oppose from Mon compte, the club alone lifting it (#1673)", () => {
@@ -225,6 +232,6 @@ describe("Politique de confidentialité (#333)", () => {
   });
 
   it("date la politique du jour de sa dernière modification", () => {
-    expect(PRIVACY_POLICY.updatedAt).toBe("2026-10-20");
+    expect(PRIVACY_POLICY.updatedAt).toBe("2026-10-21");
   });
 });
