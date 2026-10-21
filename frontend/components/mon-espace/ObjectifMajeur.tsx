@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { hms, joursAvant, libelle, progression } from "@/components/dashboard/SeasonGoals";
+import { hms, joursAvant, libelle, progression } from "@/lib/utils/season-goal";
 import { Card, Eyebrow, MetaPill } from "@/components/tcn";
 import { useSeasonGoals } from "@/lib/queries/auth";
 import type { SeasonGoal } from "@/lib/types";

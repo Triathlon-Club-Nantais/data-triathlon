@@ -21,7 +21,8 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
 
 import { eventTypeLabel } from "@/lib/constants";
 import { currentSeason, seasonLabel } from "@/lib/utils/season";
-import { SeasonGoals, libelle, progression } from "./SeasonGoals";
+import { SeasonGoals } from "./SeasonGoals";
+import { libelle, progression } from "@/lib/utils/season-goal";
 
 const LEA = { id: 42, prenom: "Léa", nom: "Martin" };
 const TEMPS: SeasonGoal = {

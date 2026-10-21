@@ -11,7 +11,7 @@ import { useDeleteSeasonGoal, useHydratedSession, useSaveSeasonGoal, useSeasonGo
 import type { CourseBrief, SeasonGoal, SeasonGoalWrite } from "@/lib/types";
 import { currentSeason, seasonLabel } from "@/lib/utils/season";
 import { formatDate } from "@/lib/utils/date";
-import { hms, joursAvant, libelle, progression } from "@/lib/utils/season-goal";
+import { hms, libelle, progression } from "@/lib/utils/season-goal";
 import { secondsFromHms } from "@/lib/utils/time";
 
 const WRAP = { whiteSpace: "normal", textAlign: "left", height: "auto" } as const;
@@ -326,7 +326,3 @@ function ChoixEpreuve(props: {
     </>
   );
 }
-
-// Les libellés vivent dans `lib/utils/season-goal` : la fiche publique (composant serveur) les appelle,
-// ce qu'un export d'un module "use client" interdit.
-export { hms, joursAvant, libelle, progression };

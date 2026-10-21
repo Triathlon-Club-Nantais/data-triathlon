@@ -6,7 +6,7 @@ import { PublicGoal, PublicLinks, PinnedResult } from "./PublicPageExtras";
 describe("PublicLinks", () => {
   it("renders each link as a new-tab nofollow anchor with the server label", () => {
     render(<PublicLinks links={[{ url: "https://www.strava.com/athletes/1", label: "Strava" }]} />);
-    const a = screen.getByRole("link", { name: "Strava" });
+    const a = screen.getByRole("link", { name: "Strava (nouvel onglet)" });
     expect(a).toHaveAttribute("href", "https://www.strava.com/athletes/1");
     expect(a).toHaveAttribute("target", "_blank");
     expect(a).toHaveAttribute("rel", "noopener nofollow ugc");

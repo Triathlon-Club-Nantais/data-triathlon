@@ -185,5 +185,5 @@ pas. Une fiche sans réglage (`public_page` neutre) se rend comme avant.
   la donnée, que l'API `/athletes/{id}` continue de servir (les participations
   restent publiques derrière le code d'accès du site).
 - `libelle`, `progression`, `hms` et `joursAvant` vivent dans
-  `lib/utils/season-goal.ts` (réexportés par `SeasonGoals.tsx`) : un composant
+  `lib/utils/season-goal.ts` (importés par `SeasonGoals.tsx`, `RecapObjectifs.tsx`, `ObjectifMajeur.tsx`) : un composant
   serveur ne peut pas appeler une fonction exportée d'un module `"use client"`.

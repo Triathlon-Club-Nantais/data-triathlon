@@ -2,7 +2,7 @@
 
 import { Card, Eyebrow, MetaPill } from "@/components/tcn";
 import { useSeasonGoals } from "@/lib/queries/auth";
-import { libelle, progression } from "./SeasonGoals";
+import { libelle, progression } from "@/lib/utils/season-goal";
 
 /** Objectifs de la saison du récap (#1669), en lecture seule. Un échec de lecture masque la section sans bloquer le récap. */
 export function RecapObjectifs({ season }: { season: number }) {

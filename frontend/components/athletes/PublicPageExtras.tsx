@@ -20,6 +20,8 @@ export function PublicLinks({ links }: { links: PublicLink[] }) {
             className="underline underline-offset-2 text-[var(--tcn-orange-deeper)]"
           >
             {link.label}
+            {" "}
+            <span className="sr-only">(nouvel onglet)</span>
           </a>
         </li>
       ))}
