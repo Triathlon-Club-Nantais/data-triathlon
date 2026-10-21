@@ -46,9 +46,9 @@ class InvalidLinkError(DomainError):
     message = "Lien refusé : seuls les profils Strava, Garmin Connect, Polar Flow et Suunto en https sont acceptés."
 
 
-class TooManyLinksError(DomainError):
+class DuplicateLinkError(DomainError):
     status_code = 422
-    message = "Trois liens au plus, sans doublon."
+    message = "Ce lien figure déjà parmi vos liens."
 
 
 class InvalidPinError(DomainError):
@@ -107,7 +107,7 @@ def save(db: Session, user: User, data: PublicPageSettingsWrite) -> PublicPageSe
         raise NoClaimedAthleteError()
     links = [normalize_link(link) for link in data.links]
     if len(set(links)) != len(links):
-        raise TooManyLinksError()
+        raise DuplicateLinkError()
     pin = data.pinned_participation_id
     if pin is not None and pin not in _validated_ids(db, user.athlete_id):
         raise InvalidPinError()
