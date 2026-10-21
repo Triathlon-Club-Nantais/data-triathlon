@@ -7,6 +7,7 @@ from app.core import season
 from app.core.season import current_season
 from app.models.athlete import Athlete
 from app.models.course import Course
+from app.models.season_goal import SeasonGoal
 from app.models.user import User
 from app.schemas.season_goal import SeasonGoalWrite
 from app.services import season_goals
@@ -34,7 +35,8 @@ def test_create_list_update_delete(client, lea):
     assert goal == {
         "id": goal["id"], "season": current_season(), "kind": "time", "event_type": "triathlon-m",
         "target": 9000, "best_time": None, "count": None, "reached": False,
-        "course_id": None, "race_name": None, "race_date": None, "major": False, "outcome": "upcoming",
+        "course_id": None, "race_name": None, "race_date": None, "major": False, "public": False,
+        "outcome": "upcoming",
     }
 
     assert [g["id"] for g in client.get(URL).json()] == [goal["id"]]
@@ -187,3 +189,38 @@ def test_known_course_without_date_is_422(client, db_session, lea, october_2026)
 
     assert refused.status_code == 422
     assert "pas de date" in refused.json()["detail"]
+
+
+def test_only_one_public_goal_per_account_across_seasons(client, db_session, lea, october_2026):
+    old = SeasonGoal(user_id=lea.id, season=2025, kind="count", target=2, public=True)
+    db_session.add(old)
+    db_session.commit()
+    first = client.post(URL, json={"kind": "count", "target": 3, "public": True}).json()
+    db_session.refresh(old)
+
+    assert (first["public"], old.public) == (True, False)
+    second = client.post(URL, json={"kind": "count", "target": 4, "public": True}).json()
+    assert {g["id"]: g["public"] for g in client.get(URL).json()} == {first["id"]: False, second["id"]: True}
+    assert client.put(f"{URL}/{first['id']}", json={"kind": "count", "target": 3, "public": True}).status_code == 200
+    assert {g["id"]: g["public"] for g in client.get(URL).json()} == {first["id"]: True, second["id"]: False}
+
+
+def test_public_goal_is_the_current_season_one_with_progress(db_session, lea, october_2026):
+    user = db_session.get(User, lea.id)
+    db_session.add_all([
+        SeasonGoal(user_id=user.id, season=2026, kind="count", target=3),
+        SeasonGoal(user_id=user.id, season=2026, kind="count", target=4, public=True),
+    ])
+    db_session.commit()
+
+    progress = season_goals.public_goal(db_session, user)
+
+    assert (progress.goal.target, progress.count, progress.goal.public) == (4, 0, True)
+
+
+def test_public_goal_of_last_season_is_none(db_session, lea, october_2026):
+    user = db_session.get(User, lea.id)
+    db_session.add(SeasonGoal(user_id=user.id, season=2025, kind="count", target=3, public=True))
+    db_session.commit()
+
+    assert season_goals.public_goal(db_session, user) is None

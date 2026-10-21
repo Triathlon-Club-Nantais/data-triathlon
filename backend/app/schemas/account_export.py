@@ -39,7 +39,8 @@ class ExportedSeasonGoal(BaseModel):
     season: int
     kind: str
     event_type: str | None
-    target: int
+    target: int | None
+    public: bool
     created_at: UtcDatetime
 
 
