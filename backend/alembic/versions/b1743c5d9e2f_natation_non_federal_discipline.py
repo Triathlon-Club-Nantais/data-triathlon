@@ -24,18 +24,16 @@ __all__ = ["revision", "down_revision", "branch_labels", "depends_on", "upgrade"
 
 def upgrade() -> None:
     # Gardé : une ligne ajoutée à la main depuis l'administration ferait échouer l'unicité.
+    # Littéraux en dur : un même paramètre lié à `kind` et au WHERE prend deux types
+    # sur PostgreSQL (AmbiguousParameter).
     op.get_bind().execute(
         sa.text(
             "INSERT INTO counter_scope_entries (kind, value, created_at, created_by_user_id) "
-            "SELECT :kind, :value, :created_at, NULL "
+            "SELECT 'non_federal_discipline', 'natation', :created_at, NULL "
             "WHERE NOT EXISTS (SELECT 1 FROM counter_scope_entries "
-            "WHERE kind = :kind AND value = :value)"
+            "WHERE kind = 'non_federal_discipline' AND value = 'natation')"
         ),
-        {
-            "kind": "non_federal_discipline",
-            "value": "natation",
-            "created_at": datetime.now(UTC).replace(tzinfo=None),
-        },
+        {"created_at": datetime.now(UTC).replace(tzinfo=None)},
     )
 
 

@@ -229,6 +229,7 @@ def test_the_schema_table_is_derived_from_the_one_that_produces_the_splits():
         ("swimrun-l", ["swim", "segment2", "run"]),
         ("course-a-pied", ["run"]),
         ("trail", ["run"]),
+        ("natation", ["swim"]),
         # Sport inconnu : le triathlon est le défaut, comme dans `build_splits`.
         ("", ["swim", "t1", "bike", "t2", "run"]),
         ("cross-triathlon", ["swim", "t1", "bike", "t2", "run"]),

@@ -29,7 +29,7 @@ vérifie qu'elles ne divergent pas.
 from collections.abc import Iterable
 
 #: Slugs canoniques (cf. `scrapers/classify.CANONICAL_TYPES`) hors fédération
-#: triathlon — l'amorçage de la migration pose ces neuf valeurs.
+#: triathlon — amorcées par `35c74bb2c7b4` (neuf valeurs) et `b1743c5d9e2f` (natation).
 DEFAULT_NON_FEDERAL_DISCIPLINES: frozenset[str] = frozenset({
     "trail",
     "cyclisme",
