@@ -41,7 +41,11 @@ export function ProfileMeasurements({
 }) {
   const supprimer = useDeleteProfileMeasurement();
   const confirmer = useDangerConfirm();
-  const parEpreuve = Map.groupBy(measurements, (test) => test.event);
+  // Pas de Map.groupBy : absent de Safari < 17.4, hors des cibles de Next.
+  const parEpreuve = new Map<string, ProfileMeasurement[]>();
+  for (const test of measurements) {
+    parEpreuve.set(test.event, [...(parEpreuve.get(test.event) ?? []), test]);
+  }
 
   async function retirer(test: ProfileMeasurement) {
     if (
@@ -88,6 +92,7 @@ export function ProfileMeasurements({
                 <li key={test.id} className="flex items-center justify-between gap-2 py-2 text-sm">
                   <span>
                     {formatDate(test.measured_on)} · {formatDuration(test.duration_tenths)}
+                    {test.training_session_id !== null && " · en séance"}
                   </span>
                   {peutEcrire && (
                     <Button

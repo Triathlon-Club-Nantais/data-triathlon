@@ -70,6 +70,17 @@ def _log_entry_view(entry) -> dict:
     }
 
 
+def _measurement_view(measurement) -> dict:
+    return {
+        "id": measurement.id,
+        "measured_on": measurement.measured_on,
+        "event": measurement.event,
+        "duration_tenths": measurement.duration_tenths,
+        "training_session_id": measurement.training_session_id,
+        "created_at": measurement.created_at,
+    }
+
+
 def profile_view(profile: PersonalProfile) -> dict:
     """La forme rendue par la liste, `contracts/admin-profiles.md`."""
     return {
@@ -113,7 +124,10 @@ def profile_detail_view(
             _log_entry_view(entry)
             for entry in profile_repository.list_log_entries(db, profile.id)
         ],
-        "measurements": profile_repository.list_measurements(db, profile.id),
+        "measurements": [
+            _measurement_view(measurement)
+            for measurement in profile_repository.list_measurements(db, profile.id)
+        ],
     }
 
 

@@ -2,6 +2,9 @@
 
 Patron `tests/test_auth/test_group_repository.py`.
 """
+import datetime
+from datetime import date
+
 import pytest
 
 from app.models.organisation import Organisation
@@ -70,8 +73,6 @@ def test_adding_a_log_entry_populates_its_id(db_session, profile):
 
 
 def test_log_entries_come_out_most_recent_first(db_session, profile):
-    import datetime
-
     old = profile_repository.add_log_entry(
         db_session,
         profile_id=profile.id,
@@ -109,8 +110,6 @@ def _measure(db_session, profile, event, measured_on):
 
 
 def test_measurements_come_out_by_event_then_date(db_session, profile):
-    from datetime import date
-
     _measure(db_session, profile, "50 m nage", date(2026, 10, 14))
     _measure(db_session, profile, "1000 m", date(2026, 10, 3))
     _measure(db_session, profile, "50 m nage", date(2026, 10, 3))
@@ -125,8 +124,6 @@ def test_measurements_come_out_by_event_then_date(db_session, profile):
 
 
 def test_get_measurement_ignores_another_profile(db_session, organisation, profile):
-    from datetime import date
-
     other = profile_repository.create(
         db_session, organisation_id=organisation.id, first_name="Zoé", last_name="Martin"
     )
@@ -137,8 +134,6 @@ def test_get_measurement_ignores_another_profile(db_session, organisation, profi
 
 
 def test_measurement_events_are_distinct_and_sorted(db_session, organisation, profile):
-    from datetime import date
-
     _measure(db_session, profile, "50 m nage", date(2026, 10, 3))
     _measure(db_session, profile, "50 m nage", date(2026, 10, 14))
     _measure(db_session, profile, "1000 m", date(2026, 10, 3))

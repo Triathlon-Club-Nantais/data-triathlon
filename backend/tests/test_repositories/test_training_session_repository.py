@@ -4,7 +4,8 @@ import pytest
 
 from app.models.organisation import Organisation
 from app.models.personal_profile import PersonalProfile
-from app.repositories import training_session_repository
+from app.models.profile_measurement import ProfileMeasurement
+from app.repositories import profile_repository, training_session_repository
 
 
 @pytest.fixture(autouse=True)
@@ -233,12 +234,15 @@ def test_update_without_note_does_not_erase_it(db_session):
 
 
 def test_deleting_a_session_keeps_its_measurements_without_session(db_session):
-    from app.models.profile_measurement import ProfileMeasurement
-    from app.repositories import profile_repository
-
+    club = Organisation(slug="autre", name="Autre club")
+    db_session.add(club)
+    db_session.flush()
+    jeune = profile_repository.create(
+        db_session, organisation_id=club.id, first_name="Alix", last_name="Martin"
+    )
     seance = _create(db_session, date=date(2026, 9, 20))
     mesure = profile_repository.add_measurement(
-        db_session, profile_id=1, measured_on=date(2026, 9, 20), event="1000 m",
+        db_session, profile_id=jeune.id, measured_on=date(2026, 9, 20), event="1000 m",
         duration_tenths=3000, training_session_id=seance.id,
     )
 

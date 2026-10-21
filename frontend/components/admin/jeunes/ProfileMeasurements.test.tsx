@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { ProfileMeasurement, TrainingSession } from "@/lib/types";
@@ -85,6 +85,47 @@ describe("ProfileMeasurements", () => {
     expect(screen.getAllByRole("list")).toHaveLength(2);
     expect(screen.getByText(/42,3 s/)).toBeInTheDocument();
     expect(screen.getByText(/7:42,3/)).toBeInTheDocument();
+  });
+
+  it("garde l'ordre de l'API avec deux épreuves entrelacées", () => {
+    afficher([
+      test(1, "Cooper", "2026-09-10", 4623),
+      test(2, "50 m nage libre", "2026-09-11", 423),
+      test(3, "Cooper", "2026-10-11", 4500),
+    ]);
+
+    expect(screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent)).toEqual([
+      "Cooper",
+      "50 m nage libre",
+    ]);
+    expect(within(screen.getAllByRole("list")[0]).getAllByRole("listitem")).toHaveLength(2);
+  });
+
+  it("mentionne la séance seulement quand le test en a une", () => {
+    afficher([
+      { ...test(1, "Cooper", "2026-09-10", 4623), training_session_id: 5 },
+      test(2, "Cooper", "2026-10-11", 4500),
+    ]);
+
+    const [avec, sans] = screen.getAllByRole("listitem");
+    expect(avec).toHaveTextContent("en séance");
+    expect(sans).not.toHaveTextContent("en séance");
+  });
+
+  it("supprime le test après confirmation, pas après renoncement", async () => {
+    deleteProfileMeasurement.mockResolvedValue(undefined);
+    const user = userEvent.setup();
+    afficher([test(7, "Cooper", "2026-10-11", 4623)]);
+    const supprimer = () => screen.getByRole("button", { name: /Supprimer le test Cooper/ });
+
+    await user.click(supprimer());
+    await user.click(await screen.findByRole("button", { name: "Renoncer" }));
+    expect(deleteProfileMeasurement).not.toHaveBeenCalled();
+
+    await user.click(supprimer());
+    const dialogue = await screen.findByRole("dialog");
+    await user.click(within(dialogue).getByRole("button", { name: "Supprimer" }));
+    await waitFor(() => expect(deleteProfileMeasurement).toHaveBeenCalledWith(4, 7));
   });
 
   it("dit qu'il n'y a aucun test", () => {
