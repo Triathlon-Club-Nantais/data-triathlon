@@ -91,6 +91,12 @@ def get_by_identity(
     )
 
 
+def set_event_type_origin(db: Session, course: Course, origin: str) -> None:
+    if course.event_type_origin != origin:
+        course.event_type_origin = origin
+        db.flush()
+
+
 # Les trois fonctions suivantes servent le reclassement figé à la révision Alembic
 # e734b8c5c962 (`services/reclassify`). Elles ne chargent que les colonnes passées,
 # pour ne pas lire celles que les révisions suivantes ajoutent au modèle.

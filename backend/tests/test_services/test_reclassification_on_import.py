@@ -211,3 +211,70 @@ def test_a_sibling_heat_keeps_its_own_course_next_to_a_manually_corrected_one(
 
     assert {p.bib_number for p in corrected.participations} == {"1"}
     assert {p.bib_number for p in sibling.participations} == {"2"}
+
+
+def _neutral(bib, event_type="triathlon-s", *, name="La Chaussaire - Solo", **extra):
+    return ScrapedResult(
+        source_url=WICLAX, provider="wiclax", athlete_name=f"NOM-{bib}",
+        athlete_firstname="Jean", bib_number=bib, event_name=name, event_date=JOUR,
+        event_type=event_type, total_time="01:59:00", **extra,
+    )
+
+
+def test_import_flags_a_course_typed_by_the_fallback(db_session, patch_scraper):
+    _importer(db_session, patch_scraper, WICLAX, [_neutral("1")])
+
+    assert db_session.query(Course).one().event_type_origin == "fallback"
+
+
+def test_import_does_not_flag_a_fallback_corroborated_by_splits(db_session, patch_scraper):
+    _importer(
+        db_session, patch_scraper, WICLAX,
+        [_neutral("1", swim_time="00:20:00", bike_time="01:00:00")],
+    )
+
+    assert db_session.query(Course).one().event_type_origin == "classified"
+
+
+def test_import_does_not_flag_a_named_triathlon(db_session, patch_scraper):
+    _importer(
+        db_session, patch_scraper, WICLAX,
+        [_neutral("1", "triathlon-m", name="Triathlon M de Vertou")],
+    )
+
+    assert db_session.query(Course).one().event_type_origin == "classified"
+
+
+def test_reimport_clears_the_flag_once_the_type_is_recognised(db_session, patch_scraper):
+    _importer(db_session, patch_scraper, WICLAX, [_neutral("1")])
+
+    _importer(db_session, patch_scraper, WICLAX, [_neutral("1", "duathlon-s")], force=True)
+
+    course = db_session.query(Course).one()
+    assert (course.event_type, course.event_type_origin) == ("duathlon-s", "classified")
+
+
+def test_import_never_flags_a_manual_course(db_session, patch_scraper):
+    _importer(db_session, patch_scraper, WICLAX, [_neutral("1")])
+    admin = user_repository.create(db_session, email="admin@exemple.fr")
+    db_session.flush()
+    admin_actions.update_course(
+        db_session, course_id=db_session.query(Course).one().id,
+        fields={"event_type": "duathlon-s"}, user_id=admin.id,
+    )
+
+    _importer(db_session, patch_scraper, WICLAX, [_neutral("1")], force=True)
+
+    course = db_session.query(Course).one()
+    assert (course.event_type, course.event_type_origin) == ("duathlon-s", "manual")
+
+
+def test_relay_twin_is_flagged_on_its_own(db_session, patch_scraper):
+    _importer(
+        db_session, patch_scraper, WICLAX,
+        [_neutral("1"), _neutral("2", is_relay=True)],
+    )
+
+    courses = db_session.query(Course).all()
+    assert len(courses) == 2
+    assert {c.event_type_origin for c in courses} == {"fallback"}

@@ -17,7 +17,12 @@ from app.core.club import canonical_club_key, is_significant_club
 from app.core.gender import normalize_gender
 from app.core.text import deaccent
 from app.models.athlete import Athlete
-from app.models.course import EVENT_TYPE_ORIGIN_MANUAL, Course
+from app.models.course import (
+    EVENT_TYPE_ORIGIN_CLASSIFIED,
+    EVENT_TYPE_ORIGIN_FALLBACK,
+    EVENT_TYPE_ORIGIN_MANUAL,
+    Course,
+)
 from app.models.course_source import CourseSource
 from app.models.participation import Participation
 from app.repositories import (
@@ -44,6 +49,7 @@ from app.scrapers.base import (
     STATUS_FINISHER,
     ScrapedResult,
 )
+from app.scrapers.classify import is_fallback_type
 from app.scrapers.utils import heat_is_challenge, is_masked_name, split_relay_teammates, to_seconds
 from app.services import (
     challenge_service,
@@ -1688,6 +1694,22 @@ def _prepare_batch(db: Session, url: str, results: list[ScrapedResult]) -> None:
     _renumber_relay_split_ranks(db, results)
 
 
+def _flag_fallback_heats(db: Session, results: list[ScrapedResult]) -> None:
+    """Marque `fallback` l'épreuve typée par le repli triathlon, sauf si un admin l'a corrigée."""
+    groups: dict[tuple, list[ScrapedResult]] = defaultdict(list)
+    for scraped in results:
+        key = (scraped.event_name, scraped.event_date, scraped.event_type, bool(scraped.is_relay))
+        groups[key].append(scraped)
+    for (name, event_date, event_type, is_relay), rows in groups.items():
+        course = course_repository.get_by_identity(db, name, event_date, event_type, is_relay)
+        if course is None or course.event_type_origin == EVENT_TYPE_ORIGIN_MANUAL:
+            continue
+        has_swim_and_bike = any(r.swim_time and r.bike_time for r in rows)
+        fallback = is_fallback_type(event_type, name, has_swim_and_bike=has_swim_and_bike)
+        origin = EVENT_TYPE_ORIGIN_FALLBACK if fallback else EVENT_TYPE_ORIGIN_CLASSIFIED
+        course_repository.set_event_type_origin(db, course, origin)
+
+
 def persist_steps(
     db: Session, url: str, results: list[ScrapedResult]
 ) -> Iterator[tuple[int, "_Persister"]]:
@@ -1716,12 +1738,14 @@ def persist_steps(
         persisted.add(scraped)
         yield done, persisted
     persisted.finalize()
+    _flag_fallback_heats(db, results)
     leftovers = _persist_challenges(db, url, held, persisted)
     if leftovers:
         _prepare_batch(db, url, leftovers)
         for scraped in leftovers:
             persisted.add(scraped)
         persisted.finalize()
+        _flag_fallback_heats(db, leftovers)
 
 
 def persist_results(db: Session, url: str, results: list[ScrapedResult]) -> dict:
