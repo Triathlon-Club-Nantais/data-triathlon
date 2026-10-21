@@ -16,7 +16,7 @@ def _registre_vierge():
     counter_scope.reset()
 
 
-def test_les_defauts_sont_les_neuf_disciplines_hors_federation():
+def test_les_defauts_sont_les_dix_disciplines_hors_federation():
     assert counter_scope.non_federal_disciplines() == frozenset({
         "trail",
         "cyclisme",
@@ -27,6 +27,7 @@ def test_les_defauts_sont_les_neuf_disciplines_hors_federation():
         "course-a-pied-10k",
         "course-a-pied-semi",
         "course-a-pied-marathon",
+        "natation",
     })
 
 
