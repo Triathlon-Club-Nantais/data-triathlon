@@ -24,9 +24,19 @@ _CATEGORIES = (
 UNDER_SIX = "Moins de 6 ans"
 
 
+def _fftri_season(on: date) -> int:
+    return on.year + 1 if on.month >= SEASON_SWITCH_MONTH else on.year
+
+
+def fftri_season_bounds(on: date) -> tuple[date, date]:
+    """Bornes incluses (1er novembre S-1, 31 octobre S) de la saison contenant `on`."""
+    season = _fftri_season(on)
+    return date(season - 1, SEASON_SWITCH_MONTH, 1), date(season, SEASON_SWITCH_MONTH - 1, 31)
+
+
 def fftri_category(birth_date: date | None, on: date) -> str | None:
     if birth_date is None:
         return None
-    season = on.year + 1 if on.month >= SEASON_SWITCH_MONTH else on.year
+    season = _fftri_season(on)
     age = season - 1 - birth_date.year
     return next((label for minimum, label in _CATEGORIES if age >= minimum), UNDER_SIX)
