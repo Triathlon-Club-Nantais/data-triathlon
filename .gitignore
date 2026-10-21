@@ -88,3 +88,7 @@ mutants/
 .mutmut-cache
 frontend/reports/
 frontend/.stryker-tmp/
+
+# Couverture (pytest-cov)
+.coverage
+htmlcov/
