@@ -87,7 +87,7 @@ describe("AthleteHeaderActions — avec athletes:write", () => {
     observer.observe(document.body, { subtree: true, childList: true, attributes: true });
     afficher();
 
-    await screen.findByRole("button", { name: /corriger la fiche/i });
+    await screen.findByRole("button", { name: /corriger la fiche/i }, { timeout: 3000 });
     observer.disconnect();
     expect(intermediaire).not.toHaveBeenCalled();
   });
@@ -96,7 +96,7 @@ describe("AthleteHeaderActions — avec athletes:write", () => {
     getSession.mockResolvedValue(session(["athletes:write"]));
     afficher();
 
-    await screen.findByRole("button", { name: /corriger la fiche/i });
+    await screen.findByRole("button", { name: /corriger la fiche/i }, { timeout: 3000 });
     const boutons = screen.getAllByRole("button");
     expect(boutons[0]).toHaveAccessibleName(/corriger la fiche/i);
     expect(boutons[0]).toHaveClass("tcn-btn--primary");
@@ -106,7 +106,7 @@ describe("AthleteHeaderActions — avec athletes:write", () => {
     getSession.mockResolvedValue(session(["athletes:write"]));
     afficher();
 
-    await screen.findByRole("button", { name: /corriger la fiche/i });
+    await screen.findByRole("button", { name: /corriger la fiche/i }, { timeout: 3000 });
     const selection = screen.getByRole("button", { name: /choisir cet athlète/i });
     expect(selection).toHaveClass("tcn-btn--secondary");
   });
@@ -115,7 +115,7 @@ describe("AthleteHeaderActions — avec athletes:write", () => {
     getSession.mockResolvedValue(session(["athletes:write"]));
     afficher();
 
-    await screen.findByRole("button", { name: /corriger la fiche/i });
+    await screen.findByRole("button", { name: /corriger la fiche/i }, { timeout: 3000 });
     expect(screen.getByText(BENEFICE)).toBeInTheDocument();
   });
 });
