@@ -1068,7 +1068,7 @@ def search_team_results(db: Session, *, term: str, exclude_athlete_id: int, limi
     words = deaccent(term).split()
     if not words:
         return []
-    # Anonymised fiches ("Anonyme ...", cf. result_claims._is_anonymous) never carry a claimable team.
+    # Anonymised fiches ("Anonyme ...", cf. opposition_service.is_anonymous) never carry a claimable team.
     anonymised = and_(func.trim(Athlete.prenom) == "", Athlete.nom.startswith("Anonyme "))
     team_record = and_(func.trim(Athlete.prenom) == "", func.trim(Athlete.nom) != "")
     links = ParticipationTeammate.participation_id == Participation.id
