@@ -69,3 +69,17 @@ describe("GUIDE_MEMBRE athlete page (#1041)", () => {
     expect(texte).toMatch(/Mon espace/);
   });
 });
+
+describe("GUIDE_MEMBRE claim a result (#1773)", () => {
+  const texte = GUIDE_MEMBRE.find((s) => s.id === "reclamer-resultat")!.etapes.join(" ");
+
+  it("explains how to find a team result by its name", () => {
+    expect(texte).toContain("« Un résultat d'équipe manque ? »");
+    expect(texte).toContain("« C'était mon équipe »");
+  });
+
+  it("states what the claim button reads on a relay", () => {
+    expect(texte).toContain("« Je faisais partie de cette équipe »");
+    expect(texte).not.toContain("ni sur un relais");
+  });
+});

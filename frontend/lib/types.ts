@@ -1127,6 +1127,18 @@ export interface ResultClaim {
   created_at: string;
 }
 
+/** Un relais trouvé par son nom d'équipe, à demander à rejoindre (#1773). */
+export interface TeamResult {
+  participation_id: number;
+  team_name: string;
+  course_id: number;
+  course_name: string;
+  event_date: string | null;
+  rank_overall: number | null;
+  total_time: string | null;
+  teammates: string[];
+}
+
 /** Une réclamation de résultat dans la file du back-office, avec ses indices (#1637). */
 export interface ResultClaimReview {
   id: number;

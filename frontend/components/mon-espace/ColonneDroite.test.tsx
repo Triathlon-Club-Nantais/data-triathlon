@@ -3,12 +3,12 @@ import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Participation, SessionUser } from "@/lib/types";
 
-const { getSession, getClubRosterRank, getAthlete, getMyTeammates, getEventsGeo, getMySeasonQuota, getSeasonGoals } = vi.hoisted(() => ({
-  getSession: vi.fn(), getClubRosterRank: vi.fn(), getAthlete: vi.fn(), getMyTeammates: vi.fn(), getEventsGeo: vi.fn(), getMySeasonQuota: vi.fn(), getSeasonGoals: vi.fn(),
+const { getSession, getClubRosterRank, getAthlete, getMyTeammates, getEventsGeo, getMySeasonQuota, getSeasonGoals, getMyResultClaims } = vi.hoisted(() => ({
+  getSession: vi.fn(), getClubRosterRank: vi.fn(), getAthlete: vi.fn(), getMyTeammates: vi.fn(), getEventsGeo: vi.fn(), getMySeasonQuota: vi.fn(), getSeasonGoals: vi.fn(), getMyResultClaims: vi.fn(),
 }));
 vi.mock("@/lib/api/client", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api/client")>();
-  return { ...original, apiClient: { ...original.apiClient, getSession, getClubRosterRank, getAthlete, getMyTeammates, getEventsGeo, getMySeasonQuota, getSeasonGoals } };
+  return { ...original, apiClient: { ...original.apiClient, getSession, getClubRosterRank, getAthlete, getMyTeammates, getEventsGeo, getMySeasonQuota, getSeasonGoals, getMyResultClaims } };
 });
 
 import { currentSeason } from "@/lib/utils/season";
@@ -37,6 +37,7 @@ beforeEach(() => {
   getEventsGeo.mockResolvedValue([]);
   getMySeasonQuota.mockResolvedValue(null);
   getSeasonGoals.mockResolvedValue([]);
+  getMyResultClaims.mockResolvedValue([]);
   document.cookie = "tcn_logged_in=1; path=/";
   getSession.mockResolvedValue({ id: 1, athlete: LEA, permissions: [], roles: [], groups: [] } as unknown as SessionUser);
 });
@@ -71,6 +72,22 @@ describe("ColonneDroite season card", () => {
     await screen.findByRole("link", { name: /Triathlon de Nantes/ });
     const titre = await screen.findByRole("heading", { level: 2, name: /Ma saison au club/ });
     expect(container.firstElementChild).toContainElement(titre);
+  });
+});
+
+describe("ColonneDroite team result card (#1773)", () => {
+  it("offers the missing team result card right after the major goal reminder", async () => {
+    getAthlete.mockResolvedValue({ athlete: LEA, participations: [], challenges: [] });
+    getClubRosterRank.mockResolvedValue(null);
+    getSeasonGoals.mockResolvedValue([
+      { id: 1, season: currentSeason(), kind: "race", event_type: "triathlon-m", target: 9000, best_time: null, count: null,
+        reached: false, course_id: null, race_name: "Triathlon de Nantes", race_date: "2099-10-12", major: true, outcome: "upcoming" },
+    ]);
+    afficher(<ColonneDroite athleteId={42} selection={[]} seasons={[currentSeason()]} federalOnly />);
+
+    const carte = await screen.findByText("Un résultat d'équipe manque ?");
+    const rappel = await screen.findByText("Objectif majeur");
+    expect(rappel.compareDocumentPosition(carte) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });
 

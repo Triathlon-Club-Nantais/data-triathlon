@@ -152,6 +152,16 @@ export function useMyResultClaims(enabled: boolean) {
   });
 }
 
+/** Relais trouvés par nom d'équipe (#1773) ; `enabled` faux sous 3 caractères ou sans fiche. */
+export function useMyTeamResults(q: string, enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.myTeamResults(q),
+    queryFn: () => apiClient.searchMyTeamResults(q),
+    enabled,
+    retry: false,
+  });
+}
+
 function useResultClaimMutation<T>(mutationFn: (arg: T) => Promise<unknown>) {
   const qc = useQueryClient();
   return useMutation({
