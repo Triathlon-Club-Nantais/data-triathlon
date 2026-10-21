@@ -12,6 +12,7 @@ from sqlalchemy import update as sql_update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
+from app.models.profile_measurement import ProfileMeasurement
 from app.models.training_group import TrainingGroup, TrainingGroupMember
 from app.models.training_participant import TrainingParticipant
 from app.models.training_recurrence import training_session_groups
@@ -125,7 +126,13 @@ def update(
 
 def delete_training_session(db: Session, training_session: TrainingSession) -> None:
     """Supprime la séance ; ses inscriptions partent avec elle par la cascade
-    ORM `delete-orphan` de `TrainingSession.participants`."""
+    ORM `delete-orphan` de `TrainingSession.participants`. Les tests chronométrés
+    rattachés restent, sans séance."""
+    db.execute(
+        sql_update(ProfileMeasurement)
+        .where(ProfileMeasurement.training_session_id == training_session.id)
+        .values(training_session_id=None)
+    )
     db.delete(training_session)
     db.flush()
 

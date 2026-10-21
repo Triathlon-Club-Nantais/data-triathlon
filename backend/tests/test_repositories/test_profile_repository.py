@@ -100,3 +100,50 @@ def test_log_entries_of_another_profile_do_not_leak(db_session, organisation, pr
     entries = profile_repository.list_log_entries(db_session, profile.id)
 
     assert [entry.text for entry in entries] == ["Pour Alix"]
+
+
+def _measure(db_session, profile, event, measured_on):
+    return profile_repository.add_measurement(
+        db_session, profile_id=profile.id, measured_on=measured_on, event=event, duration_tenths=600
+    )
+
+
+def test_measurements_come_out_by_event_then_date(db_session, profile):
+    from datetime import date
+
+    _measure(db_session, profile, "50 m nage", date(2026, 10, 14))
+    _measure(db_session, profile, "1000 m", date(2026, 10, 3))
+    _measure(db_session, profile, "50 m nage", date(2026, 10, 3))
+
+    rows = profile_repository.list_measurements(db_session, profile.id)
+
+    assert [(m.event, m.measured_on) for m in rows] == [
+        ("1000 m", date(2026, 10, 3)),
+        ("50 m nage", date(2026, 10, 3)),
+        ("50 m nage", date(2026, 10, 14)),
+    ]
+
+
+def test_get_measurement_ignores_another_profile(db_session, organisation, profile):
+    from datetime import date
+
+    other = profile_repository.create(
+        db_session, organisation_id=organisation.id, first_name="Zoé", last_name="Martin"
+    )
+    measurement = _measure(db_session, profile, "1000 m", date(2026, 10, 3))
+
+    assert profile_repository.get_measurement(db_session, other.id, measurement.id) is None
+    assert profile_repository.get_measurement(db_session, profile.id, measurement.id) is measurement
+
+
+def test_measurement_events_are_distinct_and_sorted(db_session, organisation, profile):
+    from datetime import date
+
+    _measure(db_session, profile, "50 m nage", date(2026, 10, 3))
+    _measure(db_session, profile, "50 m nage", date(2026, 10, 14))
+    _measure(db_session, profile, "1000 m", date(2026, 10, 3))
+
+    assert profile_repository.list_measurement_events(db_session, organisation.id) == [
+        "1000 m",
+        "50 m nage",
+    ]

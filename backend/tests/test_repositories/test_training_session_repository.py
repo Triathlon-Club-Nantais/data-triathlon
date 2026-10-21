@@ -230,3 +230,19 @@ def test_update_without_note_does_not_erase_it(db_session):
     training_session_repository.update(db_session, training_session, location="Base nautique")
 
     assert training_session.note == "Bassin partagé."
+
+
+def test_deleting_a_session_keeps_its_measurements_without_session(db_session):
+    from app.models.profile_measurement import ProfileMeasurement
+    from app.repositories import profile_repository
+
+    seance = _create(db_session, date=date(2026, 9, 20))
+    mesure = profile_repository.add_measurement(
+        db_session, profile_id=1, measured_on=date(2026, 9, 20), event="1000 m",
+        duration_tenths=3000, training_session_id=seance.id,
+    )
+
+    training_session_repository.delete_training_session(db_session, seance)
+    db_session.refresh(mesure)
+
+    assert db_session.get(ProfileMeasurement, mesure.id).training_session_id is None

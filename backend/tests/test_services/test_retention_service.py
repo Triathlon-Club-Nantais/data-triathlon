@@ -15,6 +15,7 @@ from app.models.member_email import SOURCE_IMPORT, MemberEmail
 from app.models.organisation import Organisation
 from app.models.personal_profile import PersonalProfile
 from app.models.profile_log_entry import ProfileLogEntry
+from app.models.profile_measurement import ProfileMeasurement
 from app.models.role import Role
 from app.models.season_validation import SeasonValidation
 from app.models.training_group import TrainingGroup, TrainingGroupMember
@@ -121,6 +122,17 @@ def test_purging_a_profile_takes_its_log_and_attendance_with_it(db_session, orga
 
     assert db_session.get(ProfileLogEntry, entry.id) is None
     assert db_session.get(TrainingParticipant, inscription.id) is None
+
+
+def test_purging_a_profile_takes_its_measurements_with_it(db_session, organisation):
+    profile = _profile(db_session, organisation, date(2025, 6, 30))
+    measurement = profile_repository.add_measurement(
+        db_session, profile_id=profile.id, measured_on=date(2025, 5, 3), event="1000 m", duration_tenths=3000
+    )
+
+    retention_service.purge_expired(db_session, now=NOW)
+
+    assert db_session.get(ProfileMeasurement, measurement.id) is None
 
 
 def test_purging_a_profile_removes_its_group_memberships(db_session, organisation):
