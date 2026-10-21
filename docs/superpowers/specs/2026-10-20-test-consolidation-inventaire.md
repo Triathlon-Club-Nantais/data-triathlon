@@ -45,7 +45,7 @@ les tests `integration` et `migrations`.
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | test_raceresult.py | `test_raceresult.py` (sous `backend/tests/`) | `backend/app/scrapers/raceresult.py` | 4132 | 377 | gardé (tâche 12) : tests 381 → 377, mutation 1613/2074 → 1613/2074, couverture 95,6 % → 95,6 % |
 | 2 | test_import_service.py | `test_import_service.py` (sous `backend/tests/test_services/`) | `backend/app/services/import_service.py` | 2962 | 162 | gardé (tâche 13) : tests 169 → 162, mutation 225/389 → 225/389, couverture 96,2 % → 96,2 % |
-| 3 | RaceFinishers.test.tsx | `RaceFinishers.test.tsx` (sous `frontend/components/results/`) | `frontend/components/results/RaceFinishers.tsx` | 1589 | 113 | gardé (tâche 14) : tests 134 → 113, mutation 451/749 → 451/749, couverture 98,5 % → 98,5 % |
+| 3 | RaceFinishers.test.tsx | `RaceFinishers.test.tsx` (sous `frontend/components/results/`) | `frontend/components/results/RaceFinishers.tsx` | 1589 | 113 | gardé (tâche 14) : tests 134 → 113, mutation 451/749 → 451/749, couverture 98,5 % → 98,5 % ; re-gate après rebase : tests 149 → 128, mutation 511/818 → 511/818, couverture 98,6 % → 98,6 % |
 | 4 | AppNav.test.tsx | `AppNav.test.tsx` (sous `frontend/components/layout/`) | `frontend/components/layout/AppNav.tsx` | 1750 | 125 | gardé (tâche 15) : tests 146 → 125, mutation 391/783 → 391/783, couverture 96,7 % → 96,7 % |
 | 5 | backend test_api/ | 48 fichiers (sous `backend/tests/test_api/`) | `backend/app/api/` | 11936 | 888 | à faire (tâche 16) |
 | 6 | backend test_auth/ | 56 fichiers (sous `backend/tests/test_auth/`) | `backend/app/services/auth/` | 11209 | 1075 | à faire (tâche 16) |
@@ -349,6 +349,14 @@ Aucun mutant tué avant n'est perdu. Couverture identique sur les quatre mesures
 160/162, branches 253/262, fonctions 51/53), mêmes lignes manquées (550-557).
 La mesure a d'abord exigé de corriger le runner Stryker (tout test sous un
 `describe` était sauté, cf. `docs/tests-boucle.md`, « Mutation »).
+
+Re-gate après rebase (21/10) : `main` a changé `RaceFinishers.tsx` (filtre
+par sexe, #1702/#1730) et ajouté ses tests, repris tels quels dans le fichier
+consolidé. Sur le source rebasé, avant = fichier de test de `main` (149
+tests), après = fichier consolidé (128 tests), concurrence 3 : 824 mutants,
+clé sur l'étendue complète, verdict identique mutant par mutant, aucun
+timeout ; 511/818 → 511/818 (62,5 %), couverture identique (98,6 % des
+lignes, lignes manquées 576-583). Porte tenue. Détail : le sondage, lot 3.
 
 Fait :
 

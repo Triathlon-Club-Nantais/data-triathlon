@@ -164,6 +164,24 @@ timeout après (ligne 735) sont tués par la relance ciblée,
 fichier seul : 135/137 lignes avant et après, mêmes lignes manquées. Détail du
 lot : `2026-10-20-test-consolidation-inventaire.md`.
 
+**Re-gate après rebase** (21/10) : `main` a modifié `RaceFinishers.tsx`
+(filtre par sexe, #1702/#1730), donc la preuve ci-dessus portait sur l'ancien
+source. Relancée sur le source rebasé, `--force --concurrency 3 --mutate
+"components/results/RaceFinishers.tsx"`, avant = fichier de test de `main`,
+après = fichier consolidé rebasé. Durées indicatives seulement (une exécution
+par bras).
+
+| Mesure | load au départ | Durée murale | Tués / survivants / timeouts / sans couverture | Statut |
+| --- | --- | --- | --- | --- |
+| Avant (149 tests) | 4,39 | 906 s | 511 / 307 / 0 / 6 | non retenue (charge) |
+| Après (128 tests) | 0,90 | 842 s | 511 / 307 / 0 / 6 | indicative (une exécution) |
+
+824 mutants, clé sur l'étendue complète : même ensemble, verdict identique
+mutant par mutant, aucun timeout, donc aucune relance. 511/818 → 511/818
+(62,5 %). Couverture du fichier seul identique : 98,6 % des lignes, 98,83 %
+des instructions, 96,59 % des branches, mêmes lignes manquées (576-583).
+Porte tenue.
+
 ## Consolidation, lot 4 (`AppNav.test.tsx`)
 
 Stryker sur `components/layout/AppNav.tsx` (794 mutants au rapport, fichier
@@ -193,6 +211,11 @@ manquées. Détail du lot : `2026-10-20-test-consolidation-inventaire.md`.
 
 Mesures du 21/10, fin d'epic, `FULL_SUITE=1`, protocole du sondage du 2026-08-20 (seuil `load average` 1 min < 2,0). Le load d'une exécution vient en grande partie de `-n 4` ou des workers vitest eux-mêmes : une exécution lancée juste après une autre démarre donc au-dessus du seuil. Les exécutions retenues sont celles lancées machine au repos (load < 1,1, aucun `pytest`, `vitest`, `next dev` ni Stryker étranger).
 
+La colonne « 20/10 (avant) » reprend les chiffres que le plan
+(`docs/superpowers/plans/2026-10-20-test-process.md`, tâche finale, étape 1)
+cite au lancement de l'epic ; ni la commande ni le commit mesuré n'y sont
+consignés, et ils précèdent la base de la branche (voir sous le tableau).
+
 | Mesure | 20/10 (avant) | 21/10 (après) | load au départ | Statut |
 | --- | --- | --- | --- | --- |
 | Backend unitaire, tests | 6 823 | 7 125 passés, 19 ignorés | | |
@@ -204,7 +227,9 @@ Mesures du 21/10, fin d'epic, `FULL_SUITE=1`, protocole du sondage du 2026-08-20
 | Frontend `npm test`, durée | | **69,6 s** (avant : 72,4 s) | 0,88 (avant : 3,13) | retenue (au repos) ; la première non retenue (charge) |
 | Frontend, couverture | 92,37 % des lignes | 92,07 % des lignes (91,33 % instructions, 89,55 % branches, 85,7 % fonctions) | | |
 
-Le nombre de tests monte des deux côtés parce que `main` a gagné des tests depuis le 20/10 (cause non vérifiée), l'epic n'en ajoutant pas : sa consolidation en retire 53 (voir plus bas). La couverture frontend recule de 0,30 point de lignes sur la même période, sans que la consolidation y soit pour quelque chose (couverture par fichier identique avant et après chaque lot).
+L'écart avec la colonne du 20/10 ne vient pas de `main` pendant l'epic : la branche n'avait jamais fusionné `main`, et ces chiffres précèdent sa base (`22e24042`). Rapporté à cette base (comptes `--collect-only -q -m "not integration"` relevés le 21/10 sur les deux arbres), l'écart est celui de l'epic seule. Backend : 7 228 tests collectés à la base (7 209 passés, 19 ignorés), moins 11 (lots 1 et 2), plus 1 (`test_db_session_fixture.py`, tâche 6), soit 7 218 avec `--migrations` (7 199 passés) ; sans `--migrations`, les 74 tests Alembic désélectionnés en local laissent 7 125 passés. Frontend : 3 403 passés, soit 3 445 à la base moins 42 (lots 3 et 4) ; la base est déduite et non relancée, les deux fichiers des lots étant les seuls fichiers de test frontend que la branche touche. La couverture frontend recule de 0,30 point de lignes par rapport au 20/10, sans que la consolidation y soit pour quelque chose (couverture par fichier identique avant et après chaque lot).
+
+Après rebasage sur `origin/main` (`d9b0ba6a`, 21/10), les comptes changent encore, du fait de `main` : backend 7 245 tests collectés sans `--migrations`, 7 319 avec (`--collect-only -q -m "not integration"`) ; frontend 3 268 entrées de `npx vitest list`, qui affiche un `it.each` une seule fois (son gabarit `%s`) et ne se compare donc pas au total d'exécution ci-dessus. Le total d'exécution frontend attend la suite complète de fin de branche.
 
 Durées absolues du 20/10 : le sondage n'en conserve aucune sous protocole pour la suite complète (la seule valeur au repos, ~58 s pour 7 135 tests en `-n 0`, date du sondage du 2026-08-20 ; la suite fait 95,0 s en `-n 0` à load 1,73 après la fixture transactionnelle). En `-n 4` (addopts), la suite unitaire backend tient donc en 26,4 s au repos. Le gain de la tâche 6 (fixture transactionnelle) reste jugé sur la part de `create_all` (35,5 % puis 3,8 %), et l'A/B en bras entrelacés de la durée murale reste à faire machine libre ; les essais vitest de la tâche 7 (`isolate: false`, happy-dom) ne sont pas rejoués ici et attendent eux aussi une mesure au repos.
 
