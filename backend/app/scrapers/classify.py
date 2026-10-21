@@ -121,7 +121,7 @@ def _running_slug(t: str) -> str | None:
         or "course à pied" in t or "course a pied" in t
         or "course sur route" in t or "course pédestre" in t
         or "course pedestre" in t or "foulées" in t or "foulees" in t
-        or "corrida" in t or "running" in t
+        or "corrida" in t or "running" in t or "ekiden" in t
     )
     if not is_running:
         return None
@@ -142,6 +142,7 @@ def _cycling_slug(t: str) -> str | None:
         "cyclisme" in t or "cyclo" in t or "cyclosport" in t
         or "gran fondo" in t or "granfondo" in t
         or "vélo" in t or "velo" in t
+        or "cycliste" in t or re.search(r"\b(?:gravel|vtt)\b", t)
     )
     if not is_cycling:
         return None
@@ -176,7 +177,7 @@ def _sport_base(t: str) -> str | None:
         return "aquathlon"
     if "aquarun" in t:
         return "aquarun"
-    if "duathlon" in t:
+    if "duathlon" in t or "cyclathlon" in t:
         return "duathlon"
     # Mot entier : « Trail du Bourraid » reste un trail (#1213).
     if re.search(r"\braid\b", t):

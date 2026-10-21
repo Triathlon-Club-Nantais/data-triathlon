@@ -125,6 +125,26 @@ def test_classify_mono_sport(text, expected):
     assert classify_event_type(text) == expected
 
 
+# --- Mots clés sans sport reconnu jusque-là (#1742) ---
+@pytest.mark.parametrize("text,expected", [
+    ("Cyclathlon", "duathlon"),
+    ("Cyclathlon La Chaussaire", "duathlon"),
+    ("Cyclathlon S", "duathlon-s"),
+    ("Cyclathlon M", "duathlon-m"),
+    ("Course cycliste de Vertou", "cyclisme"),
+    ("Course cycliste sur route", "cyclisme-route"),
+    ("Gravel des Marais", "cyclisme"),
+    ("VTT de la Sèvre", "cyclisme"),
+    ("Ekiden de Nantes", "course-a-pied"),
+])
+def test_classify_mots_cles_1742(text, expected):
+    assert classify_event_type(text) == expected
+
+
+def test_vtt_mot_entier_seulement():
+    assert classify_event_type("Triathlon des vttistes") == "triathlon"
+
+
 # --- Contexte d'appoint (titre d'événement) : ne nomme le sport qu'à défaut ---
 @pytest.mark.parametrize("epreuve,evenement,expected", [
     # Le contexte ne doit **jamais** écraser un sport nommé par l'épreuve : une
