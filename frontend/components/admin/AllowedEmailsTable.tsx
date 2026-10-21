@@ -117,55 +117,57 @@ export function AllowedEmailsTable() {
   }
 
   return (
-    <div className="@container space-y-4">
+    <div className="space-y-4">
       {/* `flex-col`/`@xl:flex-row` : sur 375 px, le champ e-mail était écrasé
           contre un `<select>` en `w-48` fixe (#479, ADM-11). La bascule suit la
           largeur du conteneur, pas de la fenêtre : la barre latérale en mange
           288 px entre 768 et 900 px (#1779). Même schéma que `SharedPasswordCard.tsx`. */}
-      <form onSubmit={soumettre} className="flex flex-col gap-3 @xl:flex-row @xl:items-end">
-        <div className="flex-1 space-y-1.5">
-          <Label htmlFor="adresse-autorisee">Adresse à autoriser</Label>
-          <Input
-            id="adresse-autorisee"
-            type="email"
-            placeholder="prenom.nom@exemple.fr"
-            value={saisie}
-            onChange={(e) => setSaisie(e.target.value)}
-          />
-        </div>
-        {/* Le rôle vit sur l'autorisation, pas sur la personne : il dit avec
-            quoi le compte naîtra à sa **première** connexion (#239). Sans lui,
-            le geste d'administration était coupé en deux par un événement que
-            l'administrateur ne contrôle pas. */}
-        {peutAttribuer && (
-          <div className="space-y-1.5">
-            <Label htmlFor="role-initial">Rôle à l&apos;inscription</Label>
-            <select
-              id="role-initial"
-              className="border-input h-9 w-full rounded-md border bg-transparent px-2 text-sm @xl:w-48"
-              value={role}
-              onChange={(e) => {
-                setRole(e.target.value);
-                setRoleTouche(true);
-              }}
-            >
-              <option value="">Aucun</option>
-              {roles.map((disponible) => (
-                <option
-                  key={disponible.id}
-                  value={disponible.id}
-                  disabled={!accordable(disponible)}
-                >
-                  {disponible.name}
-                </option>
-              ))}
-            </select>
+      <div className="@container">
+        <form onSubmit={soumettre} className="flex flex-col gap-3 @xl:flex-row @xl:items-end">
+          <div className="flex-1 space-y-1.5">
+            <Label htmlFor="adresse-autorisee">Adresse à autoriser</Label>
+            <Input
+              id="adresse-autorisee"
+              type="email"
+              placeholder="prenom.nom@exemple.fr"
+              value={saisie}
+              onChange={(e) => setSaisie(e.target.value)}
+            />
           </div>
-        )}
-        <Button type="submit" disabled={ajouter.isPending}>
-          Ajouter
-        </Button>
-      </form>
+          {/* Le rôle vit sur l'autorisation, pas sur la personne : il dit avec
+              quoi le compte naîtra à sa **première** connexion (#239). Sans lui,
+              le geste d'administration était coupé en deux par un événement que
+              l'administrateur ne contrôle pas. */}
+          {peutAttribuer && (
+            <div className="space-y-1.5">
+              <Label htmlFor="role-initial">Rôle à l&apos;inscription</Label>
+              <select
+                id="role-initial"
+                className="border-input h-9 w-full rounded-md border bg-transparent px-2 text-sm @xl:w-48"
+                value={role}
+                onChange={(e) => {
+                  setRole(e.target.value);
+                  setRoleTouche(true);
+                }}
+              >
+                <option value="">Aucun</option>
+                {roles.map((disponible) => (
+                  <option
+                    key={disponible.id}
+                    value={disponible.id}
+                    disabled={!accordable(disponible)}
+                  >
+                    {disponible.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          <Button type="submit" disabled={ajouter.isPending}>
+            Ajouter
+          </Button>
+        </form>
+      </div>
 
       {isPending ? (
         <Skeleton className="h-40 w-full" />
