@@ -6,7 +6,6 @@ ce test, une migration qui dépend du modèle ORM courant peut casser
 `alembic upgrade head` (et donc `scripts/reset_db.py`, la CI, tout nouveau
 déploiement) sans qu'aucun test ne s'en aperçoive.
 """
-
 import json
 import logging
 from pathlib import Path
@@ -318,9 +317,9 @@ def test_le_renommage_de_is_reliable_conserve_les_donnees(sqlite_url):
 
     command.upgrade(cfg, "head")
 
-    assert _lignes(
-        sqlite_url, "SELECT is_reliable_computed, reliability_override FROM courses"
-    ) == [(1, None)]
+    assert _lignes(sqlite_url, "SELECT is_reliable_computed, reliability_override FROM courses") == [
+        (1, None)
+    ]
 
 
 def test_downgrade_puis_upgrade_du_rbac(sqlite_url):
@@ -328,11 +327,15 @@ def test_downgrade_puis_upgrade_du_rbac(sqlite_url):
     command.upgrade(cfg, "head")
 
     command.downgrade(cfg, "d5e6f7a8b9c0")
-    assert not {"organisations", "roles", "role_permissions", "user_roles"} & _tables(sqlite_url)
+    assert not {"organisations", "roles", "role_permissions", "user_roles"} & _tables(
+        sqlite_url
+    )
     assert "is_reliable" in _columns(sqlite_url, "courses")
 
     command.upgrade(cfg, "head")
-    assert {"organisations", "roles", "role_permissions", "user_roles"} <= _tables(sqlite_url)
+    assert {"organisations", "roles", "role_permissions", "user_roles"} <= _tables(
+        sqlite_url
+    )
 
 
 # --- Liste d'autorisation en base (#170) ------------------------------------
@@ -352,7 +355,9 @@ def test_la_reprise_importe_les_adresses_de_l_environnement(sqlite_url, monkeypa
     La migration lit `os.environ` et non `Settings` : le réglage a disparu de la
     configuration dans la même livraison. L'exception est bornée à ce fichier.
     """
-    monkeypatch.setenv("AUTH_ALLOWED_EMAILS", " A@Exemple.FR ,b@exemple.fr,a@exemple.fr ")
+    monkeypatch.setenv(
+        "AUTH_ALLOWED_EMAILS", " A@Exemple.FR ,b@exemple.fr,a@exemple.fr "
+    )
 
     command.upgrade(_alembic_config(), "head")
 
@@ -592,7 +597,9 @@ def test_downgrade_then_upgrade_of_the_course_sources_table(sqlite_url):
     assert _lignes(sqlite_url, "SELECT count(*) FROM courses") == [(3,)]
 
     command.upgrade(cfg, "head")
-    assert _lignes(sqlite_url, "SELECT count(*) FROM course_sources WHERE is_active") == [(2,)]
+    assert _lignes(sqlite_url, "SELECT count(*) FROM course_sources WHERE is_active") == [
+        (2,)
+    ]
 
 
 # --- Purge totale des résultats (#384) ------------------------------------
@@ -671,9 +678,9 @@ def test_la_migration_ne_remplit_rien(sqlite_url):
 
     command.upgrade(cfg, "head")
 
-    assert _lignes(sqlite_url, "SELECT latitude, longitude, geocoded_at FROM courses") == [
-        (None, None, None)
-    ]
+    assert _lignes(
+        sqlite_url, "SELECT latitude, longitude, geocoded_at FROM courses"
+    ) == [(None, None, None)]
 
 
 # --- Portée des compteurs en base (#95) --------------------------------------
@@ -704,9 +711,13 @@ def test_l_amorcage_vaut_exactement_les_defauts_du_registre(base_migree):
     for kind, value, _ in semees:
         par_nature[kind].add(value)
 
-    assert par_nature[NON_FEDERAL_DISCIPLINE] == set(counter_scope.DEFAULT_NON_FEDERAL_DISCIPLINES)
+    assert par_nature[NON_FEDERAL_DISCIPLINE] == set(
+        counter_scope.DEFAULT_NON_FEDERAL_DISCIPLINES
+    )
     assert par_nature[CLUB_LABEL] == set(counter_scope.DEFAULT_TCN_CLUB_LABELS)
-    assert all(auteur is None for _, _, auteur in semees), "une ligne d'amorçage porte un auteur"
+    assert all(auteur is None for _, _, auteur in semees), (
+        "une ligne d'amorçage porte un auteur"
+    )
 
 
 def test_downgrade_puis_upgrade_de_la_portee_des_compteurs(sqlite_url):
@@ -814,18 +825,16 @@ def test_course_names_are_cleaned_unless_the_clean_name_collides(sqlite_url):
 
     command.upgrade(cfg, "head")
 
-    assert sorted(n for (n,) in _lignes(sqlite_url, "SELECT name FROM courses")) == sorted(
-        [
-            "Embrunman - Quart",
-            "TRIATHLON DES SABLES D'OLONNE - SPRINT",
-            "Swimrun Dinard",
-            "Déjà propre ",  # le nom propre existe déjà : on ne crée pas de collision
-            "Déjà propre",
-            "Embrunman Quart",
-            "Tri - Sprint",
-            "Tri Vide - {FR:|EN:}",  # variantes vides : gardé intact, comme au runtime
-        ]
-    )
+    assert sorted(n for (n,) in _lignes(sqlite_url, "SELECT name FROM courses")) == sorted([
+        "Embrunman - Quart",
+        "TRIATHLON DES SABLES D'OLONNE - SPRINT",
+        "Swimrun Dinard",
+        "Déjà propre ",  # le nom propre existe déjà : on ne crée pas de collision
+        "Déjà propre",
+        "Embrunman Quart",
+        "Tri - Sprint",
+        "Tri Vide - {FR:|EN:}",  # variantes vides : gardé intact, comme au runtime
+    ])
 
 
 def test_user_sessions_token_hash_keeps_only_its_unique_index(sqlite_url):
@@ -887,9 +896,7 @@ def test_course_model_declares_the_postgresql_trigram_index():
     engine = sa.create_engine("sqlite://")
     try:
         Course.__table__.create(engine)
-        assert "ix_courses_name_trgm" not in {
-            i["name"] for i in sa.inspect(engine).get_indexes("courses")
-        }
+        assert "ix_courses_name_trgm" not in {i["name"] for i in sa.inspect(engine).get_indexes("courses")}
     finally:
         engine.dispose()
 
@@ -901,9 +908,7 @@ def test_alembic_check_finds_no_drift_on_sqlite(sqlite_url):
 
 
 _BEFORE_IDENTITY_KEY = "d49e03833de6"
-_IDENTITY_KEY_MIGRATION = (
-    BACKEND_ROOT / "alembic" / "versions" / "b7e41c9d2a58_athlete_identity_key.py"
-)
+_IDENTITY_KEY_MIGRATION = BACKEND_ROOT / "alembic" / "versions" / "b7e41c9d2a58_athlete_identity_key.py"
 
 
 def _insert_athletes(url: str, identities: list[tuple[str, str]]) -> None:
@@ -925,17 +930,9 @@ def test_the_identity_key_migration_backfills_keys_and_ranks_duplicates(sqlite_u
     la contrainte, sinon le déploiement Render (migrations au démarrage) casserait."""
     cfg = _alembic_config()
     command.upgrade(cfg, _BEFORE_IDENTITY_KEY)
-    _insert_athletes(
-        sqlite_url,
-        [
-            ("LETORT", "Leo"),
-            ("LETORT", "Léo"),
-            ("?", ""),
-            ("DUPONT JEAN", ""),
-            ("CIC 7", ""),
-            ("", "Jean Dupont"),
-        ],
-    )
+    _insert_athletes(sqlite_url, [
+        ("LETORT", "Leo"), ("LETORT", "Léo"), ("?", ""), ("DUPONT JEAN", ""), ("CIC 7", ""), ("", "Jean Dupont")
+    ])
 
     command.upgrade(cfg, "head")
 
@@ -943,11 +940,7 @@ def test_the_identity_key_migration_backfills_keys_and_ranks_duplicates(sqlite_u
         sqlite_url,
         "SELECT last_name_key, first_name_key, homonym_rank FROM athletes ORDER BY id",
     ) == [
-        ("letort", "leo", 0),
-        ("letort", "leo", 1),
-        (None, None, 0),
-        ("dupontjean", "", 0),
-        ("cic7", "", 0),
+        ("letort", "leo", 0), ("letort", "leo", 1), (None, None, 0), ("dupontjean", "", 0), ("cic7", "", 0),
         ("jeandupont", "", 0),
     ]
 
@@ -958,9 +951,7 @@ def test_the_identity_constraint_rejects_a_second_principal_record(sqlite_url):
     engine = sa.create_engine(sqlite_url)
     try:
         with engine.begin() as connexion:
-            connexion.execute(
-                sa.text("UPDATE athletes SET last_name_key = 'letort', first_name_key = 'leo'")
-            )
+            connexion.execute(sa.text("UPDATE athletes SET last_name_key = 'letort', first_name_key = 'leo'"))
         with pytest.raises(sa.exc.IntegrityError), engine.begin() as connexion:
             connexion.execute(
                 sa.text(
@@ -977,9 +968,7 @@ def test_the_identity_key_migration_drops_the_old_identity(base_migree):
     engine = sa.create_engine(base_migree)
     try:
         inspector = sa.inspect(engine)
-        uniques = {
-            u["name"]: u["column_names"] for u in inspector.get_unique_constraints("athletes")
-        }
+        uniques = {u["name"]: u["column_names"] for u in inspector.get_unique_constraints("athletes")}
         with engine.connect() as connection:
             old_index = connection.execute(
                 sa.text("SELECT sql FROM sqlite_master WHERE name = 'ix_athletes_identity'")
@@ -1000,22 +989,8 @@ def test_the_frozen_migration_rule_matches_the_application_key():
     spec = importlib.util.spec_from_file_location("identity_key_migration", _IDENTITY_KEY_MIGRATION)
     migration = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(migration)
-    for raw in [
-        "Léo",
-        "L'APPARTIEN",
-        "LE GLOANIC",
-        "Œuvray",
-        "Lætitia",
-        "Strauß",
-        "Søren",
-        "Łukasz",
-        "Đorđe",
-        "CIC 7",
-        "Иванов",
-        "?",
-        "",
-        None,
-    ]:
+    for raw in ["Léo", "L'APPARTIEN", "LE GLOANIC", "Œuvray", "Lætitia", "Strauß", "Søren", "Łukasz", "Đorđe",
+                "CIC 7", "Иванов", "?", "", None]:
         assert migration._identity_key(raw) == identity_key(raw)
 
 
@@ -1024,9 +999,9 @@ def test_downgrade_of_the_identity_key_names_the_duplicates(sqlite_url):
     datées identiques : des NULL ne se comparent pas."""
     cfg = _alembic_config()
     command.upgrade(cfg, "head")
-    _insert_athletes_after_keys(
-        sqlite_url, [("LETORT", "Léo", "letort", "leo", 0), ("LETORT", "Léo", "letort", "leo", 1)]
-    )
+    _insert_athletes_after_keys(sqlite_url, [
+        ("LETORT", "Léo", "letort", "leo", 0), ("LETORT", "Léo", "letort", "leo", 1)
+    ])
 
     with pytest.raises(RuntimeError, match="LETORT"):
         command.downgrade(cfg, _BEFORE_IDENTITY_KEY)
@@ -1042,17 +1017,13 @@ def test_the_source_identity_migration_backfills_each_participation(sqlite_url):
     _insert_athletes(sqlite_url, [("LE GLOANIC", "Léo"), ("?", "")])
     engine = sa.create_engine(sqlite_url)
     with engine.begin() as connexion:
-        connexion.execute(
-            sa.text(
-                "UPDATE athletes SET last_name_key = 'legloanic', first_name_key = 'leo' WHERE nom = 'LE GLOANIC'"
-            )
-        )
-        connexion.execute(
-            sa.text(
-                "INSERT INTO courses (name, event_date, event_type, is_relay, created_at)"
-                " VALUES ('Tri', '2026-05-16', 'triathlon-m', 0, '2026-01-01')"
-            )
-        )
+        connexion.execute(sa.text(
+            "UPDATE athletes SET last_name_key = 'legloanic', first_name_key = 'leo' WHERE nom = 'LE GLOANIC'"
+        ))
+        connexion.execute(sa.text(
+            "INSERT INTO courses (name, event_date, event_type, is_relay, created_at)"
+            " VALUES ('Tri', '2026-05-16', 'triathlon-m', 0, '2026-01-01')"
+        ))
         for athlete_id, bib in [(1, "1"), (2, "2")]:
             connexion.execute(
                 sa.text(
@@ -1099,10 +1070,7 @@ def test_downgrade_then_upgrade_of_the_ignored_athlete_pairs(sqlite_url):
     command.upgrade(cfg, "head")
     engine = sa.create_engine(sqlite_url)
     try:
-        uniques = {
-            u["name"]: u["column_names"]
-            for u in sa.inspect(engine).get_unique_constraints("ignored_athlete_pairs")
-        }
+        uniques = {u["name"]: u["column_names"] for u in sa.inspect(engine).get_unique_constraints("ignored_athlete_pairs")}
     finally:
         engine.dispose()
     assert uniques["uq_ignored_athlete_pair"] == ["athlete_id_low", "athlete_id_high"]
@@ -1150,13 +1118,7 @@ def _insert_athletes_after_keys(url: str, rows: list[tuple[str, str, str, str, i
                     " last_name_key, first_name_key, homonym_rank)"
                     " VALUES (:nom, :prenom, '', 0, '2026-01-01', '1990-01-01', :last_key, :first_key, :rank)"
                 ),
-                {
-                    "nom": nom,
-                    "prenom": prenom,
-                    "last_key": last_key,
-                    "first_key": first_key,
-                    "rank": rank,
-                },
+                {"nom": nom, "prenom": prenom, "last_key": last_key, "first_key": first_key, "rank": rank},
             )
     engine.dispose()
 
@@ -1183,15 +1145,7 @@ def test_the_data_migration_normalizes_athlete_gender(sqlite_url):
     command.upgrade(cfg, "head")
 
     assert _lignes(sqlite_url, "SELECT gender FROM athletes ORDER BY id") == [
-        ("M",),
-        ("M",),
-        ("M",),
-        ("F",),
-        ("F",),
-        ("F",),
-        ("",),
-        ("",),
-        ("",),
+        ("M",), ("M",), ("M",), ("F",), ("F",), ("F",), ("",), ("",), ("",),
     ]
 
 
@@ -1208,13 +1162,13 @@ def _seed_club_history(url: str) -> None:
     """
     athletes = [
         # (nom, club actuel en base, verrouillé)
-        ("ORDRE", "CAROTTES", False),  # l'épreuve la plus récente annonce TCN
-        ("VERROU", "MANUEL", True),  # corrigé par un humain : intouchable
-        ("ATTENTE", "Y", False),  # la plus récente est une déclaration en attente
-        ("SANSDATE", "W", False),  # aucune épreuve datée : rien ne prouve un club
-        ("VIDE", "B", False),  # la plus récente ne publie aucun club
-        ("EGALITE", "P1", False),  # deux épreuves le même jour : la dernière importée
-        ("EQUIPIER", "PERSO", False),  # la plus récente est un relais composé (#895)
+        ("ORDRE", "CAROTTES", False),     # l'épreuve la plus récente annonce TCN
+        ("VERROU", "MANUEL", True),      # corrigé par un humain : intouchable
+        ("ATTENTE", "Y", False),          # la plus récente est une déclaration en attente
+        ("SANSDATE", "W", False),         # aucune épreuve datée : rien ne prouve un club
+        ("VIDE", "B", False),             # la plus récente ne publie aucun club
+        ("EGALITE", "P1", False),         # deux épreuves le même jour : la dernière importée
+        ("EQUIPIER", "PERSO", False),     # la plus récente est un relais composé (#895)
     ]
     courses = [
         # (id, date)
@@ -1255,12 +1209,7 @@ def _seed_club_history(url: str) -> None:
                         " scraped_at, created_at) VALUES (:id, :nom, 'triathlon-m', :date, :relais,"
                         " '2026-01-01', '2026-01-01')"
                     ),
-                    {
-                        "id": course_id,
-                        "nom": f"Tri {course_id}",
-                        "date": event_date,
-                        "relais": False,
-                    },
+                    {"id": course_id, "nom": f"Tri {course_id}", "date": event_date, "relais": False},
                 )
             for nom, course_id, club, attente in participations:
                 connexion.execute(
@@ -1457,14 +1406,7 @@ def test_the_data_migration_gives_team_labels_a_team_key(sqlite_url):
                         " last_name_key, first_name_key, homonym_rank)"
                         " VALUES (:nom, :prenom, '', :faux, '2026-01-01', :cn, :cp, :rang)"
                     ),
-                    {
-                        "nom": nom,
-                        "prenom": prenom,
-                        "faux": False,
-                        "cn": cle_nom,
-                        "cp": cle_prenom,
-                        "rang": rang,
-                    },
+                    {"nom": nom, "prenom": prenom, "faux": False, "cn": cle_nom, "cp": cle_prenom, "rang": rang},
                 )
             connexion.execute(
                 sa.text(
@@ -1515,45 +1457,36 @@ def test_counts_for_tcn_backfill_applies_the_rule(sqlite_url, monkeypatch):
     command.upgrade(cfg, _BEFORE_COUNTS_FOR_TCN)
     engine = sa.create_engine(sqlite_url)
     with engine.begin() as connexion:
-        connexion.execute(
-            sa.text(
-                "INSERT INTO athletes (id, nom, prenom, gender, club_locked, created_at, homonym_rank)"
-                " VALUES (1, 'MARTIN', 'Anne', '', 0, '2026-01-01', 0),"
-                " (2, 'DURAND', 'Paul', '', 0, '2026-01-01', 0)"
-            )
-        )
-        connexion.execute(
-            sa.text(
-                "INSERT INTO courses (id, name, event_date, event_type, is_relay, ranked_by_laps,"
-                " created_at, participation_count, tcn_count)"
-                " VALUES (1, 'A', '2026-05-01', 'triathlon-m', 0, 0, '2026-01-01', 0, 0),"
-                " (2, 'B', '2026-06-01', 'triathlon-m', 0, 0, '2026-01-01', 0, 0)"
-            )
-        )
-        connexion.execute(
-            sa.text(
-                "INSERT INTO participations (id, athlete_id, course_id, club, bib_number, status,"
-                " is_relay, is_pending_validation, is_rejected, athlete_locked, created_at) VALUES"
-                " (1, 1, 1, 'TCN', '1', 'finisher', 0, 0, 0, 0, '2026-01-01'),"
-                " (2, 1, 2, 'Triathlon Club Nantais', '1', 'finisher', 0, 0, 0, 0, '2026-01-01'),"
-                " (3, 2, 1, 'TCN', '2', 'finisher', 0, 0, 0, 0, '2026-01-01')"
-            )
-        )
+        connexion.execute(sa.text(
+            "INSERT INTO athletes (id, nom, prenom, gender, club_locked, created_at, homonym_rank)"
+            " VALUES (1, 'MARTIN', 'Anne', '', 0, '2026-01-01', 0),"
+            " (2, 'DURAND', 'Paul', '', 0, '2026-01-01', 0)"
+        ))
+        connexion.execute(sa.text(
+            "INSERT INTO courses (id, name, event_date, event_type, is_relay, ranked_by_laps,"
+            " created_at, participation_count, tcn_count)"
+            " VALUES (1, 'A', '2026-05-01', 'triathlon-m', 0, 0, '2026-01-01', 0, 0),"
+            " (2, 'B', '2026-06-01', 'triathlon-m', 0, 0, '2026-01-01', 0, 0)"
+        ))
+        connexion.execute(sa.text(
+            "INSERT INTO participations (id, athlete_id, course_id, club, bib_number, status,"
+            " is_relay, is_pending_validation, is_rejected, athlete_locked, created_at) VALUES"
+            " (1, 1, 1, 'TCN', '1', 'finisher', 0, 0, 0, 0, '2026-01-01'),"
+            " (2, 1, 2, 'Triathlon Club Nantais', '1', 'finisher', 0, 0, 0, 0, '2026-01-01'),"
+            " (3, 2, 1, 'TCN', '2', 'finisher', 0, 0, 0, 0, '2026-01-01')"
+        ))
     engine.dispose()
 
     command.upgrade(cfg, "head")
     get_settings.cache_clear()
 
     assert _lignes(
-        sqlite_url,
-        "SELECT value, ambiguous FROM counter_scope_entries"
-        " WHERE kind = 'tcn_club_label' ORDER BY value",
+        sqlite_url, "SELECT value, ambiguous FROM counter_scope_entries"
+        " WHERE kind = 'tcn_club_label' ORDER BY value"
     ) == [("tcn", 1), ("tri club nantais", 0), ("triathlon club nantais", 0)]
-    assert _lignes(sqlite_url, "SELECT id, counts_for_tcn FROM participations ORDER BY id") == [
-        (1, 1),
-        (2, 1),
-        (3, 0),
-    ]
+    assert _lignes(
+        sqlite_url, "SELECT id, counts_for_tcn FROM participations ORDER BY id"
+    ) == [(1, 1), (2, 1), (3, 0)]
     assert _lignes(sqlite_url, "SELECT id, tcn_count FROM courses ORDER BY id") == [(1, 1), (2, 1)]
 
 
@@ -1572,18 +1505,8 @@ def test_downgrade_then_upgrade_of_counts_for_tcn(sqlite_url, monkeypatch):
 
 def test_club_members_table_is_created(base_migree):
     assert _columns(base_migree, "club_members") == {
-        "id",
-        "season",
-        "licence_id",
-        "nom",
-        "prenom",
-        "gender",
-        "last_name_key",
-        "first_name_key",
-        "athlete_id",
-        "link_status",
-        "source",
-        "created_at",
+        "id", "season", "licence_id", "nom", "prenom", "gender", "last_name_key",
+        "first_name_key", "athlete_id", "link_status", "source", "created_at",
     }
 
 
@@ -1600,11 +1523,7 @@ def test_downgrade_then_upgrade_of_club_members(sqlite_url, monkeypatch):
 
 def test_athlete_known_clubs_table_is_created(base_migree):
     assert _columns(base_migree, "athlete_known_clubs") == {
-        "id",
-        "athlete_id",
-        "club_key",
-        "created_at",
-        "created_by_user_id",
+        "id", "athlete_id", "club_key", "created_at", "created_by_user_id",
     }
 
 
@@ -1626,38 +1545,32 @@ def test_last_seen_at_is_backfilled_from_sessions_then_created_at_and_not_null(s
     engine = sa.create_engine(sqlite_url)
     try:
         with engine.begin() as connexion:
-            connexion.execute(
-                sa.text(
-                    "INSERT INTO users (email, display_name, is_active, created_at) "
-                    "VALUES ('ancien@exemple.fr', '', 1, '2021-03-04 05:06:07'), "
-                    "('connecte@exemple.fr', '', 1, '2021-03-04 05:06:07')"
-                )
-            )
-            connexion.execute(
-                sa.text(
-                    "INSERT INTO user_sessions (user_id, token_hash, expires_at, created_at) "
-                    "SELECT users.id, opened.h, '2026-01-01 00:00:00', opened.c FROM users, "
-                    "(SELECT 'a' AS h, '2025-06-01 10:00:00' AS c UNION SELECT 'b', '2025-07-02 11:00:00') AS opened "
-                    "WHERE users.email = 'connecte@exemple.fr'"
-                )
-            )
+            connexion.execute(sa.text(
+                "INSERT INTO users (email, display_name, is_active, created_at) "
+                "VALUES ('ancien@exemple.fr', '', 1, '2021-03-04 05:06:07'), "
+                "('connecte@exemple.fr', '', 1, '2021-03-04 05:06:07')"
+            ))
+            connexion.execute(sa.text(
+                "INSERT INTO user_sessions (user_id, token_hash, expires_at, created_at) "
+                "SELECT users.id, opened.h, '2026-01-01 00:00:00', opened.c FROM users, "
+                "(SELECT 'a' AS h, '2025-06-01 10:00:00' AS c UNION SELECT 'b', '2025-07-02 11:00:00') AS opened "
+                "WHERE users.email = 'connecte@exemple.fr'"
+            ))
     finally:
         engine.dispose()
 
     command.upgrade(cfg, "head")
 
-    assert _lignes(
-        sqlite_url, "SELECT last_seen_at FROM users WHERE email = 'ancien@exemple.fr'"
-    ) == [("2021-03-04 05:06:07",)]
+    assert _lignes(sqlite_url, "SELECT last_seen_at FROM users WHERE email = 'ancien@exemple.fr'") == [
+        ("2021-03-04 05:06:07",)
+    ]
     # The latest session opening is the best known activity.
-    assert _lignes(
-        sqlite_url, "SELECT last_seen_at FROM users WHERE email = 'connecte@exemple.fr'"
-    ) == [("2025-07-02 11:00:00",)]
+    assert _lignes(sqlite_url, "SELECT last_seen_at FROM users WHERE email = 'connecte@exemple.fr'") == [
+        ("2025-07-02 11:00:00",)
+    ]
     engine = sa.create_engine(sqlite_url)
     try:
-        colonne = next(
-            c for c in sa.inspect(engine).get_columns("users") if c["name"] == "last_seen_at"
-        )
+        colonne = next(c for c in sa.inspect(engine).get_columns("users") if c["name"] == "last_seen_at")
     finally:
         engine.dispose()
     assert colonne["nullable"] is False
@@ -1687,12 +1600,8 @@ def test_the_awaiting_validation_read_uses_its_partial_index(sqlite_url):
 
 def test_downgrade_puis_upgrade_de_la_meteo(sqlite_url):
     """#1370 : les quatre colonnes météo de `courses`."""
-    weather = {
-        "weather_temperature_c",
-        "weather_wind_kmh",
-        "weather_precipitation_mm",
-        "weather_fetched_at",
-    }
+    weather = {"weather_temperature_c", "weather_wind_kmh",
+               "weather_precipitation_mm", "weather_fetched_at"}
     cfg = _alembic_config()
     command.upgrade(cfg, "head")
     assert weather <= _columns(sqlite_url, "courses")
@@ -1706,12 +1615,7 @@ def test_athlete_claims_table_up_and_down(sqlite_url):
     cfg = _alembic_config()
     command.upgrade(cfg, "head")
     assert _columns(sqlite_url, "athlete_claims") == {
-        "id",
-        "user_id",
-        "athlete_id",
-        "status",
-        "created_at",
-        "decided_at",
+        "id", "user_id", "athlete_id", "status", "created_at", "decided_at",
     }
 
     command.downgrade(cfg, "a7d3c91e4b20")
@@ -1723,18 +1627,8 @@ def test_season_goals_table_up_and_down(sqlite_url):
     cfg = _alembic_config()
     command.upgrade(cfg, "head")
     assert _columns(sqlite_url, "season_goals") == {
-        "id",
-        "user_id",
-        "season",
-        "kind",
-        "event_type",
-        "target",
-        "created_at",
-        "course_id",
-        "race_name",
-        "race_date",
-        "major",
-        "public",
+        "id", "user_id", "season", "kind", "event_type", "target", "created_at",
+        "course_id", "race_name", "race_date", "major", "public",
     }
 
     command.downgrade(cfg, "2901789fc3c8")
@@ -1746,13 +1640,8 @@ def test_public_page_settings_table_up_and_down(sqlite_url):
     cfg = _alembic_config()
     command.upgrade(cfg, "head")
     assert _columns(sqlite_url, "public_page_settings") == {
-        "user_id",
-        "hide_best_times",
-        "hide_progression",
-        "hide_comparison",
-        "links",
-        "pinned_participation_id",
-        "updated_at",
+        "user_id", "hide_best_times", "hide_progression", "hide_comparison",
+        "links", "pinned_participation_id", "updated_at",
     }
 
     command.downgrade(cfg, "c84cbf6533c4")
@@ -1765,12 +1654,7 @@ def test_result_claims_table_up_and_down(sqlite_url):
     cfg = _alembic_config()
     command.upgrade(cfg, "head")
     assert _columns(sqlite_url, "result_claims") == {
-        "id",
-        "user_id",
-        "participation_id",
-        "status",
-        "created_at",
-        "decided_at",
+        "id", "user_id", "participation_id", "status", "created_at", "decided_at",
     }
 
     command.downgrade(cfg, "325c308cab2d")
@@ -1779,56 +1663,22 @@ def test_result_claims_table_up_and_down(sqlite_url):
 
 CLUB_ROLES = {
     "bureau": [
-        "admin_log:read",
-        "allowed_emails:manage",
-        "athlete_claims:review",
-        "benevole_access:manage",
-        "club_members:manage",
-        "feedback:manage",
-        "feedback:read",
-        "groups:assign",
-        "groups:read",
-        "groups:write",
-        "member_emails:manage",
-        "member_requests:review",
-        "oppositions:manage",
-        "pages:preview",
-        "roles:read",
-        "site_access:manage",
-        "users:read",
+        "admin_log:read", "allowed_emails:manage", "athlete_claims:review", "benevole_access:manage",
+        "club_members:manage", "feedback:manage", "feedback:read", "groups:assign", "groups:read",
+        "groups:write", "member_emails:manage", "member_requests:review", "oppositions:manage", "pages:preview", "roles:read",
+        "site_access:manage", "users:read",
     ],
     "data": [
-        "athlete_claims:review",
-        "athletes:read",
-        "athletes:write",
-        "batch:read",
-        "club_aliases:manage",
-        "counter_scope:manage",
-        "courses:sources",
-        "courses:write",
-        "feedback:read",
-        "pages:preview",
-        "participations:reassign",
-        "pending_providers:handle",
-        "pending_providers:read",
-        "quality:override",
+        "athlete_claims:review", "athletes:read", "athletes:write", "batch:read", "club_aliases:manage",
+        "counter_scope:manage", "courses:sources", "courses:write", "feedback:read", "pages:preview",
+        "participations:reassign", "pending_providers:handle", "pending_providers:read", "quality:override",
     ],
     "encadrant": ["jeunes:read", "jeunes:write"],
-    "validation": [
-        "athletes:season_validate",
-        "athletes:volunteer_validate",
-        "benevole_access:manage",
-    ],
+    "validation": ["athletes:season_validate", "athletes:volunteer_validate", "benevole_access:manage"],
 }
 SUPERUSER_ONLY = {
-    "courses:delete",
-    "courses:wipe_all",
-    "participations:delete",
-    "participations:wipe_all",
-    "batch:run",
-    "roles:write",
-    "roles:assign",
-    "sessions:revoke",
+    "courses:delete", "courses:wipe_all", "participations:delete", "participations:wipe_all",
+    "batch:run", "roles:write", "roles:assign", "sessions:revoke",
 }
 
 
@@ -1868,25 +1718,19 @@ def test_club_roles_never_overwrite_a_role_made_by_hand(sqlite_url):
     command.upgrade(cfg, "cd0a7061e41f")
     engine = sa.create_engine(sqlite_url)
     with engine.begin() as connexion:
-        connexion.execute(
-            sa.text(
-                "INSERT INTO roles (slug, name, description, is_system, is_superuser, created_at)"
-                " VALUES ('bureau', 'Bureau du club', '', 0, 0, '2026-10-01')"
-            )
-        )
-        connexion.execute(
-            sa.text(
-                "INSERT INTO role_permissions (role_id, permission_code)"
-                " SELECT id, 'users:read' FROM roles WHERE slug = 'bureau'"
-            )
-        )
+        connexion.execute(sa.text(
+            "INSERT INTO roles (slug, name, description, is_system, is_superuser, created_at)"
+            " VALUES ('bureau', 'Bureau du club', '', 0, 0, '2026-10-01')"
+        ))
+        connexion.execute(sa.text(
+            "INSERT INTO role_permissions (role_id, permission_code)"
+            " SELECT id, 'users:read' FROM roles WHERE slug = 'bureau'"
+        ))
     engine.dispose()
 
     command.upgrade(cfg, "head")
 
-    assert _lignes(sqlite_url, "SELECT name FROM roles WHERE slug = 'bureau'") == [
-        ("Bureau du club",)
-    ]
+    assert _lignes(sqlite_url, "SELECT name FROM roles WHERE slug = 'bureau'") == [("Bureau du club",)]
     assert _compositions(sqlite_url, ["bureau"]) == {"bureau": ["users:read"]}
     assert _compositions(sqlite_url, ["data"]) == {"data": CLUB_ROLES["data"]}
 

@@ -4,7 +4,6 @@ La transaction reste portée par le service appelant (`services/auth/`), comme
 dans `import_service` et `scrape_service` : on `flush()` pour peupler l'id, on ne
 `commit()` jamais ici.
 """
-
 from datetime import datetime
 
 from sqlalchemy import Column, func, select, update
@@ -36,7 +35,9 @@ def get_with_roles_and_groups(db: Session, user_id: int) -> User | None:
         select(User)
         .where(User.id == user_id)
         .options(
-            selectinload(User.roles).selectinload(UserRole.role).selectinload(Role.permissions),
+            selectinload(User.roles)
+            .selectinload(UserRole.role)
+            .selectinload(Role.permissions),
             selectinload(User.groups).selectinload(UserGroup.group),
         )
     )
@@ -64,7 +65,9 @@ def find_by_email(db: Session, email: str) -> list[User]:
     """
     return list(
         db.scalars(
-            select(User).where(func.lower(User.email) == normalize_email(email)).order_by(User.id)
+            select(User)
+            .where(func.lower(User.email) == normalize_email(email))
+            .order_by(User.id)
         )
     )
 
@@ -137,19 +140,7 @@ def set_active(db: Session, users: list[User], *, active: bool) -> int:
 
 
 #: Tables that belong to the account and leave with it through the ORM cascade of `User`.
-_OWNED_TABLES = frozenset(
-    {
-        "identities",
-        "user_sessions",
-        "user_roles",
-        "user_groups",
-        "athlete_claims",
-        "season_goals",
-        "result_claims",
-        "member_requests",
-        "public_page_settings",
-    }
-)
+_OWNED_TABLES = frozenset({"identities", "user_sessions", "user_roles", "user_groups", "athlete_claims", "season_goals", "result_claims", "member_requests", "public_page_settings"})
 
 
 def _references_to_users() -> list[Column]:
@@ -188,8 +179,7 @@ def required_reference_counts(db: Session, user_id: int) -> dict[str, int]:
     counts = {
         f"{column.table.name}.{column.name}": db.scalar(
             select(func.count()).select_from(column.table).where(column == user_id)
-        )
-        or 0
+        ) or 0
         for column in required_references()
     }
     return {key: count for key, count in counts.items() if count}
@@ -197,9 +187,7 @@ def required_reference_counts(db: Session, user_id: int) -> dict[str, int]:
 
 def reassign_required_references(db: Session, *, from_user_id: int, to_user_id: int) -> None:
     for column in required_references():
-        db.execute(
-            update(column.table).where(column == from_user_id).values({column.name: to_user_id})
-        )
+        db.execute(update(column.table).where(column == from_user_id).values({column.name: to_user_id}))
 
 
 def detach_optional_references(db: Session, user_id: int) -> None:
@@ -219,17 +207,15 @@ def touch_last_seen(db: Session, user_id: int, now: datetime) -> None:
 
 def list_inactive_without_role(db: Session, cutoff: datetime) -> list[User]:
     """Accounts with no role, last seen before `cutoff`, never the system account (#1326)."""
-    return list(
-        db.scalars(
-            select(User)
-            .where(
-                User.last_seen_at < cutoff,
-                User.email != SYSTEM_USER_EMAIL,
-                ~select(UserRole.id).where(UserRole.user_id == User.id).exists(),
-            )
-            .order_by(User.id)
+    return list(db.scalars(
+        select(User)
+        .where(
+            User.last_seen_at < cutoff,
+            User.email != SYSTEM_USER_EMAIL,
+            ~select(UserRole.id).where(UserRole.user_id == User.id).exists(),
         )
-    )
+        .order_by(User.id)
+    ))
 
 
 def delete(db: Session, user: User) -> None:

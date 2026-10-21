@@ -1,5 +1,4 @@
 """Modèles SQLAlchemy. Importer ce package enregistre toutes les tables sur Base.metadata."""
-
 from app.models.absorbed_course import AbsorbedCourse
 from app.models.admin_action_log import AdminActionLog
 from app.models.allowed_email import AllowedEmail
