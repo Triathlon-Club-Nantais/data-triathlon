@@ -130,7 +130,7 @@ export function SharedPasswordCard({
       <CardHeader>
         <CardTitle>{copy.title}</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-6">
+      <CardContent className="@container space-y-6">
         <p className="text-[var(--tcn-text-faint)] text-sm">{copy.description}</p>
 
         {!isLoading && data && (
@@ -169,7 +169,7 @@ export function SharedPasswordCard({
 
         <form
           onSubmit={demanderConfirmation}
-          className="flex flex-col gap-3 sm:flex-row sm:items-end"
+          className="flex flex-col gap-3 @xl:flex-row @xl:items-end"
         >
           <div className="flex-1 space-y-1">
             <Label htmlFor={inputId}>{copy.label}</Label>

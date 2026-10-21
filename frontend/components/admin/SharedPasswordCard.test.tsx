@@ -72,6 +72,16 @@ describe("SharedPasswordCard", () => {
     expect(screen.getByRole("button", { name: "Générer témoin" })).toBeInTheDocument();
   });
 
+  it("lays the form out on its card width, not the viewport (#1779)", async () => {
+    api.getBenevoleAccessConfig.mockResolvedValue(NON_CONFIGURE);
+    afficher();
+
+    const formulaire = (await screen.findByLabelText("Champ témoin")).closest("form");
+    expect(formulaire?.parentElement).toHaveClass("@container");
+    expect(formulaire?.className).toContain("@xl:flex-row");
+    expect(formulaire?.className).not.toContain("sm:");
+  });
+
   it("describes the field with the help when one is given", async () => {
     api.getBenevoleAccessConfig.mockResolvedValue(NON_CONFIGURE);
     afficher({ help: "Aide témoin." });
