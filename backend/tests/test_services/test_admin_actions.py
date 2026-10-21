@@ -632,6 +632,36 @@ def test_update_course_marks_a_changed_event_type_as_manual(db_session, auteur):
     assert course.event_type_origin == "manual"
 
 
+def test_saving_an_unchanged_type_confirms_a_fallback_course(db_session, auteur):
+    course = _epreuve(db_session)
+    course.event_type_origin = "fallback"
+    db_session.flush()
+
+    admin_actions.update_course(
+        db_session,
+        course_id=course.id,
+        fields={"event_type": course.event_type},
+        user_id=auteur.id,
+    )
+
+    db_session.refresh(course)
+    assert course.event_type_origin == "manual"
+
+
+def test_saving_an_unchanged_type_leaves_a_classified_course_alone(db_session, auteur):
+    course = _epreuve(db_session)
+
+    admin_actions.update_course(
+        db_session,
+        course_id=course.id,
+        fields={"event_type": course.event_type},
+        user_id=auteur.id,
+    )
+
+    db_session.refresh(course)
+    assert course.event_type_origin == "classified"
+
+
 def test_update_course_redating_clears_the_weather(db_session, auteur):
     """#1468 : corriger la date redemande la météo du vrai jour."""
     course = _epreuve(db_session, event_date=date(2025, 6, 1))
