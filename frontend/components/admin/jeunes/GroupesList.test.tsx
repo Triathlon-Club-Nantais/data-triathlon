@@ -104,7 +104,9 @@ describe("GroupesList", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     getSession.mockResolvedValue(AVEC_ECRITURE);
-    listTrainingGroups.mockResolvedValue([{ id: 7, name: "Benjamins mercredi", member_count: 2 }]);
+    listTrainingGroups.mockResolvedValue([
+      { id: 7, name: "Benjamins mercredi", member_count: 2, attended: 3, pointed: 4 },
+    ]);
     getTrainingGroup.mockResolvedValue(GROUPE);
     listProfiles.mockResolvedValue([ALIX, ZOE, profil(3, "Noé")]);
   });
@@ -114,6 +116,17 @@ describe("GroupesList", () => {
 
     expect(await screen.findByText("Benjamins mercredi")).toBeInTheDocument();
     expect(screen.getByText("2 membres")).toBeInTheDocument();
+  });
+
+  it("shows each group's season attendance (#1364)", async () => {
+    listTrainingGroups.mockResolvedValue([
+      { id: 7, name: "Benjamins mercredi", member_count: 2, attended: 3, pointed: 4 },
+      { id: 8, name: "Minimes jeudi", member_count: 1, attended: 0, pointed: 0 },
+    ]);
+    afficher();
+    const brut = { normalizer: (texte: string) => texte }; // garde l'espace insécable
+    expect(await screen.findByText("Assiduité : 75\u202f%", brut)).toBeInTheDocument();
+    expect(screen.getByText("Assiduité : aucun appel")).toBeInTheDocument();
   });
 
   it("distingue une erreur de chargement d'une liste vide", async () => {

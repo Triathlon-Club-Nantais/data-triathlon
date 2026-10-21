@@ -1083,6 +1083,12 @@ export function useUpdateTrainingSession() {
   });
 }
 
+/** Un appel change les taux d'assiduité des groupes et des fiches de profil (#1364). */
+function perimerAssiduite(qc: ReturnType<typeof useQueryClient>) {
+  qc.invalidateQueries({ queryKey: queryKeys.trainingGroups() });
+  qc.invalidateQueries({ queryKey: ["admin-profile"] });
+}
+
 export function useDeleteTrainingSession() {
   const qc = useQueryClient();
   return useMutation({
@@ -1090,6 +1096,7 @@ export function useDeleteTrainingSession() {
     onSuccess: (_donnees, id) => {
       qc.removeQueries({ queryKey: queryKeys.trainingSession(id) });
       qc.invalidateQueries({ queryKey: queryKeys.trainingSessions() });
+      perimerAssiduite(qc);
     },
   });
 }
@@ -1109,6 +1116,7 @@ export function useAddTrainingParticipant() {
     onSuccess: (_donnees, { sessionId }) => {
       qc.invalidateQueries({ queryKey: queryKeys.trainingSessions() });
       qc.invalidateQueries({ queryKey: queryKeys.trainingSession(sessionId) });
+      perimerAssiduite(qc);
     },
   });
 }
@@ -1121,6 +1129,7 @@ export function useRemoveTrainingParticipant() {
     onSuccess: (_donnees, { sessionId }) => {
       qc.invalidateQueries({ queryKey: queryKeys.trainingSessions() });
       qc.invalidateQueries({ queryKey: queryKeys.trainingSession(sessionId) });
+      perimerAssiduite(qc);
     },
   });
 }
@@ -1143,6 +1152,7 @@ export function useSetPresence() {
     onSuccess: (_donnees, { sessionId }) => {
       qc.invalidateQueries({ queryKey: queryKeys.trainingSessions() });
       qc.invalidateQueries({ queryKey: queryKeys.trainingSession(sessionId) });
+      perimerAssiduite(qc);
     },
   });
 }

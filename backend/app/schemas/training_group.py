@@ -9,6 +9,8 @@ class TrainingGroupRead(BaseModel):
     id: int
     name: str
     member_count: int
+    attended: int
+    pointed: int
 
 
 class TrainingGroupDetailRead(BaseModel):

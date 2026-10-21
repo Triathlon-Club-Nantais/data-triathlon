@@ -139,6 +139,18 @@ def test_the_weekly_purges_and_members_sync_are_still_scheduled(workflow):
     assert "app.cli purge-orphans" in steps["orphans"]["run"]
 
 
+def test_the_weekend_digest_runs_on_the_schedule_only(workflow):
+    """#1363 : le point du week-end part du lundi planifié, et un échec Slack
+    rougit le run (donc `notify-failure`) au lieu d'être avalé."""
+    steps = {step.get("id"): step for job in _step_jobs(workflow) for step in job["steps"]}
+    step = steps["digest"]
+    assert "github.event_name == 'schedule'" in step["if"]
+    assert "app.cli weekend-digest" in step["run"]
+    assert step["env"]["SLACK_DIGEST_WEBHOOK_URL"] == "${{ secrets.SLACK_DIGEST_WEBHOOK_URL }}"
+    assert "AUTH_REDIRECT_BASE_URL" in step["env"]
+    assert "continue-on-error" not in step
+
+
 def test_the_schedule_no_longer_rescrapes(workflow):
     """#1271 : la planification ne lance plus `rescrape-db` ni le géocodage.
 

@@ -6,6 +6,7 @@ import logging
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import DomainError, NotFoundError
+from app.core.time import utcnow
 from app.models.training_group import TrainingGroup
 from app.models.user import User
 from app.repositories import (
@@ -14,6 +15,7 @@ from app.repositories import (
     training_session_repository,
 )
 from app.services import profile_service, training_session_service
+from app.services.fftri_category import fftri_season_to_date
 
 logger = logging.getLogger(__name__)
 
@@ -44,10 +46,21 @@ def get_group_or_404(db: Session, training_group_id: int) -> TrainingGroup:
 
 
 def list_group_views(db: Session) -> list[dict]:
-    return [
-        {"id": group.id, "name": group.name, "member_count": member_count}
-        for group, member_count in training_group_repository.list_with_member_counts(db)
-    ]
+    date_from, date_to = fftri_season_to_date(utcnow().date())
+    attendance = training_session_repository.attendance_by_group(db, date_from=date_from, date_to=date_to)
+    views = []
+    for group, member_count in training_group_repository.list_with_member_counts(db):
+        attended, pointed = attendance.get(group.id, (0, 0))
+        views.append(
+            {
+                "id": group.id,
+                "name": group.name,
+                "member_count": member_count,
+                "attended": attended,
+                "pointed": pointed,
+            }
+        )
+    return views
 
 
 def group_detail_view(db: Session, group: TrainingGroup) -> dict:

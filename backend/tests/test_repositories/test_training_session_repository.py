@@ -5,7 +5,11 @@ import pytest
 from app.models.organisation import Organisation
 from app.models.personal_profile import PersonalProfile
 from app.models.profile_measurement import ProfileMeasurement
-from app.repositories import profile_repository, training_session_repository
+from app.repositories import (
+    profile_repository,
+    training_group_repository,
+    training_session_repository,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -231,6 +235,72 @@ def test_update_without_note_does_not_erase_it(db_session):
     training_session_repository.update(db_session, training_session, location="Base nautique")
 
     assert training_session.note == "Bassin partagé."
+
+
+SEASON = {"date_from": date(2025, 11, 1), "date_to": date(2026, 10, 31)}
+
+
+def _pointed(db_session, day, presences, *, start_time=None, groups=()):
+    session = _create(db_session, date=day, start_time=start_time)
+    if groups:
+        training_session_repository.set_groups(db_session, session, list(groups))
+    for profile_id, present in presences.items():
+        training_session_repository.add_participant(
+            db_session, training_session_id=session.id, profile_id=profile_id, present=present,
+        )
+    return session
+
+
+def _group(db_session, name):
+    club = db_session.query(Organisation).filter_by(slug="tcn").one()
+    return training_group_repository.create(db_session, organisation_id=club.id, name=name)
+
+
+def test_presence_history_keeps_pointed_sessions_of_the_season_latest_first(db_session):
+    _pointed(db_session, date(2025, 10, 31), {1: True})
+    _pointed(db_session, date(2025, 11, 1), {1: True})
+    _pointed(db_session, date(2026, 3, 4), {1: None})
+    _pointed(db_session, date(2026, 3, 11), {1: True}, start_time=time(18, 0))
+    _pointed(db_session, date(2026, 3, 11), {1: False})
+    _pointed(db_session, date(2026, 11, 1), {1: True})
+
+    assert training_session_repository.presence_history_of_profile(db_session, 1, **SEASON) == [
+        False, True, True,
+    ]
+
+
+def test_presence_history_ignores_a_deleted_session(db_session):
+    session = _pointed(db_session, date(2026, 3, 4), {1: False})
+    training_session_repository.delete_training_session(db_session, session)
+
+    assert training_session_repository.presence_history_of_profile(db_session, 1, **SEASON) == []
+
+
+def test_attendance_by_group_follows_the_session_group_across_a_group_change(db_session):
+    group_a, group_b = _group(db_session, "A"), _group(db_session, "B")
+    _group(db_session, "C")
+    _pointed(db_session, date(2026, 1, 7), {1: True, 2: None}, groups=[group_a])
+    _pointed(db_session, date(2026, 2, 4), {1: False}, groups=[group_b])
+
+    assert training_session_repository.attendance_by_group(db_session, **SEASON) == {
+        group_a.id: (1, 1), group_b.id: (0, 1),
+    }
+
+
+def test_attendance_by_group_counts_a_multi_group_session_for_each_group(db_session):
+    group_a, group_b = _group(db_session, "A"), _group(db_session, "B")
+    _pointed(db_session, date(2026, 1, 7), {1: True, 2: False}, groups=[group_a, group_b])
+
+    assert training_session_repository.attendance_by_group(db_session, **SEASON) == {
+        group_a.id: (1, 2), group_b.id: (1, 2),
+    }
+
+
+def test_attendance_by_group_ignores_sessions_outside_the_season(db_session):
+    group_a = _group(db_session, "A")
+    _pointed(db_session, date(2025, 10, 31), {1: True}, groups=[group_a])
+
+    assert training_session_repository.attendance_by_group(db_session, **SEASON) == {}
 
 
 def test_deleting_a_session_keeps_its_measurements_without_session(db_session):

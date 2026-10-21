@@ -1,9 +1,16 @@
 """Groupes d'entraînement (#1291), contrat de contracts/api.md section Groupes."""
+from datetime import date, datetime
+
 import pytest
 
 from app.core.permissions import P
 from app.models.organisation import Organisation
-from app.repositories import profile_repository
+from app.repositories import (
+    profile_repository,
+    training_group_repository,
+    training_session_repository,
+)
+from app.services import training_group_service
 from tests.test_api.test_admin_training_sessions import _session_avec
 
 BASE = "/api/v1/admin/training-groups"
@@ -29,7 +36,7 @@ def test_full_cycle(client, profile_id):
     again = client.post(f"{BASE}/{group_id}/members", json={"profile_id": profile_id}).json()
     assert [m["id"] for m in detail["members"]] == [m["id"] for m in again["members"]] == [profile_id]
 
-    assert client.get(BASE).json() == [{"id": group_id, "name": "Benjamins mercredi", "member_count": 1}]
+    assert client.get(BASE).json() == [{"id": group_id, "name": "Benjamins mercredi", "member_count": 1, "attended": 0, "pointed": 0}]
     assert client.patch(f"{BASE}/{group_id}", json={"name": "Benjamins"}).json()["name"] == "Benjamins"
 
     removed = client.delete(f"{BASE}/{group_id}/members/{profile_id}")
@@ -50,6 +57,23 @@ def test_a_taken_or_empty_name_is_a_422_in_french(client):
     assert taken.status_code == empty.status_code == 422
     assert "Un groupe porte déjà ce nom." in taken.text
     assert "Le nom du groupe est obligatoire." in empty.text
+
+
+def test_list_reports_the_season_attendance_of_each_group(client, db_session, profile_id, monkeypatch):
+    monkeypatch.setattr(training_group_service, "utcnow", lambda: datetime(2026, 10, 15, 12, 0))
+    group_id = client.post(BASE, json={"name": "Benjamins"}).json()["id"]
+    group = training_group_repository.get(db_session, group_id)
+    for day, present in ((date(2026, 9, 2), True), (date(2026, 10, 22), False)):
+        session = training_session_repository.create(db_session, date=day)
+        training_session_repository.set_groups(db_session, session, [group])
+        training_session_repository.add_participant(
+            db_session, training_session_id=session.id, profile_id=profile_id, present=present
+        )
+    db_session.commit()
+
+    (item,) = client.get(BASE).json()
+
+    assert (item["attended"], item["pointed"]) == (1, 1)
 
 
 def test_adding_an_unknown_profile_is_a_404(client):

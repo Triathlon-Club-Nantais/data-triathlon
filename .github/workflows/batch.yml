@@ -4,8 +4,9 @@
 # la relecture des licenciés du club sur la page FFTri (`sync-club-members`,
 # #1202, sautée en dry-run). Une étape en échec rougit le run sans priver la
 # base des suivantes. La planification hebdomadaire n'exécute **que** ces deux
-# étapes et le balayage des athlètes orphelins (`purge-orphans`, #1271), propre
-# à elle : la reprise et le géocodage ne se lancent qu'à la main.
+# étapes, le balayage des athlètes orphelins (`purge-orphans`, #1271) et le
+# point du week-end posté sur Slack (`weekend-digest`, #1363), propres à elle :
+# la reprise et le géocodage ne se lancent qu'à la main.
 #
 # Ce workflow n'est pas de l'intégration continue : il détient la base de
 # **production** et exécute ce que l'interface d'administration lui demande
@@ -30,7 +31,8 @@ run-name: "batch · ${{ inputs.target || 'production' }} · ${{ inputs.mode }} �
 
 on:
   # Passage hebdomadaire, lundi 3 h UTC (creux de trafic) : purge de rétention,
-  # relecture des licenciés et balayage des orphelins, en production. Aucune entrée n'accompagne un
+  # relecture des licenciés, balayage des orphelins et point du week-end sur
+  # Slack (#1363), en production. Aucune entrée n'accompagne un
   # `schedule` : c'est ce qui rend le repli `|| 'production'` indispensable plus
   # bas. Il ne lance **ni** `rescrape-db` **ni** le géocodage (#1271) : la
   # reprise ne réconcilie que l'identité d'athlète, sept runs planifiés ont
@@ -295,6 +297,28 @@ jobs:
           count=$(uv run python -m app.cli entra-deletions --since "$since" --count | tail -n 1)
           echo "count=$count" >> "$GITHUB_OUTPUT"
           echo "Identifiants Entra à effacer depuis $since : $count"
+
+      # Point du week-end pour le bureau (#1363) : un message Slack par lundi, sur
+      # le webhook du bureau (`SLACK_DIGEST_WEBHOOK_URL`), distinct du webhook
+      # d'ops de `notify-failure`. Indépendant des étapes précédentes : leur
+      # échec ne le prive pas. Sans `continue-on-error`, un échec Slack rougit
+      # le run. Limite : à 3 h UTC, seules les épreuves déjà importées sont citées.
+      - name: Post weekend digest
+        id: digest
+        if: ${{ !cancelled() && github.event_name == 'schedule' }}
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SLACK_DIGEST_WEBHOOK_URL: ${{ secrets.SLACK_DIGEST_WEBHOOK_URL }}
+          AUTH_REDIRECT_BASE_URL: ${{ secrets.AUTH_REDIRECT_BASE_URL }}
+        run: |
+          set -uo pipefail
+          set +e
+          uv run python -m app.cli weekend-digest > digest.txt 2>&1
+          code=$?
+          set -e
+          cat digest.txt
+          { echo '## Récapitulatif du week-end'; echo '```'; cat digest.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          exit $code
 
       - name: Run batch
         id: batch

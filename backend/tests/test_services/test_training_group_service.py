@@ -103,7 +103,7 @@ def test_detail_lists_members_and_list_counts_them(db_session, actor, organisati
     (row,) = service.list_group_views(db_session)
 
     assert [member["id"] for member in detail["members"]] == [alix.id]
-    assert row == {"id": group.id, "name": "Benjamins", "member_count": 1}
+    assert row == {"id": group.id, "name": "Benjamins", "member_count": 1, "attended": 0, "pointed": 0}
 
 
 def test_deleting_a_group_keeps_the_enrolments_it_produced(db_session, actor, organisation):

@@ -62,6 +62,7 @@ const PROFIL: ProfileDetailType = {
   membership_ended_on: null,
   category: null,
   groups: [],
+  attendance: null,
   measurements: [],
   log_entries: [
     {

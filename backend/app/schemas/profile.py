@@ -75,6 +75,14 @@ class ProfileGroupRead(BaseModel):
     name: str
 
 
+class ProfileAttendanceRead(BaseModel):
+    """Assiduité de la saison fédérale en cours (#1364)."""
+
+    attended: int
+    pointed: int
+    absence_streak: int
+
+
 class ProfileDetailRead(ProfileRead):
     """Un profil et son journal — la ressource qui justifie l'objet entier.
 
@@ -85,6 +93,7 @@ class ProfileDetailRead(ProfileRead):
     notes: str | None
     groups: list[ProfileGroupRead]
     log_entries: list[ProfileLogEntryRead] | None
+    attendance: ProfileAttendanceRead | None
     measurements: list[ProfileMeasurementRead] | None
 
 
