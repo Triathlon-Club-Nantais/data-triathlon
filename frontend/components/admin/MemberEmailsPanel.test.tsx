@@ -48,6 +48,15 @@ function afficher(props: Partial<Parameters<typeof MemberEmailsPanel>[0]> = {}) 
 describe("MemberEmailsPanel", () => {
   beforeEach(() => vi.clearAllMocks());
 
+  it("lays the add form out on its container width, not the viewport (#1779)", () => {
+    afficher();
+
+    const formulaire = screen.getByLabelText("Adresse à ajouter").closest("form");
+    expect(formulaire?.parentElement).toHaveClass("@container");
+    expect(formulaire?.className).toContain("@xl:flex-row");
+    expect(formulaire?.className).not.toContain("sm:");
+  });
+
   it("lists the season's addresses with their origin and the counting season", () => {
     afficher();
 

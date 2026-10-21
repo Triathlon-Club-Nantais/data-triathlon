@@ -155,21 +155,23 @@ function AddMemberEmail({ season }: { season: number }) {
   }
 
   return (
-    <form onSubmit={soumettre} className="flex flex-col gap-3 sm:flex-row sm:items-end">
-      <div className="flex-1 space-y-1.5">
-        <Label htmlFor="adresse-adherent">Adresse à ajouter</Label>
-        <Input
-          id="adresse-adherent"
-          type="email"
-          placeholder="prenom.nom@exemple.fr"
-          value={saisie}
-          onChange={(e) => setSaisie(e.target.value)}
-        />
-      </div>
-      <Button type="submit" disabled={!saisie.trim() || ajouter.isPending}>
-        Ajouter
-      </Button>
-    </form>
+    <div className="@container">
+      <form onSubmit={soumettre} className="flex flex-col gap-3 @xl:flex-row @xl:items-end">
+        <div className="flex-1 space-y-1.5">
+          <Label htmlFor="adresse-adherent">Adresse à ajouter</Label>
+          <Input
+            id="adresse-adherent"
+            type="email"
+            placeholder="prenom.nom@exemple.fr"
+            value={saisie}
+            onChange={(e) => setSaisie(e.target.value)}
+          />
+        </div>
+        <Button type="submit" disabled={!saisie.trim() || ajouter.isPending}>
+          Ajouter
+        </Button>
+      </form>
+    </div>
   );
 }
 

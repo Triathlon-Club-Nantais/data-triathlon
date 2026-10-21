@@ -42,6 +42,15 @@ function afficher() {
 }
 
 describe("OppositionsScreen (#334)", () => {
+  it("passe le formulaire en quatre colonnes sur la largeur de sa carte, pas de la fenêtre (#1779)", () => {
+    afficher();
+
+    const formulaire = screen.getByLabelText("Nom").closest("form");
+    expect(formulaire?.parentElement).toHaveClass("@container");
+    expect(formulaire?.className).toContain("@2xl:grid-cols-4");
+    expect(formulaire?.className).not.toContain("sm:");
+  });
+
   it("ne prend pas une relance suspendue pour une liste vide (#1294)", async () => {
     listOppositions.mockRejectedValue(new Error("Service indisponible"));
 

@@ -55,13 +55,13 @@ export function OppositionsScreen() {
 
   return (
     <div className="space-y-6">
-      <Card className="space-y-3 p-4">
+      <Card className="@container space-y-3 p-4">
         <h2 className="font-bold">Enregistrer une opposition par nom</h2>
         <p className="text-[var(--tcn-text-faint)] text-sm">
           Pour une personne qui n&apos;a pas encore de fiche, ou depuis une demande reçue par courrier. Si une
           fiche existe, ses résultats sont anonymisés tout de suite.
         </p>
-        <form onSubmit={enregistrer} className="grid gap-3 sm:grid-cols-4 sm:items-end">
+        <form onSubmit={enregistrer} className="grid gap-3 @2xl:grid-cols-4 @2xl:items-end">
           <div className="space-y-1.5">
             <Label htmlFor="opposition-nom">Nom</Label>
             <Input id="opposition-nom" required value={nom} onChange={(e) => setNom(e.target.value)} autoComplete="off" />

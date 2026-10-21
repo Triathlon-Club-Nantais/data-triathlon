@@ -117,11 +117,12 @@ export function AllowedEmailsTable() {
   }
 
   return (
-    <div className="space-y-4">
-      {/* `flex-col`/`sm:flex-row` : sur 375 px, le champ e-mail était écrasé
-          contre un `<select>` en `w-48` fixe (#479, ADM-11) — même schéma que
-          `SharedPasswordCard.tsx`. */}
-      <form onSubmit={soumettre} className="flex flex-col gap-3 sm:flex-row sm:items-end">
+    <div className="@container space-y-4">
+      {/* `flex-col`/`@xl:flex-row` : sur 375 px, le champ e-mail était écrasé
+          contre un `<select>` en `w-48` fixe (#479, ADM-11). La bascule suit la
+          largeur du conteneur, pas de la fenêtre : la barre latérale en mange
+          288 px entre 768 et 900 px (#1779). Même schéma que `SharedPasswordCard.tsx`. */}
+      <form onSubmit={soumettre} className="flex flex-col gap-3 @xl:flex-row @xl:items-end">
         <div className="flex-1 space-y-1.5">
           <Label htmlFor="adresse-autorisee">Adresse à autoriser</Label>
           <Input
@@ -141,7 +142,7 @@ export function AllowedEmailsTable() {
             <Label htmlFor="role-initial">Rôle à l&apos;inscription</Label>
             <select
               id="role-initial"
-              className="border-input h-9 w-full rounded-md border bg-transparent px-2 text-sm sm:w-48"
+              className="border-input h-9 w-full rounded-md border bg-transparent px-2 text-sm @xl:w-48"
               value={role}
               onChange={(e) => {
                 setRole(e.target.value);

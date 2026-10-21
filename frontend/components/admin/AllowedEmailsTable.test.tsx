@@ -120,6 +120,15 @@ describe("AllowedEmailsTable", () => {
     getSession.mockResolvedValue(MOI);
   });
 
+  it("met le formulaire en ligne sur la largeur de son conteneur, pas de la fenêtre (#1779)", async () => {
+    listAllowedEmails.mockResolvedValue([]);
+    afficher();
+
+    const formulaire = screen.getByLabelText("Adresse à autoriser").closest("form");
+    expect(formulaire?.parentElement).toHaveClass("@container");
+    expect(formulaire?.className).not.toContain("sm:");
+  });
+
   it("affiche les adresses autorisées et qui les a inscrites", async () => {
     listAllowedEmails.mockResolvedValue([ADRESSE]);
 
@@ -381,7 +390,7 @@ describe("AllowedEmailsTable", () => {
     expect(await screen.findByText(ADRESSE.email)).toBeInTheDocument();
   });
 
-  it("empile le formulaire d'ajout en colonne sous le point de rupture sm (#479, ADM-11)", async () => {
+  it("empile le formulaire d'ajout en colonne sous le point de rupture @xl (#479, ADM-11)", async () => {
     // À 375 px, `flex items-end gap-2` sans `flex-wrap` écrasait le champ
     // e-mail contre un `<select>` en `w-48` fixe.
     listAllowedEmails.mockResolvedValue([]);
@@ -391,10 +400,10 @@ describe("AllowedEmailsTable", () => {
     const formulaire = screen.getByLabelText(/adresse à autoriser/i).closest("form");
 
     expect(formulaire?.className).toMatch(/(^|\s)flex-col(\s|$)/);
-    expect(formulaire?.className).toMatch(/(^|\s)sm:flex-row(\s|$)/);
+    expect(formulaire?.className).toMatch(/(^|\s)@xl:flex-row(\s|$)/);
   });
 
-  it("laisse le sélecteur de rôle prendre toute la largeur sous le point de rupture sm (#479, ADM-11)", async () => {
+  it("laisse le sélecteur de rôle prendre toute la largeur sous le point de rupture @xl (#479, ADM-11)", async () => {
     listAllowedEmails.mockResolvedValue([]);
 
     afficher();
@@ -402,7 +411,7 @@ describe("AllowedEmailsTable", () => {
 
     expect(selecteur.className).toMatch(/(^|\s)w-full(\s|$)/);
     expect(selecteur.className).not.toMatch(/(^|\s)w-48(\s|$)/);
-    expect(selecteur.className).toMatch(/(^|\s)sm:w-48(\s|$)/);
+    expect(selecteur.className).toMatch(/(^|\s)@xl:w-48(\s|$)/);
   });
 
   it("n'envoie rien sur un formulaire vide", async () => {

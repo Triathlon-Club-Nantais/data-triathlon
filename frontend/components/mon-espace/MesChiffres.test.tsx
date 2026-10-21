@@ -7,6 +7,14 @@ const COURANT: ChiffresSaison = { epreuves: 8, podiums: 2, km: 410, sansDistance
 const PRECEDENT: ChiffresSaison = { epreuves: 5, podiums: 3, km: 400, sansDistance: 0, tempsSecondes: 3600 * 20, meilleurRatio: 15 };
 
 describe("MesChiffres", () => {
+  it("wraps the tiles to the column width, not the viewport (#1781)", () => {
+    render(<MesChiffres courant={COURANT} precedent={null} />);
+
+    const grille = screen.getByText("Épreuves").closest("dl");
+    expect(grille?.className).toContain("grid-cols-[repeat(auto-fill,minmax(8rem,1fr))]");
+    expect(grille?.className).not.toContain("sm:");
+  });
+
   it("shows the five figures and the recap link, without deltas when no previous season", () => {
     render(<MesChiffres courant={COURANT} precedent={null} />);
 
