@@ -69,6 +69,7 @@ async function ajouter(athlete: AdminAthlete) {
 
 describe("TeammatesDialog", () => {
   beforeEach(() => {
+    // RTL ne détecte que les faux minuteurs de Jest : sans `shouldAdvanceTime`, `findBy*` et `waitFor` resteraient figés sous vitest.
     vi.useFakeTimers({ shouldAdvanceTime: true });
     user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     searchAthletesAdmin.mockReset();
@@ -140,7 +141,11 @@ describe("TeammatesDialog", () => {
     searchAthletesAdmin.mockResolvedValue([JEAN, PAUL]);
     afficher([JEAN]);
 
-    await rechercher("d");
+    await user.type(screen.getByRole("searchbox"), "d");
+    // 1 ms suffit à déclencher un délai nul, et laisse de la marge au temps réel qui fait aussi avancer l'horloge factice.
+    await act(() => vi.advanceTimersByTimeAsync(1));
+    expect(searchAthletesAdmin).not.toHaveBeenCalled();
+    await act(() => vi.advanceTimersByTimeAsync(299));
 
     expect(await screen.findByRole("button", { name: "Ajouter MARTIN Paul" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Ajouter DUPONT Jean" })).not.toBeInTheDocument();
