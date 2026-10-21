@@ -453,4 +453,4 @@ Sans `SLACK_DIGEST_WEBHOOK_URL` et sans `--dry-run`, un avertissement est journa
 et la commande sort en 0 sans ouvrir la base. Week-end vide : rien n'est posté, une
 ligne d'information, code 0. `--dry-run` affiche le message sur stdout sans le
 poster. Échec Slack (erreur HTTP, statut ≥ 400) : code 1, pour que le run planifié
-rougisse ; l'URL du webhook n'apparaît jamais dans les messages.
+rougisse ; l'URL du webhook n'apparaît ni dans les messages ni dans les journaux (le logger `httpx` est relevé à WARNING avant l'envoi).

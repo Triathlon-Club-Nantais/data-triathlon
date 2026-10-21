@@ -36,6 +36,8 @@ def weekend_digest(
         typer.echo(text)
         return
 
+    # httpx journalise l'URL de chaque requête en INFO, or l'URL du webhook est le secret.
+    logging.getLogger("httpx").setLevel(logging.WARNING)
     try:
         weekend_digest_service.send(text, webhook_url)
     except weekend_digest_service.DigestDeliveryError as error:

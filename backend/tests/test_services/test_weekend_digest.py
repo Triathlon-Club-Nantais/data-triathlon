@@ -57,6 +57,15 @@ def test_collect_counts_classified_tcn_and_their_podiums(db_session):
     ]
 
 
+def test_collect_lists_courses_in_chronological_order(db_session):
+    sunday_course = _course(db_session, SUN, "Aquathlon")
+    saturday_course = _course(db_session, SAT, "Zeta Tri")
+    _result(db_session, sunday_course, "Alice", "Martin")
+    _result(db_session, saturday_course, "Bea", "Durand")
+
+    assert [c.name for c in collect(db_session, SAT, SUN)] == ["Zeta Tri", "Aquathlon"]
+
+
 def test_collect_ignores_courses_outside_the_weekend(db_session):
     for day in (date(2026, 10, 16), date(2026, 10, 19)):
         _result(db_session, _course(db_session, day, f"C{day}"), "Alice", "Martin", rank_overall=1)
