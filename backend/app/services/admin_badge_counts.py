@@ -4,6 +4,7 @@ Huit appels en rafale se disputaient le seul process du backend avec les
 données de la page. Une pastille que la session ne voit pas n'est ni calculée
 ni rendue : chaque compte reste sous le pouvoir de son écran.
 """
+
 from collections.abc import Callable
 
 from sqlalchemy.orm import Session
@@ -20,7 +21,7 @@ from app.repositories import (
     result_claim_repository,
     volunteer_action_repository,
 )
-from app.services import athlete_identity_review, course_duplicates
+from app.services import athlete_identity_review, course_duplicates, member_requests
 
 #: Clé de pastille (`nav.config.ts`), pouvoir de son écran, compte.
 _BADGES: dict[str, tuple[str, Callable[[Session], int]]] = {
@@ -42,8 +43,11 @@ _BADGES: dict[str, tuple[str, Callable[[Session], int]]] = {
     # File commune (#1637) : demandes de fiche et réclamations de résultat.
     "claims": (
         P.ATHLETE_CLAIMS_REVIEW.code,
-        lambda db: athlete_claim_repository.count_pending(db) + result_claim_repository.count_pending(db),
+        lambda db: (
+            athlete_claim_repository.count_pending(db) + result_claim_repository.count_pending(db)
+        ),
     ),
+    "member_requests": (P.MEMBER_REQUESTS_REVIEW.code, member_requests.count_pending),
 }
 
 

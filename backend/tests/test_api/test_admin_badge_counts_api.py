@@ -1,4 +1,5 @@
 """Les pastilles du rail admin en un seul appel (#1385)."""
+
 from tests.test_api.test_admin_data_api import _session_etroite
 
 URL = "/api/v1/admin/badge-counts"
@@ -16,6 +17,7 @@ def test_an_admin_gets_every_badge(client):
         "members": 0,
         "volunteer": 0,
         "claims": 0,
+        "member_requests": 0,
         "validation": 0,
     }
 
@@ -35,7 +37,9 @@ def test_the_volunteer_access_power_opens_the_validation_badge(client, db_sessio
 def test_a_hidden_badge_is_not_computed(client, db_session, monkeypatch):
     from app.services import admin_badge_counts
 
-    monkeypatch.setitem(admin_badge_counts._BADGES, "identities", ("athletes:write", lambda db: 1 / 0))
+    monkeypatch.setitem(
+        admin_badge_counts._BADGES, "identities", ("athletes:write", lambda db: 1 / 0)
+    )
     _session_etroite(client, db_session, "feedback:read")
 
     assert client.get(URL).json() == {"feedback": 0}

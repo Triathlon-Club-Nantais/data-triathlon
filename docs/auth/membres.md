@@ -105,3 +105,25 @@ des bénévoles (`SYSTEM_USER_EMAIL`) ne le sont jamais.
 `purge-retention` supprime les saisons `< season_of(today) - 1`
 (`member_email_repository.purge_before`), même borne que les licenciés.
 Avenant RGPD : `docs/superpowers/specs/2026-10-01-base-legale-decision.md`.
+
+## Demande d'adhésion (#1785)
+
+Un compte connecté non adhérent (`is_member` faux) demande à rejoindre le club
+depuis `/mon-compte#adhesion` : prénom, nom, et date de naissance ou téléphone
+(`POST /auth/me/member-request`). La demande ne rend jamais adhérent d'office.
+Une demande en attente est remplacée par la suivante ; `DELETE` ne supprime que
+l'attente.
+
+La file `/admin/member-requests` (pouvoir `member_requests:review`, pastille
+`member_requests` de `GET /admin/badge-counts`) ne liste que les demandes en
+attente.
+
+- **Valider** ajoute l'adresse du compte à la liste de la saison en cours (comme
+  `POST /admin/member-emails`) puis supprime la demande ; si l'adresse est déjà
+  listée entre-temps, la validation réussit quand même.
+- **Refuser** passe la demande en `rejected`, horodatée. Le compte ne peut pas
+  en envoyer une nouvelle avant 30 jours (`REQUEST_AGAIN_AFTER`).
+- Chaque geste va au journal d'administration (`member_request.approve`,
+  `member_request.reject`).
+- Rétention : la demande est purgée avec le reste (`purge-retention`) et part avec
+  la suppression du compte.

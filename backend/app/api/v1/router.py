@@ -2,6 +2,7 @@
 
 Monté sous `/api/v1` par `app.main`. Une future v2 vivra dans `app/api/v2/`.
 """
+
 from fastapi import APIRouter, Depends
 
 from app.api.deps import require_site_access
@@ -23,6 +24,7 @@ from app.api.v1 import (
     admin_feedback,
     admin_groups,
     admin_member_emails,
+    admin_member_requests,
     admin_oppositions,
     admin_profiles,
     admin_roles,
@@ -118,6 +120,7 @@ for module in (
     admin_feedback,
     admin_athlete_claims,
     admin_member_emails,
+    admin_member_requests,
     admin_roles,
     admin_groups,
     admin_training_groups,
