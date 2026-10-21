@@ -106,7 +106,7 @@ function participation(id: number, over: Partial<Participation> = {}): Participa
   };
 }
 
-/** Le panneau n'est en feuille que sous `md` : par défaut on simule le desktop. */
+/** Le panneau n'est en feuille que sous `lg` : par défaut on simule le desktop. */
 function simulerLargeur(compact: boolean) {
   vi.stubGlobal(
     "matchMedia",
@@ -180,6 +180,15 @@ describe("BenevolesPage", () => {
     await user.click(screen.getByRole("button", { name: /se connecter/i }));
 
     expect(await screen.findByText("Coureur1 HERRMANN")).toBeInTheDocument();
+  });
+
+  it("keeps one column until `lg`: the 288 px sidebar leaves 452 px at 800 px (#1774)", async () => {
+    getBenevoleQueue.mockResolvedValue([participation(1)]);
+    renderPage();
+
+    const grille = (await screen.findByText("Coureur1 HERRMANN")).closest(".grid");
+    expect(grille?.className).toContain("lg:grid-cols-[minmax(280px,360px)_1fr]");
+    expect(grille?.className).not.toContain("md:grid-cols");
   });
 
   it("se déconnecte et revient à l'écran d'accès (#1247)", async () => {
@@ -457,7 +466,7 @@ describe("BenevolesPage", () => {
   });
 
   it("réinitialise le défilement de la feuille après un enchaînement (#490, revue UI/UX, item 1)", async () => {
-    // Sous `md`, `SheetContent` (`overflow-y-auto`) est le conteneur de
+    // Sous `lg`, `SheetContent` (`overflow-y-auto`) est le conteneur de
     // défilement et son `scrollTop` survit à l'échange d'enfant : la
     // validation se fait depuis la barre collante, donc en bas — sans le
     // correctif, la nouvelle entrée s'ouvrait sur ses champs plutôt que sur
@@ -561,7 +570,7 @@ describe("BenevolesPage", () => {
 
   it("conserve le brouillon en cours quand une rotation d'écran franchit le point de rupture md (#609)", async () => {
     // Avant #609, `compact ? <Sheet>…</Sheet> : panneau` plaçait le panneau
-    // dans deux sous-arbres React structurellement différents : franchir `md`
+    // dans deux sous-arbres React structurellement différents : franchir `lg`
     // démontait `ParticipationPanel` (et le brouillon de `useBrouillon` avec)
     // en silence — sans confirmation, sans trace. Ce test démarre en bureau,
     // saisit un brouillon, puis simule le passage en mode compact (rotation

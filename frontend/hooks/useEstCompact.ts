@@ -2,8 +2,11 @@
 
 import { useSyncExternalStore } from "react";
 
-/** Le point de rupture `md` de Tailwind, en requête média. */
-const COMPACT = "(max-width: 767px)";
+/**
+ * Le point de rupture `lg` de Tailwind, en requête média : dès `md`, la barre
+ * latérale (288 px, #1336) ne laisse pas la place à deux colonnes (#1774).
+ */
+const COMPACT = "(max-width: 1023px)";
 
 function subscribe(onChange: () => void): () => void {
   if (typeof window === "undefined" || typeof window.matchMedia !== "function") return () => {};
@@ -22,7 +25,7 @@ function getServerSnapshot(): boolean {
 }
 
 /**
- * `true` sous le point de rupture `md`.
+ * `true` sous le point de rupture `lg`.
  *
  * `useSyncExternalStore` porte exactement les deux instantanés requis :
  * `false` au rendu serveur — où `matchMedia` n'existe pas, et partir de la

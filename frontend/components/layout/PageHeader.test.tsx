@@ -34,6 +34,19 @@ describe("PageHeader — slot actions", () => {
   });
 });
 
+describe("PageHeader: row layout follows its own width (#1774)", () => {
+  it("switches to a row on a container query, not on the viewport", () => {
+    // With the 288 px sidebar (#1336), `sm:` left ~450 px to the header at
+    // 800 px: the nowrap merge button overflowed by 31 px.
+    const { container } = render(<PageHeader title="Titre" actions={<button type="button">Une action</button>} />);
+    const rangee = screen.getByRole("heading", { name: "Titre" }).parentElement?.parentElement;
+
+    expect(container.firstElementChild).toHaveClass("@container");
+    expect(rangee?.className).toContain("@xl:flex-row");
+    expect(rangee?.className).not.toContain("sm:flex-row");
+  });
+});
+
 describe("PageHeader: help link (#1245)", () => {
   it("links to the guide section when `helpHref` is given, with a 44 px target", () => {
     render(<PageHeader title="Titre" helpHref="/admin/guide#identites" />);
