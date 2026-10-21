@@ -67,7 +67,7 @@ export default function BenevolesPage() {
   /**
    * #609 — le panneau ne se rend plus qu'une seule fois dans l'arbre React
    * (`createPortal(panneau, hote)` ci-dessous, à une position fixe), pour
-   * survivre au franchissement du point de rupture `md` : jusqu'ici il
+   * survivre au franchissement du point de rupture `lg` : jusqu'ici il
    * vivait dans deux sous-arbres structurellement différents
    * (`compact ? <Sheet>…</Sheet> : panneau`), et React démonte puis remonte
    * un composant dès que sa chaîne de parents change de forme — même à
@@ -174,7 +174,7 @@ export default function BenevolesPage() {
    * Le panneau est démonté et remonté à chaque changement d'entrée
    * (`key={file.selectionnee.id}`) : le bouton qui portait le focus disparaît
    * avec lui et le focus retombe sur `<body>`, obligeant à retabuler depuis le
-   * sommet du document sur le geste le plus fréquent de l'écran. Sous `md`,
+   * sommet du document sur le geste le plus fréquent de l'écran. Sous `lg`,
    * la feuille (`overflow-y-auto`) est le conteneur de défilement et son
    * `scrollTop` survit à l'échange d'enfant : la validation se fait depuis la
    * barre collante, donc en bas — la nouvelle entrée s'ouvrait sur ses champs
@@ -271,7 +271,7 @@ export default function BenevolesPage() {
     />
   ) : null;
 
-  // Sous `md` le panneau vit dans une feuille modale : le reste du document
+  // Sous `lg` le panneau vit dans une feuille modale : le reste du document
   // (donc cette région) n'est jamais garanti d'être annoncé par un lecteur
   // d'écran une fois la feuille ouverte. L'annonce voyage avec la feuille
   // plutôt que de rester dans l'arbre principal, sans jamais être rendue deux
@@ -301,12 +301,12 @@ export default function BenevolesPage() {
         </h1>
         {/* Le toast passe inaperçu d'un lecteur d'écran : la même phrase vit ici
             en région `status` (WCAG 4.1.3, patron `AnnonceStatut`). Seulement
-            au-dessus de `md` : sous `md` l'annonce vit dans la feuille. */}
+            au-dessus de `lg` : sous `lg` l'annonce vit dans la feuille. */}
         {!compact && annonce}
         <div className="mb-6">
           <ValidationBacklogChart />
         </div>
-        <div className="grid grid-cols-1 items-start gap-6 md:grid-cols-[minmax(280px,360px)_1fr]">
+        <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(280px,360px)_1fr]">
           <ValidationQueue
             participations={file.participations}
             rejected={file.rejetees}
@@ -314,7 +314,7 @@ export default function BenevolesPage() {
             onSelect={selectionner}
             traitees={file.traitees}
           />
-          {/* Ancrage bureau : accueille `hote` au-dessus de `md` (#609). Ne
+          {/* Ancrage bureau : accueille `hote` au-dessus de `lg` (#609). Ne
               porte lui-même que le texte d'invite quand rien n'est
               sélectionné — `panneau` vit dans `hote`, jamais ici en JSX. */}
           <div ref={emplacementGrilleRef}>
@@ -366,7 +366,7 @@ export default function BenevolesPage() {
                 </SheetClose>
               </div>
               {annonce}
-              {/* Ancrage feuille : accueille `hote` sous `md` (#609). */}
+              {/* Ancrage feuille : accueille `hote` sous `lg` (#609). */}
               <div ref={emplacementFeuilleRef} />
             </SheetContent>
           </Sheet>

@@ -48,9 +48,11 @@ export function PageHeader({
   children?: React.ReactNode;
 }) {
   return (
-    <div className={cn("space-y-3", className)}>
+    // `@container` : la rangée suit la largeur laissée par la barre latérale
+    // (#1336), pas celle de la fenêtre (#1774).
+    <div className={cn("@container space-y-3", className)}>
       {backHref && <BackLink href={backHref} label={backLabel} />}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex flex-col gap-3 @xl:flex-row @xl:items-start @xl:justify-between">
         <div className="space-y-1.5">
           {eyebrow && <div className="eyebrow">{eyebrow}</div>}
           <h1 className="font-heading text-[28px] leading-none tracking-tight text-foreground sm:text-[40px]">
