@@ -41,6 +41,7 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
   cyclisme: "Cyclisme",
   "cyclisme-route": "Cyclisme (route)",
   "cyclisme-clm": "Cyclisme (CLM)",
+  natation: "Natation",
 };
 
 /**
