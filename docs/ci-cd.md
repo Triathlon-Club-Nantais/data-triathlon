@@ -156,6 +156,7 @@ Réglages restants à faire **dans le dashboard** (non supportés par le MCP) :
    ni de `uv.lock` à la racine du repo).
 2. Renseigner `DATABASE_URL` (Supabase preview).
 3. Copier l'URL du **Deploy Hook** (Settings → Deploy Hook) → secret `RENDER_DEPLOY_HOOK_PREVIEW`.
+4. Renseigner `DB_POOL_SIZE=3` et `DB_MAX_OVERFLOW=3` (#1734, budget plus bas).
 
 > Le premier déploiement automatique du service preview à sa création échoue
 > (rootDir vide + `DATABASE_URL` absent) : sans gravité, il sera correct après
@@ -199,6 +200,40 @@ dashboard Render, où rien ne la garde — un `*` posé « pour déboguer » ouv
 l'API à toute origine, et c'est justement l'absence de symptôme qui ferait durer
 l'ouverture : aucune revue ne la voit passer, aucun écran ne s'en plaint. #402 ne
 corrige pas le comportement, qui est bon, mais ce défaut de traçabilité.
+
+**`DB_POOL_SIZE` et `DB_MAX_OVERFLOW`, preview seule** (#1734). Le pooler
+Supabase en mode session (port 5432, imposé par #1136) plafonne à
+**15 clients** : au-delà, le pooler refuse avec `FATAL: (EMAXCONNSESSION) max clients reached in
+session mode - max clients are limited to pool_size: 15`. Les défauts du code
+(`15 + 10 = 25`, dimensionnés pour Azure en #585) dépassent ce plafond à eux
+seuls. Constaté le 20/10/2026 : pendant un déploiement, l'ancienne instance
+reste en ligne avec son pool, et l'`alembic upgrade head` de la nouvelle n'a
+plus de place (déploiement `update_failed`). Même cause pour les 500 d'une
+rafale de 60 requêtes parallèles, quand l'instance seule ouvrait plus de 15
+connexions.
+
+| Variable | PROD | PREVIEW | Local |
+|---|---|---|---|
+| `DB_POOL_SIZE` | absente (défaut du code, `15`) | `3` | défaut du code |
+| `DB_MAX_OVERFLOW` | absente (défaut du code, `10`) | `3` | défaut du code |
+
+Le budget, au pire moment d'un déploiement, pour une instance à `3 + 3 = 6`
+connexions :
+
+| Qui | Connexions |
+|---|---|
+| ancienne instance, en charge | 6 |
+| `alembic upgrade head` de la nouvelle (`NullPool`, une seule) | 1 |
+| un batch `batch-preview` (sa session, plus une par chronométreur, `--max-concurrent-hosts` vaut 4 par défaut) | 5 |
+| **total** | **12 sur 15** |
+
+Une fois la nouvelle instance en ligne, avant l'arrêt de l'ancienne : les 3
+connexions que l'ancienne garde au repos (le débordement se referme à la
+restitution, pas le pool), les 6 de la nouvelle et le batch font **14**. Ce
+réglage borne aussi le pool de threads des routes synchrones à 6
+(`_thread_limit_for`, `backend/app/main.py`) : une rafale attend un thread au
+lieu de se voir refuser une connexion. Relever l'un des deux suppose de refaire
+ce compte, et un `--max-concurrent-hosts` plus haut sur la preview aussi.
 
 ### Rester sous les 750 h du plan free — la décision (#530)
 
