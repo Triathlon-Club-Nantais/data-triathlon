@@ -3,7 +3,7 @@ from datetime import date
 
 import pytest
 
-from app.core.exceptions import DomainError, NotFoundError
+from app.core.exceptions import DomainError, DuplicateError, NotFoundError
 from app.models.admin_action_log import AdminActionLog
 from app.models.athlete import Athlete
 from app.models.course import Course
@@ -330,13 +330,49 @@ def test_approve_a_relay_keeps_its_published_team_name(db_session, lea, team, re
     assert relay.team_name == "Dauphins du Lac"
 
 
-def test_approve_a_relay_with_a_team_waits_for_the_admin_to_complete_it(db_session, lea, homonym, reviewer):
+def test_approve_a_relay_with_a_team_appends_the_member(db_session, lea, homonym, reviewer):
     partner = _athlete(db_session, nom="Durand", prenom="Paul")
     relay = _result(db_session, homonym, is_relay=True)
     participation_repository.replace_teammates(db_session, relay, [homonym.id, partner.id])
     claim = result_claims.request_claim(db_session, lea, relay.id)
 
-    with pytest.raises(result_claims.TeamToCompleteError):
+    result_claims.approve(db_session, claim.id, actor_id=reviewer.id)
+
+    assert relay.athlete_id == homonym.id
+    assert participation_repository.teammate_athlete_ids(db_session, relay.id) == [
+        homonym.id, partner.id, lea.athlete_id,
+    ]
+    assert db_session.query(ResultClaim).count() == 0
+    assert _approve_log(db_session)["mode"] == "joined_team"
+
+
+def test_the_partner_joins_after_the_first_member_replaced_the_label(db_session, lea, team, reviewer):
+    relay = _result(db_session, team, is_relay=True)
+    second = user_repository.create(db_session, email="paul@exemple.fr", display_name="Paul D.")
+    second.athlete_id = _athlete(db_session, nom="Durand", prenom="Paul").id
+    db_session.flush()
+    first_claim = result_claims.request_claim(db_session, lea, relay.id)
+    result_claims.approve(db_session, first_claim.id, actor_id=reviewer.id)
+    second_claim = result_claims.request_claim(db_session, second, relay.id)
+
+    result_claims.approve(db_session, second_claim.id, actor_id=reviewer.id)
+
+    assert participation_repository.teammate_athlete_ids(db_session, relay.id) == [
+        lea.athlete_id, second.athlete_id,
+    ]
+    assert relay.team_name == "Les Dauphins"
+
+
+def test_approve_refuses_a_member_already_on_the_course(db_session, lea, homonym, reviewer):
+    partner = _athlete(db_session, nom="Durand", prenom="Paul")
+    relay = _result(db_session, homonym, is_relay=True)
+    participation_repository.replace_teammates(db_session, relay, [homonym.id, partner.id])
+    claim = result_claims.request_claim(db_session, lea, relay.id)
+    db_session.add(Participation(course_id=relay.course_id, athlete_id=lea.athlete_id, bib_number="999",
+                                 total_time="2:40:00", status="finisher"))
+    db_session.flush()
+
+    with pytest.raises(DuplicateError):
         result_claims.approve(db_session, claim.id, actor_id=reviewer.id)
 
     assert claim.status == STATUS_PENDING
