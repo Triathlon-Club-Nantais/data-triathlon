@@ -69,6 +69,9 @@ describe("ResultatEquipeManquant (#1773)", () => {
     await chercher("mo");
     expect(screen.getByRole("button", { name: "Chercher" })).toHaveAttribute("aria-disabled", "true");
     expect(searchMyTeamResults).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent("Saisissez au moins 3 caractères.");
+    await userEvent.type(screen.getByLabelText("Nom de l'équipe"), "l");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("etat_vide_cite_la_saisie", async () => {

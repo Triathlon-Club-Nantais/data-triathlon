@@ -30,7 +30,7 @@ export default function AdminRattachementsPage() {
           id="resultats-reclames"
           titre="Résultats réclamés"
           sorte={<ClaimKind kind="result" />}
-          explication="Un compte déjà rattaché réclame un seul résultat rangé sur une autre fiche, souvent celle d'un homonyme. « Déplacer le résultat » le passe sur sa fiche, le fige contre les réimports et supprime la fiche d'origine si elle se vide."
+          explication="Un compte déjà rattaché réclame un seul résultat rangé sur une autre fiche, souvent celle d'un homonyme. « Déplacer le résultat » le passe sur sa fiche, le fige contre les réimports et supprime la fiche d'origine si elle se vide. Sur un relais déjà composé, « Ajouter à l'équipe » ajoute sa fiche aux équipiers."
         >
           <ResultClaimsTable />
         </Section>
