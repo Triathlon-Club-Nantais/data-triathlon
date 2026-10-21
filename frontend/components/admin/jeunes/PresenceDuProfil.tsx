@@ -10,7 +10,7 @@ export function PresenceDuProfil({ attendance }: { attendance: ProfileAttendance
     <Card className="space-y-2 p-4">
       <div className="text-lg font-bold">Présence</div>
       <p className="text-[var(--tcn-text-faint)] text-sm">
-        Saison FFTri en cours, depuis le 1er novembre. Seules les séances pointées comptent.
+        Saison FFTri en cours. Seules les séances pointées comptent.
       </p>
       {taux === null ? (
         <p>Aucun appel cette saison.</p>
