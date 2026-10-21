@@ -145,6 +145,11 @@ export function motCompte(n: number, mot: string): string {
   return `${n} ${plural(n, mot)}`;
 }
 
+/** Taux d'assiduité en pourcentage entier, `null` quand aucun appel n'a eu lieu. */
+export function tauxAssiduite(attended: number, pointed: number): number | null {
+  return pointed === 0 ? null : Math.round((100 * attended) / pointed);
+}
+
 /** « 3 minutes » ou « moins d'une minute » — le décompte du plafond de débit.
  *  Les secondes n'y apportent rien sur une attente qui se compte en minutes, et
  *  un « 179 s » qui défile donnerait envie de rester à regarder. */

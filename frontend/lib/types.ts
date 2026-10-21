@@ -722,6 +722,9 @@ export interface TrainingGroup {
   id: number;
   name: string;
   member_count: number;
+  /** Présences et séances pointées de la saison FFTri en cours (#1364). */
+  attended: number;
+  pointed: number;
 }
 
 /** Un groupe et ses membres. */
@@ -763,6 +766,15 @@ export interface ProfileDetail extends Profile {
   notes: string | null;
   groups: { id: number; name: string }[];
   log_entries: ProfileLogEntry[] | null;
+  /** `null` sans le pouvoir `jeunes:read` (#1364). */
+  attendance: ProfileAttendance | null;
+}
+
+/** Assiduité de la saison FFTri en cours, sur les seules séances pointées (#1364). */
+export interface ProfileAttendance {
+  attended: number;
+  pointed: number;
+  absence_streak: number;
 }
 
 /**

@@ -39,7 +39,7 @@ import { ApiError } from "@/lib/api/client";
 import { DangerConfirmProvider } from "@/components/admin/DangerConfirm";
 import { RecurrencesSection } from "./RecurrenceForm";
 
-const GROUPES = [{ id: 7, name: "Benjamins", member_count: 3 }];
+const GROUPES = [{ id: 7, name: "Benjamins", member_count: 3, attended: 0, pointed: 0 }];
 
 const RECURRENCE: TrainingRecurrence = {
   id: 3,
