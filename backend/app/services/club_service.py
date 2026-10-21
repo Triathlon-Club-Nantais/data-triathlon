@@ -34,7 +34,7 @@ from app.services import split_gap
 _SCOPES = ("overall", "gender", "category")
 
 
-def _best(ranks: dict[str, int | None]) -> tuple[str, int] | None:
+def best_rank(ranks: dict[str, int | None]) -> tuple[str, int] | None:
     valid = [(s, r) for s, r in ranks.items() if r is not None and 1 <= r <= 3]
     if not valid:
         return None
@@ -83,7 +83,7 @@ def _bucket_podiums(rows, teammates: dict[int, list[str]]) -> ClubPodiums:
         # Même règle que le KPI et le roster (`core.gender`, #581, #936).
         if is_gender_podium(rank_gender, gender):
             buckets["gender"].append(_entry(row, "gender", rank_gender, teammates))
-        best = _best(
+        best = best_rank(
             {"overall": rank_overall, "gender": rank_gender, "category": rank_category}
         )
         if best:
@@ -112,7 +112,7 @@ def _bucket_podiums_by_discipline(rows) -> dict[str, DisciplinePodiumCounts]:
             c["category"] += 1
         if is_gender_podium(rank_gender, gender):
             c["gender"] += 1
-        if _best({"overall": rank_overall, "gender": rank_gender, "category": rank_category}):
+        if best_rank({"overall": rank_overall, "gender": rank_gender, "category": rank_category}):
             c["all"] += 1
     return {discipline: DisciplinePodiumCounts(**c) for discipline, c in counters.items()}
 

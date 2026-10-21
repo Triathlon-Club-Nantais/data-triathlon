@@ -1,0 +1,98 @@
+"""Collecte et rendu du récap du week-end (#1363)."""
+from datetime import date
+
+from app.repositories import athlete_repository, course_repository, participation_repository
+from app.services.weekend_digest import DigestCourse, DigestPodium, collect, render, weekend_before
+
+SAT, SUN = date(2026, 10, 17), date(2026, 10, 18)
+
+
+def _course(db_session, day=SAT, name="Tri de Nantes"):
+    return course_repository.get_or_create(db_session, name=name, event_date=day, event_type="triathlon-m")
+
+
+def _result(db_session, course, prenom, nom, *, status="finisher", gender="M", pending=False, bib="1", **fields):
+    athlete = athlete_repository.get_or_create(db_session, nom=nom, prenom=prenom, club="TCN", gender=gender)
+    participation_repository.create(
+        db_session, athlete_id=athlete.id, course_id=course.id, bib_number=bib,
+        club="TCN", status=status, is_pending_validation=pending, **fields,
+    )
+    db_session.flush()
+
+
+def test_weekend_before_a_monday_is_the_weekend_just_ended():
+    assert weekend_before(date(2026, 10, 19)) == (SAT, SUN)
+
+
+def test_weekend_before_a_sunday_or_saturday_is_the_previous_one():
+    previous = (date(2026, 10, 10), date(2026, 10, 11))
+    assert weekend_before(SUN) == previous
+    assert weekend_before(SAT) == previous
+
+
+def test_collect_counts_classified_tcn_and_their_podiums(db_session):
+    course = _course(db_session)
+    _result(db_session, course, "Alice", "Martin", bib="1", rank_overall=2)
+    _result(db_session, course, "Bea", "Durand", bib="2", rank_overall=10, rank_category=1)
+    _result(db_session, course, "Carl", "Petit", bib="3", status="DNF")
+
+    assert collect(db_session, SAT, SUN) == [
+        DigestCourse(course.id, "Tri de Nantes", 2, [
+            DigestPodium("Bea Durand", 1, "category"),
+            DigestPodium("Alice Martin", 2, "overall"),
+        ])
+    ]
+
+
+def test_collect_ignores_courses_outside_the_weekend(db_session):
+    for day in (date(2026, 10, 16), date(2026, 10, 19)):
+        _result(db_session, _course(db_session, day, f"C{day}"), "Alice", "Martin", rank_overall=1)
+
+    assert collect(db_session, SAT, SUN) == []
+
+
+def test_collect_returns_nothing_for_an_empty_weekend(db_session):
+    assert collect(db_session, SAT, SUN) == []
+
+
+def test_opposed_athletes_and_youths_are_never_named(db_session):
+    course = _course(db_session)
+    _result(db_session, course, "", "Anonyme 12-34", bib="1", rank_overall=1)
+    _result(db_session, course, "Jules", "Jeune", bib="2", category="MIH", rank_overall=5, rank_category=1)
+
+    (digest,) = collect(db_session, SAT, SUN)
+
+    assert digest.podiums == []
+    assert digest.finishers == 2
+
+
+def test_a_gender_podium_needs_a_known_gender(db_session):
+    _result(db_session, _course(db_session), "Alex", "Inconnu", gender=None, rank_gender=1)
+
+    assert collect(db_session, SAT, SUN) == []
+
+
+def test_pending_results_are_left_out(db_session):
+    _result(db_session, _course(db_session), "Alice", "Martin", pending=True, rank_overall=1)
+
+    assert collect(db_session, SAT, SUN) == []
+
+
+def test_render_lists_each_course_with_its_link_and_podiums():
+    text = render(
+        [DigestCourse(12, "Tri & Co", 3, [DigestPodium("Alice Martin", 1, "overall")])],
+        saturday=SAT, sunday=SUN, base_url="https://tcn.example",
+    )
+
+    assert "17/10 et 18/10/2026" in text
+    assert "<https://tcn.example/courses/12|Tri &amp; Co>" in text
+    assert "3 TCN classés" in text
+    assert "🥇 Alice Martin (scratch)" in text
+
+
+def test_render_without_base_url_shows_the_name_without_link():
+    text = render([DigestCourse(12, "Tri & Co", 1, [])], saturday=SAT, sunday=SUN, base_url="")
+
+    assert "Tri &amp; Co" in text
+    assert "<" not in text
+    assert "1 TCN classé" in text and "classés" not in text
