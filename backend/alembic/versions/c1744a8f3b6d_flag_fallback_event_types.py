@@ -3,6 +3,7 @@
 Marque `fallback` les épreuves déjà typées par le repli triathlon du classifieur
 (#1744) : nom sans sport nommé et aucune participation dont les temps stockés
 portent à la fois `swim` et `bike`. Les lignes `manual` ne sont jamais touchées.
+Le prédicat est lu dans le code vivant, pas figé : la reprise ne tourne qu'une fois.
 
 Revision ID: c1744a8f3b6d
 Revises: b1743c5d9e2f

@@ -30,7 +30,8 @@ from app.models.course_source import CourseSource
 _NO_SOURCE = ""
 
 #: D'où vient `event_type` (#1745). `manual` : un admin l'a corrigé, aucun import
-#: ni rescrape ne le réécrit. Une troisième valeur, `fallback`, viendra de #1744.
+#: ni rescrape ne le réécrit. `fallback` : posé par le repli triathlon sans rien
+#: pour l'étayer, à vérifier (#1744) ; un import qui le reconnaît le rend `classified`.
 EVENT_TYPE_ORIGIN_CLASSIFIED = "classified"
 EVENT_TYPE_ORIGIN_MANUAL = "manual"
 EVENT_TYPE_ORIGIN_FALLBACK = "fallback"

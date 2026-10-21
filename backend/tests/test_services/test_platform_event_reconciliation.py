@@ -222,3 +222,22 @@ def test_une_reclassification_en_collision_didentite_ne_reecrit_rien(db_session,
 
     assert db_session.get(Course, cible_id).event_type == "swimrun-m"
     assert db_session.query(Course).count() == 2
+
+
+def test_a_reconciled_heat_flags_the_course_it_was_written_to(db_session, patch_scraper):
+    """#1744: rule R writes to a course of another name and date, which the flag must follow."""
+    neutre = {"event_name": "Dinard Côte d'Emeraude 2025", "event_type": "triathlon-s", "is_relay": False}
+    _importer(db_session, patch_scraper, RESULTATS, [replace(_resultats_result("1"), **neutre)])
+    cible = db_session.query(Course).one()
+    assert cible.event_type_origin == "fallback"
+
+    _importer(
+        db_session, patch_scraper, LIVE,
+        [replace(
+            _live_result("2"), event_type="triathlon-s", is_relay=False,
+            swim_time="00:20:00", bike_time="01:00:00",
+        )],
+    )
+
+    assert db_session.query(Course).all() == [cible]
+    assert cible.event_type_origin == "classified"
