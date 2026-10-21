@@ -147,8 +147,12 @@ export function ProgressionChart({ points, comparaison, nonFiables = 0, axis = P
   // Graduations : sans elles, la courbe montrait un sens de variation sans
   // jamais dire de quelle valeur à quelle valeur (#677). d3 les pose à pas
   // régulier sur des valeurs rondes (#1789), le filtre écarte celles qui
-  // tombent sous le pas de l'axe (12,5 % pour un pas de 1 %).
-  const ticks = yScale.ticks(TICKS).filter((value) => value % axis.step === 0);
+  // tombent sous le pas de l'axe (12,5 % pour un pas de 1 %). Sur un domaine
+  // de [1, 96], d3 choisit un pas de 50 et ne garde que 50 : on lui redemande
+  // plus de graduations, donc un pas plus fin, jusqu'à en avoir deux.
+  const graduer = (count: number) => yScale.ticks(count).filter((value) => value % axis.step === 0);
+  let ticks = graduer(TICKS);
+  for (let count = TICKS * 2; ticks.length < 2 && count <= 100; count *= 2) ticks = graduer(count);
 
   const resume = (serie: ProgressionPoint[]) => serie.map((p) => `${formatDate(p.eventDate)} ${axis.spoken(p.value)}`).join(", ");
   const absentes = nonFiables > 0 ? `. ${nonFiables} ${nonFiables > 1 ? "épreuves non fiables absentes" : "épreuve non fiable absente"} de la courbe` : "";
