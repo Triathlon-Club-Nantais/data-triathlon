@@ -4,9 +4,9 @@ import type { NextRequest } from "next/server";
 const LOGGED_IN_COOKIE = "tcn_logged_in";
 
 /**
- * Mode bloquant (#570), après une observation en `Report-Only` (#448) restée
- * sans violation en production du 17/10 au 24/10/2026 (sondage
- * `docs/superpowers/specs/2026-10-24-csp-violations-sondage.md`). Les
+ * Mode bloquant (#570), après une observation en `Report-Only` (#448) :
+ * aucun rapport reçu en production du 17/10 au 24/10/2026 (sondage
+ * `docs/superpowers/specs/2026-10-24-csp-violations-sondage.md`, #1820). Les
  * violations remontent toujours au backend par `report-to` et `report-uri`.
  * Le relevé mené sur la preview avait sonné trois sources de style ou
  * d'`eval` en ligne, toutes traitées à la source ou épinglées :

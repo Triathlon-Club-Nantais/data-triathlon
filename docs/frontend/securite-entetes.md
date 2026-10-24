@@ -36,13 +36,13 @@ cookie de présence (#427). Trois pièges :
   n'envoie **aucun** rapport ; un relevé se fait dans Chromium ou Firefox.
 
 En `Content-Security-Policy`, donc **bloquante** (#570), après une observation
-en `Report-Only` restée sans violation en production
-(`docs/superpowers/specs/2026-10-24-csp-violations-sondage.md`). Les deux
-hashes de `style-src` restent : ils signent la feuille que `sonner` injecte à
-l'import, sans quoi les toasts perdraient leur style. Une nouvelle source de
-style ou de script en ligne est désormais **bloquée**, plus seulement
-rapportée : la vérifier sur la preview avant la fusion. `upgrade-insecure-requests`,
-ignoré en `Report-Only`, est actif. Corollaire du nonce : `await connection()` dans `app/layout.tsx`
-rend **toute** route dynamique, un nonce ne pouvant exister dans une page
+en `Report-Only` sans aucun rapport reçu en production du 17/10 au 24/10
+(`docs/superpowers/specs/2026-10-24-csp-violations-sondage.md`, #1820). Les
+deux hashes de `style-src` restent : ils signent la feuille que `sonner`
+injecte à l'import, sans quoi les toasts perdraient leur style. Une nouvelle
+source de style ou de script en ligne est désormais **bloquée**, plus
+seulement rapportée : la vérifier sur la preview avant la fusion.
+`upgrade-insecure-requests`, ignoré en `Report-Only`, est actif. Corollaire
+du nonce : `await connection()` dans `app/layout.tsx` rend **toute** route dynamique, un nonce ne pouvant exister dans une page
 générée au build. Ne pas y substituer `dynamic = "force-dynamic"`, qui
 annulerait le cache de fetch de #352.
