@@ -176,7 +176,7 @@ function Candidates({ membre }: { membre: ClubMember }) {
             {` ${fiche.nom} ${fiche.prenom} · `}
             {fiche.course_name ? (
               <>
-                {`${fiche.course_name}, ${formatDate(fiche.event_date)} · `}
+                {`${fiche.course_name}${fiche.event_date ? `, ${formatDate(fiche.event_date)}` : ""} · `}
                 <span className={fiche.club ? "" : "text-[var(--tcn-text-faint)]"}>
                   {fiche.club ?? "sans club publié"}
                 </span>
@@ -188,7 +188,7 @@ function Candidates({ membre }: { membre: ClubMember }) {
           <Button
             variant="outline"
             size="sm"
-            aria-label={`Rattacher ${membre.nom} ${membre.prenom} à la fiche n° ${fiche.athlete_id}`}
+            aria-label={`Rattacher à cette fiche (${membre.nom} ${membre.prenom}, fiche n° ${fiche.athlete_id})`}
             disabled={rattacher.isPending}
             onClick={() =>
               rattacher.mutate(

@@ -423,10 +423,10 @@ Cinq routes sous `/admin/club-members`, toutes gardées par la permission
 
 | Route | Rôle | Réponse |
 | --- | --- | --- |
-| `GET /admin/club-members?season=` | Licenciés d'une saison (début de saison, 2000 à 2100), avec les saisons connues | `ClubMembersSeasonOut` : `season`, `seasons`, compteurs (`total`, `linked`, `unlinked`, `ambiguous`), `members` |
+| `GET /admin/club-members?season=` | Licenciés d'une saison (début de saison, 2000 à 2100), avec les saisons connues | `ClubMembersSeasonOut` : `season`, `seasons`, compteurs (`total`, `linked`, `unlinked`, `ambiguous`), `members`. Chaque licencié `ambiguous` porte ses fiches candidates dans `candidates` (#1827) : `athlete_id`, `nom`, `prenom`, et son dernier résultat daté (`course_name`, `event_date`, `club` publié dessus, `null` sans résultat) ; liste vide pour les autres |
 | `POST /admin/club-members/sync` | Relit la liste publiée par la FFTri et remplace la saison qu'elle couvre, en gardant les rattachements manuels | `MembersSyncReportOut` |
 | `POST /admin/club-members/import` | Multipart `season` + `file` (CSV ou XLSX, colonnes « Nom » et « Prénom » requises) : remplace une saison passée | `MembersSyncReportOut` |
-| `POST /admin/club-members/{member_id}/link` | Corps `{"athlete_id": int}` : rattache à la main un licencié à une fiche | `ClubMemberOut` (`link_status: "manual"`) |
+| `POST /admin/club-members/{member_id}/link` | Corps `{"athlete_id": int}` : rattache à la main un licencié à une fiche | `ClubMemberOut` (`link_status: "manual"`, `candidates` toujours vide : seul le `GET` les calcule) |
 | `DELETE /admin/club-members/{member_id}/link` | Annule un rattachement manuel (#1243) : le licencié reprend le rattachement automatique, comme à la relecture suivante, sinon revient « à rattacher ». `400` s'il n'est pas rattaché à la main. Journal `club_member.unlink` | `ClubMemberOut` |
 
 Erreurs propres à ces routes : `502` si la page FFTri est illisible ou

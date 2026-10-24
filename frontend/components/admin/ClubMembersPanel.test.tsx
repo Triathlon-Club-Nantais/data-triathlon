@@ -179,7 +179,7 @@ describe("ClubMembersPanel", () => {
     expect(screen.getByText("TRIATHLON CLUB NANTAIS")).toBeInTheDocument();
     expect(screen.getByText(/aucun résultat/i)).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Rattacher GUERIN Antoine à la fiche n° 167473" }));
+    fireEvent.click(screen.getByRole("button", { name: "Rattacher à cette fiche (GUERIN Antoine, fiche n° 167473)" }));
 
     expect(link).toHaveBeenCalledWith({ memberId: 7, athleteId: 167473 }, expect.anything());
   });
