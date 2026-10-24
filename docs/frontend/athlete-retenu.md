@@ -40,10 +40,9 @@ l'arbitrage ; de la mise en avant, non.
 « Mes résultats » de `/resultats`, la ligne marquée « Vous » et le bouton
 « Aller à ma ligne » du classement d'épreuve. Elles lisent
 `useSelectedAthlete()` (`components/layout/AthletePicker.tsx`, à côté de
-`useIsSelectedAthlete`). La tuile du rail (avatar, prénom, « Mes résultats »,
-croix) a été retirée par #1828 : « Mon espace » est l'entrée vers ses
-propres résultats, et `AppNav` ne lit plus le stock (sa palette l'écrit
-toujours en mode désignation). Le snapshot de `useSelectedAthlete()`
+`useIsSelectedAthlete`). `AppNav` ne lit pas le stock (#1828, « Mon espace »
+mène à ses propres résultats) : sa palette l'écrit en mode désignation.
+Le snapshot de `useSelectedAthlete()`
 est **mémorisé sur la chaîne brute du stock** :
 `readAthlete()` reconstruit un objet à chaque lecture, et le rendre tel quel
 fait rendre `useSyncExternalStore` en boucle. Trois invariants :

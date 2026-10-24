@@ -14,7 +14,7 @@ import type { AthleteSearchResult } from "@/lib/types";
  * Athlète retenu en session, mémorisé d'une visite à l'autre.
  *
  * `prenom` et `nom` restent **séparés**, comme l'API les donne. Les aplatir en
- * un seul libellé obligeait le rail à redécouper le prénom, et « Jean Gael »
+ * un seul libellé obligeait ses lecteurs à redécouper le prénom, et « Jean Gael »
  * y perdait sa seconde moitié quand « Jean-Gaël » passait entier (#264).
  */
 export type PickedAthlete = { id: number; prenom: string; nom: string };
@@ -145,7 +145,7 @@ function snapshotAthlete(): PickedAthlete | null {
 /**
  * L'athlète retenu lui-même, côté client uniquement — le pendant de
  * `useIsSelectedAthlete` pour les écrans qui ont besoin de son **nom** et non
- * d'un booléen : la pastille de `/resultats`, le raccourci du rail, le saut
+ * d'un booléen : la pastille de `/resultats`, le saut
  * vers sa ligne dans un classement (#503) et l'invitation de Mon espace. Même arbitrage qu'en #467 : le stock se lit là où
  * il vit, jamais par un cookie miroir — `null` au rendu serveur, la lecture
  * réelle dès l'hydratation (`docs/frontend/athlete-retenu.md`).
