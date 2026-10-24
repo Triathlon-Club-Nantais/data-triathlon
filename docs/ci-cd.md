@@ -67,9 +67,9 @@ tag.
   lancer *Deploy* depuis un ancien tag.
 - **`.github/workflows/render-sleep.yml`** — suspend et reprend les deux
   services Render pour tenir les 750 h/mois du plan free (#528, décision #530).
-  `schedule` à chaque heure pour coucher la preview (#560), plus deux crons
-  nocturnes pour la production, plus un `workflow_dispatch` de secours. Voir
-  « Veille des services Render » plus bas.
+  `workflow_dispatch` seul, lancé par trois timers Azure : le coucher de la
+  preview à chaque heure (#560), le coucher et le lever nocturnes de la
+  production (#1010, #1157). Voir « Veille des services Render » plus bas.
 - **`.github/workflows/pages.yml`** — publie ce site de documentation
   (`docs/`) sur GitHub Pages. Sur `pull_request`, le job `build` seul valide que
   le site compile ; sur `main`, `deploy` publie. Il remplace le workflow
@@ -85,8 +85,8 @@ tag.
   commentaire si elle est déjà ouverte, avec la liste des tests en échec. Seul
   besoin au-delà de la lecture : `issues: write`.
 - **`.github/workflows/notify-failure.yml`** (#922) : réutilisable
-  (`workflow_call`), appelé par `batch.yml` et `render-sleep.yml` sur un échec
-  planifié. Voir « Destinataire de la notification d'échec » plus bas.
+  (`workflow_call`), appelé sur un échec planifié de `batch.yml` ou un échec
+  d'un lancement des timers Azure de `render-sleep.yml`. Voir « Destinataire de la notification d'échec » plus bas.
 
 **Chaque job porte un `timeout-minutes`** (#1071), sans quoi il hérite des
 360 minutes par défaut de GitHub : une étape figée (registre npm ou PyPI muet,
@@ -905,8 +905,8 @@ détenteur peut :
 - annuler ou relancer des exécutions ;
 - supprimer des exécutions, leurs journaux et leurs artefacts, dont les
   `rapport-<id>` et `bilan-<id>` qui gardent la trace des batches ;
-- activer ou désactiver des workflows. Désactiver `render-sleep.yml` rejoue la
-  panne silencieuse décrite en tête de ce fichier.
+- activer ou désactiver des workflows. Désactiver `render-sleep.yml` arrête la
+  veille des deux services.
 
 **Risque résiduel accepté** : la frontière preview/production tient à
 `GITHUB_BATCH_TARGET` et au pouvoir `batch:run`, donc à l'application, jamais au
@@ -1024,8 +1024,9 @@ dans le résumé du run, section « Athlètes orphelins ».
 **Destinataire de la notification d'échec** (#922) : la plateforme ne notifie
 que l'auteur de la dernière modification du fichier de cron, et la reprise a
 échoué six lundis de suite sans que personne réagisse. `batch.yml` et
-`render-sleep.yml` portent donc un job `notify` qui, sur un échec **planifié**,
-ou d'un lancement des timers Azure (entrée `alert`, #1010), appelle `notify-failure.yml` : il ouvre l'issue « Scheduled workflow
+`render-sleep.yml` portent donc un job `notify` qui, sur un échec **planifié**
+de `batch.yml` ou d'un lancement des timers Azure de `render-sleep.yml` (entrée
+`alert`, #1010), appelle `notify-failure.yml` : il ouvre l'issue « Scheduled workflow
 failing: <workflow> » (label `ops`), ou la complète si elle est déjà ouverte, au
 plus une fois toutes les 12 heures (le coucher de la preview est horaire).
 Gratuit, sans compte tiers ; seul besoin au-delà de la lecture, `issues: write`
@@ -1067,50 +1068,54 @@ au niveau dépôt).
 
 | Service | Coucher | Lever |
 |---|---|---|
-| **production** | timer Azure `Render-sleep` à 23 h 15 (#1010), cron `15 23 * * *` en secours | timer Azure `Render-wake` à 2 h 15 (#1010), cron `15 2 * * *` en secours (au lieu de `15 4 * * *`, #885) |
-| **preview** | cron `15 * * * *` — **à chaque heure** (#560) | **jamais par cron** — `deploy.yml` la reprend avant son deploy hook |
+| **production** | timer Azure `Render-sleep` à 23 h 15 (#1010) | timer Azure `Render-wake` à 2 h 15 (#1010, #885) |
+| **preview** | timer Azure `Render-sleep-preview` à la minute 45 **de chaque heure** (#560, #1319) | **jamais par timer** : `deploy.yml` la reprend avant son deploy hook |
+
+**Déclenché par Azure, sans `schedule` d'Actions** (#1157). Les trois timers
+(`infra/azure-functions/AGENTS.md`) lancent le workflow par `workflow_dispatch`
+avec `alert: true`. Le `schedule` d'Actions est *best effort* sans garantie de
+délai : remesuré sur #842 puis #885, le lever de 2 h 15 démarrait avec 2 à 5 h
+de retard, et le cron horaire de la preview ne passait que 4 à 7 fois par jour
+au lieu de 24 (occurrences perdues, pas seulement retardées). Les crons sont
+restés en secours jusqu'à la validation des timers, puis ont été retirés après
+onze nuits consécutives sans échec (relevé du 13/10 au 24/10/2026 : 23 runs de
+production et 276 couchers horaires de la preview, tous partis à la minute et
+verts). Avec eux sont tombées les gardes qui ne servaient qu'au `schedule` :
+l'abstention d'un coucher de production retardé après le lever, et le repli sur
+un nom de cron inconnu.
 
 La preview ne se rallume que pour servir la vérification post-déploiement, puis
-se recouche à l'heure pile suivante. C'est là qu'est le gros du quota : la
+se recouche au passage horaire suivant. C'est là qu'est le gros du quota : la
 fenêtre nocturne seule ne rend que ~90 h par mois et par service (3 h par nuit
 depuis #885), quand une preview qui ne s'éveille qu'à la demande en rend
 plusieurs centaines.
 
-**Le budget, recalculé avec le lever de 2 h (#885).** Nominalement, la
-production dort 3 h par nuit, soit ~91 h sur un mois de 730 h : elle consomme
-~639 h, et il reste **~111 h par mois à la preview** (~3 h 40 par jour) avant
-d'atteindre 750 h. Avec l'ancien lever de 4 h (5 h de sommeil, ~152 h), la
-production consommait ~578 h et la preview disposait de ~172 h : la marge
-nominale **baisse d'environ 60 h**. Elle reste positive, mais elle est plus
-étroite alors que #885 constate déjà une preview plus gourmande que prévu (le
-cron horaire ne passe que 4 à 7 fois par jour). En pratique, le retard du
-`schedule` allonge le sommeil réel de la production (fenêtre mesurée sur #885
-plutôt ~1 h 20 → ~7 h 15 UTC), ce qui rend de la marge, mais sans garantie :
-c'est le compteur Render qui fait foi.
+**Le budget, avec le lever de 2 h (#885).** La production dort 3 h par nuit,
+soit ~91 h sur un mois de 730 h : elle consomme ~639 h, et il reste **~111 h
+par mois à la preview** (~3 h 40 par jour) avant d'atteindre 750 h. C'est le
+compteur Render qui fait foi.
 
-**Pourquoi l'heure pile et non la nuit** (#560). Le régime d'origine ne
-recouchait la preview qu'au cron de 1 h : une journée à plusieurs merges sur
-`main` — donc plusieurs `deploy-preview` — la laissait éveillée du premier
+**Pourquoi chaque heure et non la nuit** (#560). Le régime d'origine ne
+recouchait la preview qu'au coucher nocturne : une journée à plusieurs merges
+sur `main`, donc plusieurs `deploy-preview`, la laissait éveillée du premier
 déploiement jusqu'à la nuit, soit potentiellement une journée entière au
 compteur. Elle ne reste désormais éveillée qu'une heure au plus après un
-déploiement (~1 h 15 avec le délai de grâce ci-dessous). La preview est sortie du
-cron de 1 h, devenu **production seule** : suspendre un service déjà suspendu
-n'aurait rien coûté, mais deux mécanismes qui se chevauchent se lisent moins bien
-qu'un seul.
+déploiement (~1 h 15 avec le délai de grâce ci-dessous). Le coucher nocturne
+vise la **production seule** : suspendre un service déjà suspendu n'aurait rien
+coûté, mais deux mécanismes qui se chevauchent se lisent moins bien qu'un seul.
 
-**Le cron horaire ne coupe jamais un déploiement**, et ce n'est pas un pari sur
-ce que fait l'API Render d'un `suspend` reçu en plein build — question ouverte
-que la documentation publique ne tranche pas. Avant tout `suspend`, le job lit
-l'état du service et de son dernier déploiement (`GET /v1/services?name=…`, qui
-porte déjà `suspended`, puis `GET /v1/services/{id}/deploys?limit=1`) et
-**s'abstient** dans quatre cas :
+**Le coucher horaire ne coupe jamais un déploiement**, et ce n'est pas un pari
+sur ce que fait l'API Render d'un `suspend` reçu en plein build (question
+ouverte que la documentation publique ne tranche pas). Avant tout `suspend`, le
+job lit l'état du service et de son dernier déploiement (`GET
+/v1/services?name=…`, qui porte déjà `suspended`, puis `GET
+/v1/services/{id}/deploys?limit=1`) et **s'abstient** dans trois cas :
 
 | Constat | Décision |
 |---|---|
-| Service déjà `suspended` | rien à faire — le passage horaire est muet, pas rouge |
+| Service déjà `suspended` | rien à faire : le passage horaire est muet, pas rouge |
 | Dernier déploiement `created`, `queued` ou `*_in_progress` | reporté à l'heure suivante |
 | Dernier déploiement terminé depuis moins de `GRACE_MINUTES` (15) | reporté à l'heure suivante |
-| Coucher planifié de la production démarré entre 2 h et 23 h UTC (#885) | abstention avec `::warning::`, voir plus bas |
 
 Le délai de grâce couvre la vérification post-déploiement et l'écart entre le
 `finishedAt` de Render et le service réellement prêt à répondre. Le `resume`, lui,
@@ -1118,73 +1123,42 @@ ne s'abstient **jamais** : il part même sur un service annoncé éveillé, parc
 laisser la production éteinte sur la foi d'un champ périmé coûte plus cher qu'un
 appel inutile.
 
-**Heure UTC, pas heure de Paris.** Le cron d'Actions ignore l'heure d'été : la
-coupure de production tombe entre minuit et 3 h l'hiver, 1 h et 4 h l'été. Viser
-Paris à la minute demanderait deux jeux de crons et une bascule saisonnière à
-entretenir, pour une fenêtre qui reste nocturne dans les deux cas. Un cron
-d'Actions peut aussi être retardé ou sauté quand la plateforme est chargée : sur
-le cron horaire, une occurrence manquée ne coûte qu'une heure d'instance de plus.
+**Heure UTC, pas heure de Paris.** Les timers s'évaluent en UTC (pas de
+`WEBSITE_TIME_ZONE` sur la Function App) : la coupure de production tombe entre
+minuit et 3 h l'hiver, 1 h et 4 h l'été. Viser Paris à la minute demanderait
+une bascule saisonnière à entretenir, pour une fenêtre qui reste nocturne dans
+les deux cas.
 
-**Minute 15, pas minute pile** (#842). GitHub documente que les workflows
-planifiés à l'heure pile (minute 0) tombent dans le créneau de plus forte
-charge de la plateforme et recommande de décaler la minute pour limiter le
-retard. Constaté sur l'historique réel des runs : les crons de 23 h et 4 h
-démarraient avec 1 h 40 à plus de 4 h de retard, systématiquement — bien
-au-delà de l'écart DST ci-dessus. Les trois crons du workflow sont passés à la
-minute 15, en restant à la même minute entre eux pour préserver le croisement
-intentionnel décrit ci-dessus (#560).
-
-**Lever avancé à 2 h, pas 4 h — correctif temporaire (#885).** Le décalage de
-minute de #842 n'a pas suffi : remesuré début du mois, le lever traînait
-encore 4 h 43 à 5 h 09 de retard, et le cron horaire de la preview ne se
-déclenchait en pratique que 4 à 7 fois par jour au lieu de 24 (occurrences
-purement perdues, pas seulement retardées). Le `schedule` d'Actions est *best
-effort* sans aucune garantie de délai — ce n'est pas réparable par la
-configuration du cron. En attendant un déclenchement externe fiable
-(`workflow_dispatch` appelé par un scheduler hors GitHub Actions, objet de
-#885), le cron nominal du lever de production a été avancé de 2 h pour
-rapprocher l'heure réelle de disponibilité de l'heure annoncée. Cette valeur
-est un pis-aller à réajuster si le retard observé change, tant que #885 n'est
-pas résolu.
-
-**Le coucher ne passe jamais après le lever.** Avec 3 h seulement entre les
-deux crons, un coucher retardé au delà de 2 h UTC (~2 h 10 mesuré sur #885, plus
-de 4 h sur #842) pourrait s'exécuter après le lever et éteindre la production
-pour toute la journée : `concurrency` sérialise les deux runs, mais ne les
-ordonne pas. Le coucher **planifié** de la production s'abstient donc, avec un
-`::warning::`, s'il démarre entre 2 h et 23 h UTC. Une nuit de sommeil perdue
-coûte quelques heures de quota ; un site éteint jusqu'au lendemain coûte bien
-plus. Un `suspend` lancé à la main par `workflow_dispatch` n'est pas concerné.
+**Minute 45 pour la preview, 15 pour la production.** `concurrency` ne garde
+qu'un run en attente : un coucher de la preview lancé à la même minute que le
+lever de 2 h 15 pourrait faire annuler celui de la production
+(`Render-sleep-preview/run.ps1`).
 
 **La procédure de vérification ci-dessous n'est pas touchée** : le `resume`
 précède le deploy hook dans `deploy.yml`, sur les deux environnements. C'est
-nécessaire — un deploy hook envoyé à un service suspendu ne le rallume pas — et
-c'est aussi le filet du paragraphe suivant.
-
-**Le piège, le même que celui de `batch.yml` mais plus cher.** GitHub désactive
-les workflows planifiés d'un dépôt sans activité depuis 60 jours (D13), sans
-rien dire. Si la désactivation tombe entre le cron de 23 h et celui de 2 h, la
-production reste **éteinte** jusqu'à ce que quelqu'un s'en aperçoive. Deux
-parades, volontaires toutes les deux : le `workflow_dispatch` (`action: resume`,
-`target: production`), et le `resume` de `deploy.yml` — un déploiement rallume
-toujours sa cible, quel que soit l'état du cron.
+nécessaire (un deploy hook envoyé à un service suspendu ne le rallume pas), et
+c'est aussi le filet d'un lever manqué : un déploiement rallume toujours sa
+cible, même si `Render-wake` n'est pas passé. Le `workflow_dispatch` manuel
+(`action: resume`, `target: production`) est l'autre parade. Un dispatch que
+`Render-wake` ne parvient pas à lancer (jeton expiré) alerte le canal Slack
+d'ops depuis Azure (#1320).
 
 **Ce workflow ne déclare aucun environment, et c'est la condition pour qu'il
 fonctionne.** L'environment `Production` porte une *required reviewer* (cf.
-« Environments GitHub » plus haut) : un job qui le déclarerait — comme le fait
-`deploy.yml` pour lire son deploy hook — mettrait le lever de 2 h en attente
+« Environments GitHub » plus haut) : un job qui le déclarerait, comme le fait
+`deploy.yml` pour lire son deploy hook, mettrait le lever de 2 h en attente
 d'une approbation humaine, donc laisserait le site éteint jusqu'au clic, tous
 les matins. D'où la résolution des services **par leur nom** via
 `GET /v1/services`, qui ne demande que `RENDER_API_KEY`, secret **de dépôt**.
 
 Le prix de ce choix est que les noms vivent dans le workflow. Ils n'y sont pas
-un secret — ce document les porte déjà en clair, à la différence des `srv-…` —
+un secret (ce document les porte déjà en clair, à la différence des `srv-…`),
 et un renommage dans le dashboard fait sortir le job **rouge** plutôt que de le
 laisser viser un autre service : le filtre `name` de l'API n'étant pas une
 égalité, le workflow n'agit que sur une correspondance exacte et **unique**.
 
-**À constater au premier passage réel**, dans cet ordre — la documentation
-publique de Render ne répond à aucun de ces points :
+**À constater au premier passage réel**, dans cet ordre (la documentation
+publique de Render ne répond à aucun de ces points) :
 
 1. **Sur la preview d'abord** (`workflow_dispatch` → `suspend`, `target:
    preview`), que suspend/resume est bien ouvert au plan **free**. Si l'API le
@@ -1196,10 +1170,10 @@ publique de Render ne répond à aucun de ces points :
 3. **Un cycle complet du régime horaire** (#560) : après un déploiement de la preview,
    voir sur le dashboard Render la preview réveillée par `deploy.yml`, le
    déploiement aller au bout sans être interrompu, puis le passage horaire
-   suivant — celui d'après la grâce de 15 min — la recoucher. Et vérifier que les
+   suivant (celui d'après la grâce de 15 min) la recoucher. Et vérifier que les
    passages des heures suivantes sortent **verts et muets** (« déjà suspendu »).
-4. **Le rythme d'appels**, désormais 24 h/24 : deux `GET` puis au plus un `POST`
-   par heure, ce qui reste très en deçà de tout rate-limit documenté par Render —
+4. **Le rythme d'appels**, 24 h/24 : deux `GET` puis au plus un `POST`
+   par heure, ce qui reste très en deçà de tout rate-limit documenté par Render,
    mais, comme le reste de cette liste, non confirmé.
 
 Le code rendu quand le service est **déjà** dans l'état demandé ne se constate
