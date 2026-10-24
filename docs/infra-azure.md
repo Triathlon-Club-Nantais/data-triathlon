@@ -74,6 +74,40 @@ qu'environ 1,50 € par mois, au prix d'un redémarrage à ordonner avant le lev
 du backend. Une offre Azure pour associations, si le club y est éligible,
 serait le seul moyen de ramener la facture à zéro.
 
+### Budgets et alertes (#1369)
+
+Tout part par e-mail aux **trois mêmes destinataires** : la boîte du
+secrétariat `secretaire@triathlonclubnantais.onmicrosoft.com` et les adresses
+personnelles des deux mainteneurs. Elles ne sont pas reproduites ici (dépôt
+public) : la liste de référence est celle de `Monthly_budget_TCN_credit`, à
+lire par `az consumption budget list`. Un changement de destinataire se répète
+sur les quatre objets ci-dessous.
+
+| Objet | Nom | Déclenchement |
+|---|---|---|
+| Budget de l'abonnement | `Monthly_budget_TCN_credit` | 120 €/mois : 50 % réel, 80 % et 100 % prévisionnel |
+| Budget de l'abonnement | `Monthly_budget_TCN_low` | 25 €/mois : 100 % réel et 100 % prévisionnel. Voit une dérive de quelques euros au-dessus des ~15,6 € habituels |
+| Alerte d'anomalie Cost Management (`InsightAlert`) | `daily-anomaly-tcn` | détection quotidienne native, vue `ms:DailyAnomalyByResourceGroup` |
+| Alerte métrique Azure Monitor | `tcndatabdd-storage-80` (RG `TCN_Data_BDD`) | `storage_percent` moyen > 80 % sur 1 h, évaluée toutes les heures, sévérité 2. Le disque est fixe (auto-grow désactivé) : plein, il arrête la base. 13,9 % le 24/10/2026 |
+| Groupe d'actions | `ag-tcn-email` (RG `TCN_Data_BDD`) | e-mails seuls, porte l'alerte métrique |
+
+**Coût : 0 €.** Budgets et alertes d'anomalie sont gratuits ; Azure Monitor
+offre 10 séries temporelles de règles métriques par mois, et l'alerte de
+stockage en surveille une seule (aucune autre règle métrique sur
+l'abonnement) ; les 1 000 premiers e-mails de notification du mois sont
+gratuits. Pas de relais Slack : il demanderait une Logic App ou un webhook,
+hors budget zéro.
+
+Relire l'ensemble (le nom de l'abonnement contient une espace insécable,
+passer son ID) :
+
+```bash
+S=<subscription-id>
+az consumption budget list --subscription "$S" -o table
+az rest --method get --url "https://management.azure.com/subscriptions/$S/providers/Microsoft.CostManagement/scheduledActions?api-version=2023-11-01"
+az monitor metrics alert list --subscription "$S" -o table
+```
+
 ## Tenant Entra External ID (#1323)
 
 Un tenant **externe** (`Microsoft.AzureActiveDirectory/ciamDirectories`,
