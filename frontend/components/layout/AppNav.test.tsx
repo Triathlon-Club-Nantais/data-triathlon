@@ -85,7 +85,7 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
 
 import { AppNav } from "./AppNav";
 import { NAV, ROLE, estVisible } from "./nav.config";
-import { clearAthlete, readAthlete, writeAthlete } from "./AthletePicker";
+import { readAthlete } from "./AthletePicker";
 
 function afficher(session: SessionUser | null, { initialExpanded = false }: { initialExpanded?: boolean } = {}) {
   if (session) getSession.mockResolvedValue(session);
@@ -193,20 +193,6 @@ describe("readAthlete — stock corrompu", () => {
     // correctif est une absence de choix — l'athlète se re-sélectionne une fois.
     window.localStorage.setItem("tcn-athlete", JSON.stringify({ id: 7, name: "Marie Gaudin" }));
     expect(readAthlete()).toBeNull();
-  });
-});
-
-describe("AppNav — prefetch de la tuile « Mon athlète » (#425)", () => {
-  it("désactive le prefetch des deux liens vers /athletes/{id} — un athlète épinglé au hasard, pas une destination probable", async () => {
-    window.localStorage.setItem("tcn-athlete", JSON.stringify({ id: 12, prenom: "Jean", nom: "Dupont" }));
-    afficher(null);
-    await deplier();
-
-    expect(screen.getByRole("link", { name: "Mon athlète — Jean Dupont" })).toHaveAttribute(
-      "data-prefetch",
-      "false",
-    );
-    expect(await screen.findByRole("link", { name: "Jean" })).toHaveAttribute("data-prefetch", "false");
   });
 });
 
@@ -336,34 +322,10 @@ describe("AppNav — monogramme du rail replié (#482, NAV-2)", () => {
 });
 
 describe("AppNav — prénom de l'athlète retenu (#264)", () => {
-  /**
-   * Un prénom composé sans trait d'union — « Jean Gael » — est **un** prénom.
-   * Le rail affichait `name.split(" ")[0]`, donc « Jean », alors que
-   * « Jean-Gaël » passait entier : la troncature ne dépendait que de la
-   * présence d'une espace. Le prénom vient désormais du champ `prenom` de
-   * l'API, jamais d'un découpage du nom complet.
-   */
-  it("affiche un prénom composé en entier", async () => {
-    window.localStorage.setItem(
-      "tcn-athlete",
-      JSON.stringify({ id: 12, prenom: "Jean Gael", nom: "Dupont" }),
-    );
-    afficher(null);
-    await deplier();
-
-    expect(await screen.findByRole("link", { name: "Jean Gael" })).toHaveAttribute(
-      "href",
-      "/athletes/12",
-    );
-    expect(screen.queryByRole("link", { name: "Jean" })).not.toBeInTheDocument();
-    // Le nom complet reste porté par le profil et l'avatar, pas par le libellé.
-    expect(screen.getByRole("link", { name: "Mon athlète — Jean Gael Dupont" })).toBeInTheDocument();
-  });
-
   it("retient le prénom tel que l'API le donne, sans le reconstruire (#264)", async () => {
-    // Le bout en bout : le picker écrit le stock que le rail relit. C'est
-    // `AthletePicker` qui aplatissait `prenom` et `nom` en une seule chaîne,
-    // rendant le prénom indevinable en aval.
+    // Un prénom composé sans trait d'union (« Jean Gael ») est **un** prénom.
+    // C'est `AthletePicker` qui aplatissait `prenom` et `nom` en une seule
+    // chaîne, rendant le prénom indevinable pour les écrans qui relisent le stock.
     searchAthletes.mockResolvedValue([
       { id: 12, prenom: "Jean Gael", nom: "Dupont", gender: "M", club: "TCN", participation_count: 1 },
     ]);
@@ -480,95 +442,6 @@ describe("AppNav: searching is not choosing (#952)", () => {
     await choisirDansLaPalette("Choisir");
 
     expect(readAthlete()).toEqual({ id: 30, prenom: "Paul", nom: "Martin" });
-  });
-});
-
-describe("AppNav — ne plus suivre l'athlète retenu (#442)", () => {
-  const JEAN = { id: 12, prenom: "Jean", nom: "Dupont" };
-
-  it("retire l'athlète du rail et du stock d'un clic sur la croix de la tuile, sans emporter la recherche", async () => {
-    // Jusqu'ici, la désélection n'existait que sur la page de l'athlète
-    // (`SelectAthleteButton`) : depuis la nav, on ne pouvait que remplacer
-    // l'athlète retenu par un autre, jamais n'en retenir aucun.
-    window.localStorage.setItem("tcn-athlete", JSON.stringify(JEAN));
-    afficher(null);
-    await deplier();
-
-    const croix = await screen.findByRole("button", { name: "Ne plus choisir Jean Dupont" });
-    // `SelectAthleteButton` rend « Ne plus choisir cet athlète » et
-    // `AthletePicker` « Choisir <nom>, <club>, <épreuves> », vocabulaire harmonisé après la revue
-    // de #323. « Suivre » y ajoutait un troisième verbe pour le même geste, et
-    // promettait un abonnement qui n'existe pas (revue UI/UX).
-    expect(croix).toHaveAttribute("title", "Ne plus choisir");
-    expect(screen.queryByRole("button", { name: /suivre/i })).not.toBeInTheDocument();
-    // Stylée en ligne, la croix n'avait ni survol ni anneau de focus : il ne
-    // restait que l'anneau UA `outline-ring/50`, mesuré à 1,85:1 sur le fond
-    // de la tuile, sous le seuil WCAG 1.4.11 de 3:1. Même cause commune que
-    // les trois défauts de #299 : un `style` en ligne ne peut pas exprimer
-    // d'état. `.tcn-icon-btn` porte seule :hover et :focus-visible.
-    expect(croix).toHaveClass("tcn-icon-btn");
-    // 28 px tenait WCAG 2.5.8 (24 px) mais pas le plancher tactile de cette
-    // grille, et la croix **est** rendue dans le tiroir mobile
-    // (`contenu(true, …)`). La hauteur ne coûte rien : la tuile fait 44 px.
-    expect(croix.style.width).toBe("44px");
-    expect(croix.style.height).toBe("44px");
-
-    await userEvent.click(croix);
-
-    expect(readAthlete()).toBeNull();
-    expect(screen.queryByRole("link", { name: "Mon athlète — Jean Dupont" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Ne plus choisir Jean Dupont" })).not.toBeInTheDocument();
-    // La tuile s'affiche en complément de la recherche, jamais à sa place
-    // (#323) : la retirer ne doit pas emporter le seul moyen d'en choisir un
-    // autre.
-    expect(screen.getAllByRole("button", { name: "Rechercher un athlète" }).length).toBeGreaterThan(0);
-  });
-
-  it("n'offre pas la croix à un compte rattaché, sa fiche n'est pas un choix (#1325)", async () => {
-    window.localStorage.setItem("tcn-athlete", JSON.stringify(JEAN));
-    afficher({ ...SESSION, athlete: JEAN });
-    await deplier();
-
-    expect(await screen.findByRole("link", { name: "Mon athlète — Jean Dupont" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Ne plus choisir Jean Dupont" })).not.toBeInTheDocument();
-  });
-
-  it("n'offre pas la croix sur le rail replié, où la tuile se réduit à l'avatar", async () => {
-    // 44 px de large, l'avatar occupe la tuile entière : une croix y serait
-    // à l'étroit et sans libellé lisible. Le rail se déplie d'un clic.
-    window.localStorage.setItem("tcn-athlete", JSON.stringify(JEAN));
-    afficher(null);
-
-    expect(await screen.findByRole("link", { name: "Mon athlète — Jean Dupont" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Ne plus choisir/ })).not.toBeInTheDocument();
-  });
-});
-
-describe("AppNav — raccourci « Mes résultats » de la tuile (NAV-10, #503)", () => {
-  const JEAN = { id: 12, prenom: "Jean", nom: "Dupont" };
-
-  it("pointe vers /resultats avec le nom complet pré-rempli, sans prefetch, comme le lien de profil voisin (#425)", async () => {
-    window.localStorage.setItem("tcn-athlete", JSON.stringify(JEAN));
-    afficher(null, { initialExpanded: true });
-
-    const lien = await screen.findByRole("link", { name: "Mes résultats — Jean Dupont" });
-    expect(lien).toHaveAttribute("href", "/resultats?name=Jean%20Dupont");
-    expect(lien).toHaveAttribute("data-prefetch", "false");
-  });
-
-  it("n'existe pas sans athlète retenu", async () => {
-    afficher(null, { initialExpanded: true });
-    const rail = screen.getByRole("navigation", { name: "Navigation principale" });
-    await within(rail).findByRole("link", { name: "Ajouter une épreuve" });
-    expect(screen.queryByRole("link", { name: /Mes résultats/ })).not.toBeInTheDocument();
-  });
-
-  it("n'existe pas sur le rail replié, où la tuile se réduit à l'avatar", async () => {
-    window.localStorage.setItem("tcn-athlete", JSON.stringify(JEAN));
-    afficher(null, { initialExpanded: false });
-
-    expect(await screen.findByRole("link", { name: "Mon athlète — Jean Dupont" })).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: /Mes résultats/ })).not.toBeInTheDocument();
   });
 });
 
@@ -711,19 +584,6 @@ describe("AppNav — actions primaires", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  it("garde la recherche accessible en plus de la tuile, athlète retenu, rail déplié (#323)", async () => {
-    window.localStorage.setItem("tcn-athlete", JSON.stringify({ id: 12, prenom: "Jean", nom: "Dupont" }));
-    afficher(null);
-    await deplier();
-
-    // Scopé au rail : la barre mobile porte toujours son propre bouton
-    // loupe, indépendant de l'état de sélection, et ne doit pas fausser
-    // l'assertion sur le rail lui-même.
-    const rail = screen.getByRole("navigation", { name: "Navigation principale" });
-    expect(within(rail).getByRole("button", { name: "Rechercher un athlète" })).toBeInTheDocument();
-    expect(within(rail).getByRole("link", { name: "Mon athlète — Jean Dupont" })).toBeInTheDocument();
-  });
-
   it("garde une icône de recherche cliquable, athlète retenu, rail replié (#323)", async () => {
     // Le cas bloquant de l'issue #323 : seul le raccourci clavier ouvrait la
     // recherche une fois un athlète retenu et le rail replié — aucune icône
@@ -742,6 +602,22 @@ describe("AppNav — actions primaires", () => {
     await userEvent.keyboard("{Control>}k{/Control}");
 
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("ne porte plus de carte d'athlète, ni au rail ni au tiroir, même athlète retenu et compte rattaché (#1828)", async () => {
+    // « Mon espace » est désormais l'entrée vers ses propres résultats.
+    const jean = { id: 12, prenom: "Jean", nom: "Dupont" };
+    window.localStorage.setItem("tcn-athlete", JSON.stringify(jean));
+    afficher({ ...SESSION, athlete: jean }, { initialExpanded: true });
+    const sansCarte = (zone: HTMLElement) => {
+      expect(within(zone).getByRole("button", { name: "Rechercher un athlète" })).toBeInTheDocument();
+      expect(within(zone).queryByRole("link", { name: /Mon athlète|Mes résultats/ })).not.toBeInTheDocument();
+      expect(within(zone).queryByText("Jean")).not.toBeInTheDocument();
+    };
+    sansCarte(screen.getByRole("navigation", { name: "Navigation principale" }));
+
+    await userEvent.click(screen.getByRole("button", { name: "Ouvrir le menu" }));
+    sansCarte(await screen.findByRole("dialog"));
   });
 
   it("exposes the mobile drawer state on its trigger (#1077) and closes it from a visible close button (#1116)", async () => {
@@ -764,34 +640,6 @@ describe("AppNav — actions primaires", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 
-  it("affiche aussi la recherche et la tuile dans le tiroir mobile, athlète retenu", async () => {
-    window.localStorage.setItem("tcn-athlete", JSON.stringify({ id: 12, prenom: "Jean", nom: "Dupont" }));
-    afficher(null);
-    await userEvent.click(screen.getByRole("button", { name: "Ouvrir le menu" }));
-
-    const tiroir = await screen.findByRole("dialog");
-    expect(within(tiroir).getByRole("button", { name: "Rechercher un athlète" })).toBeInTheDocument();
-    expect(within(tiroir).getByRole("link", { name: "Mon athlète — Jean Dupont" })).toBeInTheDocument();
-  });
-
-  it("se resynchronise sur une écriture externe, sans passer par son propre picker (#323)", async () => {
-    // Ce qui se passe réellement quand le bouton de la page profil
-    // (`SelectAthleteButton`) écrit la sélection pendant qu'`AppNav` est déjà
-    // monté ailleurs sur la page — aucune interaction avec le picker local ici.
-    afficher(null);
-    const rail = screen.getByRole("navigation", { name: "Navigation principale" });
-    expect(within(rail).queryByRole("link", { name: /^Mon athlète —/ })).not.toBeInTheDocument();
-
-    act(() => writeAthlete({ id: 12, prenom: "Jean", nom: "Dupont" }));
-    expect(await within(rail).findByRole("link", { name: "Mon athlète — Jean Dupont" })).toBeInTheDocument();
-    // La recherche reste là, en plus de la tuile — jamais remplacée.
-    expect(within(rail).getByRole("button", { name: "Rechercher un athlète" })).toBeInTheDocument();
-
-    act(() => clearAthlete());
-    await waitFor(() =>
-      expect(within(rail).queryByRole("link", { name: /^Mon athlète —/ })).not.toBeInTheDocument(),
-    );
-  });
 
   it("écrit le libellé « Actions » en `--tcn-orange-deeper`, seul token à tenir 4,5:1 (#744)", async () => {
     // `--tcn-text-disabled` (#c4bdb1 sur blanc) ne tenait que 1,86:1 — sous
@@ -1220,17 +1068,6 @@ describe("AppNav — infobulles du rail replié remplacent les title (#482, NAV-
 
     await userEvent.hover(bouton);
     expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
-  });
-
-  it("nomme la tuile « Mon athlète » (#502) et lui porte cette infobulle, repliée", async () => {
-    window.localStorage.setItem("tcn-athlete", JSON.stringify({ id: 12, prenom: "Jean", nom: "Dupont" }));
-    afficher(null);
-    expect(screen.getByLabelText("Mon athlète — Jean Dupont")).toBeInTheDocument();
-    expect(screen.queryByLabelText("Mon profil — Jean Dupont")).not.toBeInTheDocument();
-    const avatar = await screen.findByRole("link", { name: "Mon athlète — Jean Dupont" });
-
-    await userEvent.hover(avatar);
-    expect(await screen.findByRole("tooltip", { name: "Mon athlète" })).toBeInTheDocument();
   });
 
   it("porte une infobulle sur la tuile de catégorie repliée (« Administration »)", async () => {

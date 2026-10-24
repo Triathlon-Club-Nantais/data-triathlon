@@ -34,17 +34,16 @@ pour que son apparition ne déplace rien. Seul un besoin **serveur** authentique
 — une requête API qui dépendrait de l'athlète retenu — rouvrirait
 l'arbitrage ; de la mise en avant, non.
 
-## Les trois surfaces qui propagent l'athlète retenu (#503)
+## Les surfaces qui propagent l'athlète retenu (#503)
 
-**Les trois surfaces qui propagent l'athlète retenu** (#503) — la pastille
+**Les surfaces qui propagent l'athlète retenu** (#503) : la pastille
 « Mes résultats » de `/resultats`, la ligne marquée « Vous » et le bouton
-« Aller à ma ligne » du classement d'épreuve, le raccourci de la tuile du
-rail. Les deux surfaces de contenu — `/resultats` et le classement — lisent
+« Aller à ma ligne » du classement d'épreuve. Elles lisent
 `useSelectedAthlete()` (`components/layout/AthletePicker.tsx`, à côté de
-`useIsSelectedAthlete`) ; `AppNav` garde sa propre lecture (`useState` +
-`readAthlete()` + l'écouteur de `ATHLETE_CHANGED_EVENT`), son état portant
-aussi `expanded` et le raccourci clavier — une duplication assumée, non
-résorbée, hors du périmètre de #503. Le snapshot de `useSelectedAthlete()`
+`useIsSelectedAthlete`). La tuile du rail (avatar, prénom, « Mes résultats »,
+croix) a été retirée par #1828 : « Mon espace » est l'entrée vers ses
+propres résultats, et `AppNav` ne lit plus le stock (sa palette l'écrit
+toujours en mode désignation). Le snapshot de `useSelectedAthlete()`
 est **mémorisé sur la chaîne brute du stock** :
 `readAthlete()` reconstruit un objet à chaque lecture, et le rendre tel quel
 fait rendre `useSyncExternalStore` en boucle. Trois invariants :
@@ -147,8 +146,7 @@ session. Le détachement vide le stock, y compris fait depuis un autre appareil
 (marqueur `tcn-athlete-from-session` posé à côté du stock) ; une déconnexion le laisse, comme
 avant. Les gestes de changement sont masqués pour lui : ni « Choisir cet
 athlète » ni « C'est moi » sur une fiche (`AthleteHeaderActions` rend « Votre
-fiche » ou le lien vers la sienne), ni la croix de la tuile du rail, et la
-palette demandée par `OPEN_PICKER_EVENT` s'ouvre en simple recherche. Un
+fiche » ou le lien vers la sienne), et la palette demandée par `OPEN_PICKER_EVENT` s'ouvre en simple recherche. Un
 connecté sans rattachement garde la sélection locale et se voit proposer
 « C'est moi » (`components/athletes/AthleteClaimAction.tsx`).
 

@@ -3,14 +3,14 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Fragment, useEffect, useRef, useState, type CSSProperties } from "react";
 import { Briefcase, Ellipsis, LogIn, Menu, PanelLeft, Plus, RotateCw, Search, X } from "lucide-react";
-import { Avatar, Button } from "@/components/tcn";
+import { Button } from "@/components/tcn";
 import { SessionEnLecture, UserMenu } from "@/components/auth/UserMenu";
 import { Sheet, SheetClose, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useSession } from "@/lib/queries/auth";
 import { libelleCompteur, totalATraiter, useNavBadges } from "@/lib/queries/nav-badges";
 import { SpaceSwitcher, type SwitcherSpace } from "./SpaceSwitcher";
-import { AthletePicker, ATHLETE_CHANGED_EVENT, OPEN_PICKER_EVENT, clearAthlete, nomComplet, readAthlete, writeAthlete, type PickedAthlete, type PickerMode } from "./AthletePicker";
+import { AthletePicker, OPEN_PICKER_EVENT, writeAthlete, type PickerMode } from "./AthletePicker";
 import { NAV, ROLE, SPACES, byGroup, estVisible, spaceOf, type NavItem, type NavSection, type SpaceId } from "./nav.config";
 import { CLUB_NAME, CLUB_NAME_SHORT } from "@/lib/club";
 import { NAV_WIDTH_COOKIE } from "@/lib/nav-cookies";
@@ -48,23 +48,16 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
   const [pickerMode, setPickerMode] = useState<PickerMode | null>(null);
   // `expanded` vient désormais du cookie lu par `app/layout.tsx` (#482,
   // NAV-3), synchrone dès le premier rendu — plus rien à y lire au montage.
-  // `athlete` et raccourci clavier restent client-only : `localStorage` et
-  // `navigator` n'existent pas au rendu serveur.
-  const [{ expanded, athlete, kbd }, setClient] = useState({
+  // Le raccourci clavier reste client-only : `navigator` n'existe pas au rendu
+  // serveur.
+  const [{ expanded, kbd }, setClient] = useState({
     expanded: initialExpanded,
-    athlete: null as PickedAthlete | null,
     kbd: "Ctrl K",
   });
 
   useEffect(() => {
-    // `localStorage` et `navigator` n'existent pas au rendu serveur : leur
-    // lecture ne peut avoir lieu qu'au montage, en un seul `setState`.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setClient((c) => ({
-      ...c,
-      athlete: readAthlete(),
-      kbd: /Mac|iPhone|iPad/i.test(navigator.userAgent) ? "⌘K" : "Ctrl K",
-    }));
+    setClient((c) => ({ ...c, kbd: /Mac|iPhone|iPad/i.test(navigator.userAgent) ? "⌘K" : "Ctrl K" }));
   }, []);
 
   // ⌘K / Ctrl+K ouvre la recherche athlète depuis n'importe où. Escape est
@@ -82,16 +75,6 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [rechercheDisponible]);
-
-  // Se resynchronise sur toute écriture faite ailleurs (bouton de la page
-  // profil, #323) — se redéclenche aussi sur les écritures faites par le
-  // picker local (l.288-293) : re-lecture idempotente de la même valeur, pas
-  // un bug à corriger.
-  useEffect(() => {
-    const onChange = () => setClient((c) => ({ ...c, athlete: readAthlete() }));
-    window.addEventListener(ATHLETE_CHANGED_EVENT, onChange);
-    return () => window.removeEventListener(ATHLETE_CHANGED_EVENT, onChange);
-  }, []);
 
   // Ouverture de la palette demandée depuis un écran qui n'en porte pas
   // l'état — l'invitation de Mon espace (#502, revue UI/UX item 11).
@@ -227,8 +210,6 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
       expanded={deplie}
       sections={listeSections}
       isActive={isActive}
-      athlete={athlete}
-      athleteDuCompte={Boolean(session?.athlete)}
       kbd={kbd}
       onNavigate={fermer}
       onOpenPicker={
@@ -573,10 +554,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
             )}
           onClose={() => setPickerMode(null)}
           onPick={(a) => {
-            if (pickerMode === "select") {
-              writeAthlete(a);
-              setClient((c) => ({ ...c, athlete: a }));
-            }
+            if (pickerMode === "select") writeAthlete(a);
             setPickerMode(null);
             router.push(`/athletes/${a.id}`);
           }}
@@ -591,8 +569,6 @@ function NavContent({
   expanded,
   sections,
   isActive,
-  athlete,
-  athleteDuCompte,
   kbd,
   onOpenPicker,
   onNavigate,
@@ -601,9 +577,6 @@ function NavContent({
   expanded: boolean;
   sections: SectionRendue[];
   isActive: (href: string) => boolean;
-  athlete: PickedAthlete | null;
-  /** La fiche rattachée au compte (#1325) : rien à désélectionner. */
-  athleteDuCompte: boolean;
   kbd: string;
   /** Absent là où la recherche ne peut qu'échouer (`/acces`, #953). */
   onOpenPicker?: () => void;
@@ -665,10 +638,6 @@ function NavContent({
           {!expanded && <TooltipContent>Ajouter une épreuve</TooltipContent>}
         </Tooltip>
 
-        {/* L'entrée recherche reste rendue dans tous les cas — athlète
-            retenu ou non — pour ne jamais redevenir inaccessible autrement
-            que par le raccourci clavier (issue #323). La tuile de l'athlète
-            retenu s'affiche en complément, jamais à sa place. */}
         {onOpenPicker && (
           <Tooltip>
             <TooltipTrigger
@@ -723,124 +692,6 @@ function NavContent({
             </TooltipTrigger>
             {!expanded && <TooltipContent>{`Rechercher un athlète (${kbd})`}</TooltipContent>}
           </Tooltip>
-        )}
-
-        {athlete && (
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              padding: expanded ? "0 8px 6px" : 0,
-              borderRadius: "var(--tcn-radius-lg)",
-              background: "var(--tcn-orange-08)",
-              border: "1.5px solid var(--tcn-orange-12)",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 10, height: 44, justifyContent: justify }}>
-              {/* prefetch={false} (#425) : un athlète épinglé au hasard depuis
-                  le picker, pas une destination probable — inutile de le
-                  prefetcher dès que la tuile entre dans le viewport. */}
-              <Tooltip>
-                <TooltipTrigger
-                  disabled={expanded}
-                  render={
-                    <Link
-                      href={`/athletes/${athlete.id}`}
-                      prefetch={false}
-                      onClick={onNavigate}
-                      aria-label={`Mon athlète — ${nomComplet(athlete)}`}
-                    />
-                  }
-                >
-                  <Avatar name={nomComplet(athlete)} size={30} style={{ boxShadow: "var(--tcn-shadow-orange)" }} />
-                </TooltipTrigger>
-                {!expanded && <TooltipContent>Mon athlète</TooltipContent>}
-              </Tooltip>
-              {expanded && (
-                <>
-                  <Link
-                    href={`/athletes/${athlete.id}`}
-                    prefetch={false}
-                    onClick={onNavigate}
-                    // `--tcn-orange-deeper`, pas `-deep` : posé sur le fond de
-                    // la tuile (`--tcn-orange-08` composé sur `--tcn-surface`,
-                    // soit #fdf1ec), `-deep` ne tient que 4,13:1 (WCAG 1.4.3),
-                    // contre 4,57:1 sur blanc — c'est le fond, pas le token,
-                    // qui a changé le verdict. `-deeper` tient 5,21:1.
-                    style={{ flex: 1, minWidth: 0, fontWeight: 700, fontSize: 14, color: "var(--tcn-orange-deeper)", textDecoration: "none", ...tronque }}
-                  >
-                    {/* Le prénom vient de l'API, jamais d'un découpage du nom
-                        complet : « Jean Gael » est **un** prénom, et
-                        `split(" ")[0]` n'en rendait que la moitié (#264). Repli
-                        sur le nom, faute de quoi la tuile n'aurait pas de
-                        libellé pour un athlète sans prénom renseigné. */}
-                    {athlete.prenom || athlete.nom}
-                  </Link>
-                  {/* Croix de désélection (#442) — offerte au seul rail déplié :
-                      replié, la tuile fait 44 px et l'avatar l'occupe entière.
-                      `clearAthlete` émet `ATHLETE_CHANGED_EVENT`, que `AppNav`
-                      écoute déjà (l.84) : la tuile disparaît par ce chemin, sans
-                      rappel à faire descendre jusqu'ici. Le nom complet, et non
-                      le prénom, parce qu'un libellé d'action se lit hors
-                      contexte. */}
-                  {!athleteDuCompte && (
-                    <button
-                      type="button"
-                      onClick={() => clearAthlete()}
-                      aria-label={`Ne plus choisir ${nomComplet(athlete)}`}
-                      title="Ne plus choisir"
-                      className="tcn-icon-btn"
-                      style={{
-                        flex: "none",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        // 44 px, le plancher tactile de la grille : la croix est
-                        // aussi rendue dans le tiroir mobile, où le rail est
-                        // déplié. La hauteur est gratuite, la tuile en fait déjà
-                        // autant ; la largeur coûte 16 px à la colonne du prénom,
-                        // que `tronque` écourtait déjà.
-                        width: 44,
-                        height: 44,
-                        borderRadius: "var(--tcn-radius-sm)",
-                        border: "none",
-                        background: "transparent",
-                        color: "var(--tcn-orange-deep)",
-                        cursor: "pointer",
-                      }}
-                    >
-                      <X size={16} />
-                    </button>
-                  )}
-                </>
-              )}
-            </div>
-            {/* Le raccourci vers les résultats pré-filtrés (#503) : offert au
-                seul rail déplié, comme la croix — replié, la tuile fait 44 px.
-                `prefetch={false}` pour la même raison que le lien de profil
-                voisin (#425) : un athlète épinglé n'est pas une destination
-                probable. Le nom complet dans le nom accessible, jamais le
-                prénom seul : un libellé de lien se lit hors contexte.
-                `.tcn-lien-action` porte la couleur, le poids et l'anneau de
-                focus — sans elle le focus retombait sur `outline-ring/50`
-                (1,85:1 sur le fond composite de la tuile, sous le seuil WCAG
-                1.4.11 de 3:1, revue #503). Seule sa hauteur, propre au rail,
-                reste en ligne : 36 px, au-dessus du plancher tactile WCAG 2.2
-                2.5.8 (24 px) sans doubler la hauteur de la tuile comme le
-                ferait la grille à 44 px du rail. */}
-            {expanded && (
-              <Link
-                href={`/resultats?name=${encodeURIComponent(nomComplet(athlete))}`}
-                prefetch={false}
-                onClick={onNavigate}
-                aria-label={`Mes résultats — ${nomComplet(athlete)}`}
-                className="tcn-lien-action"
-                style={{ minHeight: 36, fontSize: 13 }}
-              >
-                Mes résultats
-              </Link>
-            )}
-          </div>
         )}
       </div>
 
