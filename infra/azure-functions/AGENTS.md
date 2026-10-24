@@ -31,7 +31,7 @@ requête au-dessus des 10 s que la route accorde au backend ; un échec fait
 
 **Articulation avec la veille Render.** Le keep-warm ne réveille qu'un service
 **non suspendu** : il évite le sommeil d'inactivité du plan gratuit, pas la
-suspension volontaire. Celle-ci est l'affaire des deux fonctions ci-dessous.
+suspension volontaire. Celle-ci est l'affaire des trois fonctions ci-dessous.
 
 **FinOps.** Plan **Flex Consumption** (Linux, France Central, Function App
 `coldstart-curl`) : 96 exécutions par jour, très en dessous de l'octroi
@@ -39,7 +39,7 @@ gratuit mensuel. La facture doit rester proche de
 zéro (`docs/infra-azure.md`) ; un plan Premium ou un Always On n'est pas une
 option.
 
-## `Render-sleep` et `Render-wake` : la veille de la production (#1010)
+## `Render-sleep`, `Render-wake` et `Render-sleep-preview` : la veille Render (#1010, #1319)
 
 Le `schedule` de GitHub Actions démarrait le lever de la production avec 2 à
 5 h de retard (#842, #885). Deux timers Azure, qui partent à l'heure,

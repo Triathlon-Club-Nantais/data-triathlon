@@ -86,7 +86,8 @@ tag.
   besoin au-delà de la lecture : `issues: write`.
 - **`.github/workflows/notify-failure.yml`** (#922) : réutilisable
   (`workflow_call`), appelé sur un échec planifié de `batch.yml` ou un échec
-  d'un lancement des timers Azure de `render-sleep.yml`. Voir « Destinataire de la notification d'échec » plus bas.
+  d'un lancement des timers Azure de `render-sleep.yml`. Voir « Destinataire
+  de la notification d'échec » plus bas.
 
 **Chaque job porte un `timeout-minutes`** (#1071), sans quoi il hérite des
 360 minutes par défaut de GitHub : une étape figée (registre npm ou PyPI muet,
@@ -906,7 +907,9 @@ détenteur peut :
 - supprimer des exécutions, leurs journaux et leurs artefacts, dont les
   `rapport-<id>` et `bilan-<id>` qui gardent la trace des batches ;
 - activer ou désactiver des workflows. Désactiver `render-sleep.yml` arrête la
-  veille des deux services.
+  veille des deux services : entre 23 h 15 et 2 h 15 UTC, la production reste
+  éteinte jusqu'au prochain déploiement (le dispatch de `Render-wake` échoue et
+  alerte Slack, #1320) ; le reste du temps, le quota part en silence.
 
 **Risque résiduel accepté** : la frontière preview/production tient à
 `GITHUB_BATCH_TARGET` et au pouvoir `batch:run`, donc à l'application, jamais au
@@ -1130,8 +1133,9 @@ une bascule saisonnière à entretenir, pour une fenêtre qui reste nocturne dan
 les deux cas.
 
 **Minute 45 pour la preview, 15 pour la production.** `concurrency` ne garde
-qu'un run en attente : un coucher de la preview lancé à la même minute que le
-lever de 2 h 15 pourrait faire annuler celui de la production
+qu'un run en attente : si un run est déjà en cours (un lancement manuel, par
+exemple), un coucher de la preview lancé à la même minute que le lever de
+2 h 15 pourrait faire annuler celui de la production
 (`Render-sleep-preview/run.ps1`).
 
 **La procédure de vérification ci-dessous n'est pas touchée** : le `resume`

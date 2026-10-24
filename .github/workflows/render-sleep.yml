@@ -20,7 +20,7 @@ run-name: "render-sleep · ${{ inputs.action }} · ${{ inputs.target }}"
 # (`infra/azure-functions/`) lancent ce workflow par `workflow_dispatch` à
 # 23 h 15 et 2 h 15 UTC, et à la minute 45 de chaque heure pour la preview. Le
 # `schedule` démarrait le lever avec 2 à 5 h de retard (#842, #885) et sautait
-# des heures entières de la preview ; il a été retiré après une semaine de
+# des heures entières de la preview ; il a été retiré après onze nuits de
 # timers Azure sans échec (#1157).
 #
 # **Le coucher horaire ne coupe jamais un déploiement**, et ce n'est pas une
@@ -158,7 +158,7 @@ jobs:
               exit 0
             fi
 
-            # Le garde-fou de #560 : à l'heure pile, un déploiement peut être en
+            # Le garde-fou de #560 : au passage horaire, un déploiement peut être en
             # vol (`deploy.yml` fait `resume` → deploy hook → build Render, une
             # séquence qui dépasse volontiers l'heure). Plutôt que de parier sur
             # ce que fait l'API d'un `suspend` reçu en plein build — que la
