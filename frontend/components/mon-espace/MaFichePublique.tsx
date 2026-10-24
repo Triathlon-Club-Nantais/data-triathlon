@@ -102,7 +102,8 @@ function Formulaire({ athleteId, initial }: { athleteId: number; initial: Public
       )}
       <form
         onSubmit={(e) => { e.preventDefault(); if (!enregistrer.isPending) enregistrer.mutate(); }}
-        style={{ marginTop: 16, display: "grid", gap: 12, maxWidth: 420 }}
+        // Colonne à plancher nul : sinon le `<select>` prend la largeur de son plus long intitulé et élargit tous les champs hors de la carte.
+        style={{ marginTop: 16, display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 12, maxWidth: 420 }}
       >
         {MASQUES.map(([cle, libelle]) => (
           <label key={cle} {...CIBLE}>
