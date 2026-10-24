@@ -22,7 +22,7 @@ npx vitest --changed origin/main
 ## Workers vitest
 
 `frontend/vitest.config.ts` plafonne vitest à 3 workers hors CI : au défaut
-(coeurs - 1), un worker jsdom monte à ~555 Mi et une suite complète tient ~4 Go,
+(cœurs - 1), un worker jsdom monte à ~555 Mi et une suite complète tient ~4 Go,
 de quoi saturer le swap dès que plusieurs worktrees testent en même temps. La
 CI (`CI` défini) garde le défaut. Pour un essai ponctuel : `npx vitest run
 --maxWorkers=<n>`.
