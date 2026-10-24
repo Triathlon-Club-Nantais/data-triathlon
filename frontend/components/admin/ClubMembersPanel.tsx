@@ -173,7 +173,8 @@ function Candidates({ membre }: { membre: ClubMember }) {
             <Link href={`/athletes/${fiche.athlete_id}`} className="tcn-lien-action">
               fiche n° {fiche.athlete_id}
             </Link>
-            {` ${fiche.nom} ${fiche.prenom} · `}
+            {/* Le nom ne départage rien, sauf sur une fiche trouvée par variante d'orthographe. */}
+            {fiche.nom === membre.nom && fiche.prenom === membre.prenom ? " · " : ` ${fiche.nom} ${fiche.prenom} · `}
             {fiche.course_name ? (
               <>
                 {`${fiche.course_name}${fiche.event_date ? `, ${formatDate(fiche.event_date)}` : ""} · `}
@@ -195,7 +196,9 @@ function Candidates({ membre }: { membre: ClubMember }) {
                 { memberId: membre.id, athleteId: fiche.athlete_id },
                 {
                   onSuccess: () =>
-                    toast.success(`${membre.nom} ${membre.prenom} est rattaché à la fiche n° ${fiche.athlete_id}.`),
+                    toast.success(
+                      `${membre.nom} ${membre.prenom} est rattaché à la fiche n° ${fiche.athlete_id}. Annulable dans « Rattachements faits à la main ».`,
+                    ),
                   onError: (erreur: Error) => toast.error(erreur.message),
                 },
               )
