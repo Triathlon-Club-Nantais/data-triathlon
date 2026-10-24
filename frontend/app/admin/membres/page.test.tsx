@@ -37,9 +37,9 @@ describe("AdminMembresPage", () => {
         season: 2026, seasons: [2026], total: 2, linked: 1, unlinked: 1, ambiguous: 0,
         members: [
           { id: 1, season: 2026, licence_id: "C1", nom: "MARTIN", prenom: "Anne", gender: "F",
-            athlete_id: 5, link_status: "auto", source: "fftri" },
+            athlete_id: 5, link_status: "auto", source: "fftri", candidates: [] },
           { id: 2, season: 2026, licence_id: "C2", nom: "DURAND", prenom: "Paul", gender: "M",
-            athlete_id: null, link_status: "unlinked", source: "fftri" },
+            athlete_id: null, link_status: "unlinked", source: "fftri", candidates: [] },
         ],
       },
       isLoading: false,

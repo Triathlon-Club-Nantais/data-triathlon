@@ -336,6 +336,11 @@ def test_an_ambiguous_member_lists_its_candidate_records_with_their_latest_resul
         db_session, athlete_id=club_record.id, course_id=newer.id, bib_number="2", status="finisher",
         club="TRIATHLON CLUB NANTAIS",
     )
+    undated = course_repository.get_or_create(db_session, name="Sans date", event_date=None, event_type="triathlon-m")
+    participation_repository.create(
+        db_session, athlete_id=club_record.id, course_id=undated.id, bib_number="3", status="finisher",
+        club="CLUB SANS DATE",
+    )
     club_members_service.sync_from_fftri(db_session, user_id=admin.id)
     members = club_member_repository.list_season(db_session, 2026)
 

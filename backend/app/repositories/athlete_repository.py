@@ -1335,7 +1335,8 @@ def review_details(db: Session, athlete_ids: Sequence[int]) -> tuple[dict[int, A
         )
         .join(Course, Course.id == Participation.course_id)
         .where(Participation.athlete_id.in_(ids))
-        .order_by(Course.event_date, Participation.id)
+        # Sans date en tête, sur Postgres comme SQLite : jamais pris pour le dernier résultat.
+        .order_by(Course.event_date.asc().nullsfirst(), Participation.id)
     ).all()
     return athletes, results
 
