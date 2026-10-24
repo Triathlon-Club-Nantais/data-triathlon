@@ -4,8 +4,8 @@ Deux formats coexistent : `report-uri` (`application/csp-report`, un objet
 `{"csp-report": {...}}` par violation, le seul que Firefox envoie) et
 `report-to` (`application/reports+json`, une liste de rapports de tous types,
 regroupés par le navigateur). Seules les violations CSP sont retenues, et
-elles ne vont que dans les logs : la phase d'observation de #570 n'a besoin de
-rien d'autre.
+elles ne vont que dans les logs : la politique bloquante de #570 n'a besoin de
+rien d'autre pour signaler un blocage.
 
 Le contenu vient d'une route anonyme, donc de n'importe qui : chaque valeur est
 tronquée et ramenée sur une ligne avant d'être journalisée, pour qu'un rapport

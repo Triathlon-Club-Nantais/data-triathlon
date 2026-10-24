@@ -102,21 +102,29 @@ describe("RootLayout — polices préchargées (#1081)", () => {
 });
 
 describe("RootLayout — nonce transmis à Base UI (#570)", () => {
-  it.each(["content-security-policy", "content-security-policy-report-only"])(
-    "extrait le nonce de l'en-tête %s et le passe à CSPProvider",
-    async (nom) => {
-      // Sans lui, le `<style>` que Base UI injecte au montage d'un popup
-      // (`.base-ui-disable-scrollbar`) serait bloqué : barres de défilement
-      // réapparues sous chaque sélecteur. `proxy.ts` pose l'un ou l'autre nom
-      // selon le mode, la production observant aujourd'hui par `-report-only`.
-      NOM_EN_TETE = nom;
-      POLITIQUE = "default-src 'self'; script-src 'self' 'nonce-abc123' 'strict-dynamic'";
+  it("extrait le nonce de content-security-policy et le passe à CSPProvider", async () => {
+    // Sans lui, le `<style>` que Base UI injecte au montage d'un popup
+    // (`.base-ui-disable-scrollbar`) serait bloqué : barres de défilement
+    // réapparues sous chaque sélecteur.
+    NOM_EN_TETE = "content-security-policy";
+    POLITIQUE = "default-src 'self'; script-src 'self' 'nonce-abc123' 'strict-dynamic'";
 
-      render(await RootLayout({ children: <p>contenu de la page</p> }));
+    render(await RootLayout({ children: <p>contenu de la page</p> }));
 
-      expect(NONCE_RECU).toBe("abc123");
-    },
-  );
+    expect(NONCE_RECU).toBe("abc123");
+  });
+
+  it("ignore content-security-policy-report-only", async () => {
+    // `proxy.ts` ne pose plus que le nom bloquant (#1825) et efface les deux
+    // noms venus du client : un `-report-only` ne peut pas porter le nonce.
+    NOM_EN_TETE = "content-security-policy-report-only";
+    POLITIQUE = "default-src 'self'; script-src 'self' 'nonce-abc123' 'strict-dynamic'";
+    NONCE_RECU = "residu";
+
+    render(await RootLayout({ children: <p>contenu de la page</p> }));
+
+    expect(NONCE_RECU).toBeUndefined();
+  });
 
   it("ne passe rien quand aucune politique n'est posée", async () => {
     // Le rendu ne doit pas dépendre de la CSP : sans en-tête, Base UI retombe
