@@ -87,7 +87,7 @@ describe("proxy — Content-Security-Policy (#448, #570)", () => {
   });
 
   it("transmet la politique dans les en-têtes de la requête, seul endroit où Next lit le nonce", () => {
-    // `app-render.js:209` lit la CSP dans les en-têtes de la **requête**. Un
+    // `parse-request-headers.js` lit la CSP dans les en-têtes de la **requête**. Un
     // proxy qui n'écrit que la réponse produit une politique correcte et un
     // HTML sans nonce : chaque script de Next serait alors rapporté en
     // violation. C'est l'invariant qui casse le plus silencieusement.
