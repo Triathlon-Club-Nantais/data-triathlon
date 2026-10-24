@@ -46,7 +46,7 @@ export const GUIDE_MEMBRE: GuideSection[] = [
     etapes: [
       "Ouvrir la recherche d'athlète avec la loupe de la navigation, ou le raccourci ⌘K (Mac) ou Ctrl K.",
       "Taper quelques lettres du nom, puis ouvrir la fiche.",
-      "Cliquer sur « Choisir cet athlète » : un raccourci « Mes résultats » apparaît dans la navigation et dans les filtres de « Résultats », et sa saison s'affiche en tête de « Mon espace ».",
+      "Cliquer sur « Choisir cet athlète » : un raccourci « Mes résultats » apparaît dans les filtres de « Résultats », et sa saison s'affiche en tête de « Mon espace ».",
     ],
     captures: [{ src: "/guide/membre/fiche-athlete.jpg", alt: "Fiche d'un athlète avec le bouton « Choisir cet athlète »" }],
   },
