@@ -19,7 +19,7 @@ function Champ({ id, label, ...rest }: { id: string; label: string } & React.Com
   );
 }
 
-const ANCRE = "demande-adhesion";
+const MEMBERSHIP_ANCHOR = "demande-adhesion";
 const ID_ERREUR = "adhesion-erreur";
 const DELAI_NOUVELLE_DEMANDE_JOURS = 30;
 
@@ -46,13 +46,13 @@ export function MemberRequestCard({ session }: { session: SessionUser }) {
   }, [statut]);
   // La carte se monte après la session : au chargement direct, le défilement natif vers l'ancre l'a manquée (#1817).
   useEffect(() => {
-    if (window.location.hash === `#${ANCRE}`) document.getElementById(ANCRE)?.scrollIntoView();
+    if (window.location.hash === `#${MEMBERSHIP_ANCHOR}`) document.getElementById(MEMBERSHIP_ANCHOR)?.scrollIntoView();
   }, []);
   const finRefus = demande?.status === "rejected" && demande.decided_at ? finDuRefus(demande.decided_at) : null;
 
   if (demande?.status === "pending") {
     return (
-      <Card id={ANCRE} style={{ scrollMarginTop: "80px" }}>
+      <Card id={MEMBERSHIP_ANCHOR} style={{ scrollMarginTop: "80px" }}>
         <h2 ref={titre} tabIndex={-1} style={TITRE}>Adhésion au club</h2>
         <p role="status" style={DISCRET}>
           Votre demande d&apos;adhésion est en attente : un administrateur du club la valide.
@@ -108,7 +108,7 @@ export function MemberRequestCard({ session }: { session: SessionUser }) {
   const invalide = (id: string) =>
     erreurLocale?.champs.includes(id) ? { "aria-invalid": true as const, "aria-describedby": ID_ERREUR } : {};
   return (
-    <Card id={ANCRE} style={{ scrollMarginTop: "80px" }}>
+    <Card id={MEMBERSHIP_ANCHOR} style={{ scrollMarginTop: "80px" }}>
       <h2 ref={titre} tabIndex={-1} style={TITRE}>Adhésion au club</h2>
       {finRefus ? (
         <p style={DISCRET}>

@@ -272,7 +272,7 @@ describe("AccountPage: anonymise my results (#1673)", () => {
 
   it("blocks the action until the preview arrives, then announces its impact", async () => {
     let livrer: (apercu: unknown) => void = () => {};
-    previewMyOpposition.mockReturnValue(new Promise((resoudre) => (livrer = resoudre)));
+    previewMyOpposition.mockReturnValue(new Promise((resolveSession) => (livrer = resolveSession)));
     const dialog = await ouvrirLOpposition();
 
     expect(dialog).toHaveAccessibleName("Anonymiser vos résultats ?");
@@ -421,8 +421,8 @@ describe("AccountPage: session states", () => {
 describe("AccountPage: #demande-adhesion anchor", () => {
   // Chargement direct (#1817) : la carte n'existe qu'après la session, le défilement natif du navigateur la manque.
   it("scrolls to the membership card once the session arrives", async () => {
-    let resoudre: (session: SessionUser) => void = () => {};
-    getSession.mockReturnValue(new Promise<SessionUser>((resolve) => (resoudre = resolve)));
+    let resolveSession: (session: SessionUser) => void = () => {};
+    getSession.mockReturnValue(new Promise<SessionUser>((resolve) => (resolveSession = resolve)));
     const scrollIntoView = vi.fn();
     Element.prototype.scrollIntoView = scrollIntoView;
     window.location.hash = "#demande-adhesion";
@@ -436,7 +436,7 @@ describe("AccountPage: #demande-adhesion anchor", () => {
       );
       expect(screen.getByTestId("squelette-compte")).toBeInTheDocument();
       expect(scrollIntoView).not.toHaveBeenCalled();
-      resoudre(SESSION);
+      resolveSession(SESSION);
 
       await screen.findByRole("heading", { name: "Adhésion au club" });
       await waitFor(() => expect(scrollIntoView).toHaveBeenCalledTimes(1));
