@@ -233,11 +233,14 @@ jobs:
   # Job à part, en matrice : les tests dominaient le job frontend (117 s sur ~178 s,
   # mesuré sur #670) parce que le runner CI a moins de cœurs qu'un poste de dev — le
   # goulot n'est pas le nombre de fichiers mais le coût d'instanciation de jsdom
-  # (~650 ms/fichier), et deux pistes de config seule ont été essayées et rejetées :
-  # `isolate: false` bloque la suite (état jsdom partagé entre fichiers), `pool:
+  # (~650 ms/fichier), et deux pistes de config seule ont été essayées et rejetées
+  # pour jsdom : `isolate: false` y enlise la suite (ses `act()` se chevauchent d'un
+  # fichier à l'autre ; #1797 ne l'active que sur le projet `node`), `pool:
   # "threads"` est 3x plus lent (plusieurs jsdom sur un seul tas V8). Le sharding
   # `--shard=N/M` de vitest répartit les fichiers de test sur des runners séparés,
-  # donc réellement parallèles plutôt qu'en contention sur les mêmes cœurs.
+  # donc réellement parallèles plutôt qu'en contention sur les mêmes cœurs. Le
+  # plafond `maxWorkers: 3` de #1797 ne vaut que hors CI : ici, vitest garde son
+  # défaut (cœurs - 1).
   frontend-test:
     needs: changes
     if: needs.changes.outputs.frontend == 'true'
