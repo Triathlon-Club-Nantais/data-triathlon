@@ -7,10 +7,11 @@ try {
 }
 catch {
     # Dispatch en échec : aucun cron ne rattrape le lever (#1157), la production
-    # reste couchée jusqu'au prochain déploiement ou à un lancement manuel. Le
-    # moniteur repart tout de suite pour alerter, et l'invocation échoue (#1320).
+    # reste couchée jusqu'au prochain déploiement de production (tag v*) ou à un
+    # lancement manuel. Le moniteur repart tout de suite pour alerter, et
+    # l'invocation échoue (#1320).
     Set-BackendMonitor -State start
-    Send-OpsAlert "*Render-wake* (Azure) : lever de la production non déclenché, elle reste couchée jusqu'au prochain déploiement ou à un lancement manuel de render-sleep.yml (action resume, cible production). $_"
+    Send-OpsAlert "*Render-wake* (Azure) : lever de la production non déclenché, elle reste couchée jusqu'au prochain déploiement de production (tag v*) ou à un lancement manuel de render-sleep.yml (action resume, cible production). $_"
     throw
 }
 # Réactivé une fois le backend en ligne, ou au bout de 10 min quoi qu'il arrive :
