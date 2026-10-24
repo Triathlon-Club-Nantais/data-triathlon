@@ -4,12 +4,12 @@ import type { NextRequest } from "next/server";
 const LOGGED_IN_COOKIE = "tcn_logged_in";
 
 /**
- * En-tête d'observation (#448), maintenu par #570 le temps de vérifier ses
- * corrections jusqu'en production. La phase d'observation n'est pas une
- * simulation : `Report-Only` injecte déjà le nonce (`app-render.js` lit les
- * deux noms), donc elle rapporte exactement ce que le mode bloquant
- * appliquerait. Le relevé mené sur la preview a sonné trois sources de style
- * ou d'`eval` en ligne, toutes traitées à la source ou épinglées :
+ * Mode bloquant (#570), après une observation en `Report-Only` (#448) restée
+ * sans violation en production du 17/10 au 24/10/2026 (sondage
+ * `docs/superpowers/specs/2026-10-24-csp-violations-sondage.md`). Les
+ * violations remontent toujours au backend par `report-to` et `report-uri`.
+ * Le relevé mené sur la preview avait sonné trois sources de style ou
+ * d'`eval` en ligne, toutes traitées à la source ou épinglées :
  *
  * - `sonner`, qui injecte sa feuille à l'import → les deux hashes ci-dessous ;
  * - Base UI, qui injecte `.base-ui-disable-scrollbar` au montage de ses popups
@@ -20,11 +20,8 @@ const LOGGED_IN_COOKIE = "tcn_logged_in";
  * Le rendu serveur, lui, est propre : sur les 32 routes relevées en
  * production et en preview, tous les `<script>`, `<style>` et feuilles portent
  * le nonce.
- *
- * Le passage au nom sans `-Report-Only` fait l'objet d'une PR de suite, une
- * fois la production relevée sans violation.
  */
-const CSP_HEADER = "Content-Security-Policy-Report-Only";
+const CSP_HEADER = "Content-Security-Policy";
 
 const REPORTS_PATH = "/api/v1/csp-reports";
 const REPORTING_GROUP = "csp-endpoint";
@@ -211,8 +208,8 @@ export function proxy(request: NextRequest) {
   // une politique correcte et un HTML sans nonce, donc un rapport de violations
   // sur les propres scripts de Next.
   const requestHeaders = new Headers(request.headers);
-  // Next et le layout lisent `content-security-policy` en premier : une valeur
-  // venue du client choisirait sinon le nonce du rendu.
+  // Next et le layout lisent les deux noms : une valeur venue du client
+  // choisirait sinon le nonce du rendu.
   requestHeaders.delete("content-security-policy");
   requestHeaders.delete("content-security-policy-report-only");
   requestHeaders.set(CSP_HEADER, policy);

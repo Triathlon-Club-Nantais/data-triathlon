@@ -12,7 +12,7 @@ function requeteAvec(cookies: Record<string, string>) {
   return requete;
 }
 
-const CSP = "content-security-policy-report-only";
+const CSP = "content-security-policy";
 
 /** Nom de l'en-tête tel que `NextResponse.next({ request })` l'encode sur la
  * réponse pour le renderer (`server/web/spec-extension/response.js`). */
@@ -77,13 +77,13 @@ describe("proxy", () => {
 });
 
 describe("proxy — Content-Security-Policy (#448, #570)", () => {
-  it("pose la politique en Report-Only, jamais en mode bloquant", () => {
-    // Les corrections de #570 se vérifient d'abord en observation, jusqu'en
-    // production : la bascule ne se décide qu'après un relevé sans violation.
+  it("pose la politique en mode bloquant, plus en Report-Only", () => {
+    // Deux en-têtes s'évalueraient chacun de leur côté : un `-report-only`
+    // résiduel doublerait chaque rapport.
     const reponse = proxy(requeteAvec({}));
 
     expect(reponse.headers.get(CSP)).toBeTruthy();
-    expect(reponse.headers.get("content-security-policy")).toBeNull();
+    expect(reponse.headers.get("content-security-policy-report-only")).toBeNull();
   });
 
   it("transmet la politique dans les en-têtes de la requête, seul endroit où Next lit le nonce", () => {
@@ -98,18 +98,23 @@ describe("proxy — Content-Security-Policy (#448, #570)", () => {
     expect(transmise).toBe(reponse.headers.get(CSP));
   });
 
-  it("ne transmet jamais une politique fournie par le client", () => {
-    // Next et le layout lisent `content-security-policy` avant
-    // `-report-only` : relayée telle quelle, la requête choisirait le nonce de
-    // son propre rendu.
-    const requete = new NextRequest("https://exemple.fr/dashboard", {
-      headers: { "content-security-policy": "script-src 'nonce-choisi'" },
-    });
+  it.each(["content-security-policy", "content-security-policy-report-only"])(
+    "ne transmet jamais une politique %s fournie par le client",
+    (nom) => {
+      // Next et le layout lisent les deux noms : relayée telle quelle, la
+      // requête choisirait le nonce de son propre rendu.
+      const requete = new NextRequest("https://exemple.fr/dashboard", {
+        headers: { [nom]: "script-src 'nonce-choisi'" },
+      });
 
-    const reponse = proxy(requete);
+      const reponse = proxy(requete);
 
-    expect(reponse.headers.get("x-middleware-request-content-security-policy")).toBeNull();
-  });
+      expect(reponse.headers.get(CSP_TRANSMISE)).not.toContain("nonce-choisi");
+      expect(
+        reponse.headers.get("x-middleware-request-content-security-policy-report-only"),
+      ).toBeNull();
+    },
+  );
 
   it("expose un nonce que l'extraction de Next sait retrouver", () => {
     const reponse = proxy(requeteAvec({}));
