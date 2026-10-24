@@ -5,20 +5,21 @@ Render. Cible : la CSP `Report-Only` posée par `frontend/proxy.ts` sur
 `https://data.triathlon-club-nantais.com/`, et les logs Render du service
 `triathlon-backend-production` (`srv-d8ssck6q1p3s738mh8g0`), où
 `backend/app/services/csp_report.py` écrit une ligne `CSP violation ...` par
-rapport reçu.
+violation reçue (au plus 20 par requête, plus une ligne de troncature).
 
 ## Conclusion
 
-1. **Zéro violation CSP réelle en production sur la fenêtre lisible**, du
-   2026-10-17 09:34 UTC au 2026-10-24 : ni ligne `CSP violation`, ni même un
-   seul `POST /api/v1/csp-reports`.
+1. **Zéro rapport CSP reçu par le backend de production sur la fenêtre
+   lisible**, du 2026-10-17 09:34 UTC au 2026-10-24 : ni ligne
+   `CSP violation`, ni même un seul `POST /api/v1/csp-reports`. Ce zéro ne vaut
+   « zéro violation » qu'une fois posé le témoin positif de l'« Angle mort ».
 2. **La fenêtre demandée (depuis le 09/10) n'est pas lisible en entier** : la
    rétention des logs Render du plan gratuit est de 7 jours. Du 09/10 au 17/10,
    seul reste le relevé du 09/10 consigné sur l'issue (aucune violation depuis
    le 06/10).
 3. **L'hypothèse de l'issue est dépassée** : le composant qui rend le `<style>`
-   hissé par React DOM était déjà identifié et corrigé par la PR #1286 (fusionnée
-   le 10/10, en production depuis `v0.8.7`), que les commentaires de l'issue ne
+   hissé par React DOM était déjà identifié et corrigé par la PR #1286 (commit
+   `3f6e523b`, fusionnée le 10/10, en production depuis `v0.8.7`), que les commentaires de l'issue ne
    citent pas. C'est le `<style href precedence>` de Base UI
    (`.base-ui-disable-scrollbar`), signé d'un nonce neuf après
    `router.refresh()`. Le build actuel le confirme : c'est le **seul** `<style>`
@@ -53,7 +54,10 @@ Politique identique à `buildCspPolicy` de `main`, toujours en `Report-Only`.
 
 uvicorn journalise **toutes** les réponses, y compris un 403 de
 `OriginGuardMiddleware` ou un 413 de taille : zéro ligne `POST /api/v1/csp-reports`
-signifie qu'aucun rapport n'a atteint le backend, accepté ou refusé.
+signifie qu'aucun rapport n'a atteint le backend, accepté ou refusé. Limite :
+un refus en amont d'uvicorn (rewrite Vercel, bord Render, délai dépassé
+pendant un réveil à froid du plan gratuit) ou une déconnexion du client avant
+la réponse ne laisse aucune ligne.
 
 Groupement par directive et source : **vide** sur la fenêtre. Pour mémoire,
 l'historique complet de la production depuis la MEP v0.8.0, relevé sur l'issue :
@@ -63,7 +67,7 @@ l'historique complet de la production depuis la MEP v0.8.0, relevé sur l'issue 
 | 05/10 14:13 | `style-src-elem`, `blocked=inline` | `/_next/static/chunks/3vk4o7wc3zljr.js:31` (React DOM) | `/courses/1028` | Base UI après `router.refresh()`, corrigé par #1286 |
 | 06/10 12:06 | idem | idem | `/athletes/36695` | idem |
 
-### Le trafic réel a bien parcouru les chemins à risque
+### Le trafic réel a pu parcourir les chemins à risque
 
 Le zéro ne vient pas d'une absence de visiteurs. Écritures relevées sur la
 fenêtre (`text: "*POST /api/v1/*"` puis les écritures admin), IP de visiteurs
@@ -71,16 +75,22 @@ résidentiels relayées par le front :
 
 - `POST /api/v1/site-access/session` → 204 les 18/10 (×3) et 21/10 :
   `SiteAccessGate` enchaîne sur `router.refresh()`, le mécanisme même des
-  violations d'octobre ;
+  violations d'octobre, mais seulement hors de `/acces` (là, c'est un
+  `router.push`) : les logs ne disent pas lequel ;
 - `POST /api/v1/scrape/event/stream` → 200 les 18/10 et 19/10 : import depuis
-  `/ajouter`, suivi d'un `router.refresh()` par `ImportStreamProvider` ;
+  `/ajouter`, suivi d'un `router.refresh()` par `ImportStreamProvider` si
+  l'import aboutit sans doublon ;
 - gestes admin à toast `sonner` : imports d'adhérents (19/10, 22/10),
   4 `PATCH /admin/feedback` (19/10), approbations de demande de membre et de
   rattachement d'athlète, suppression d'adresse (22/10).
 
 **Non parcouru** : aucun geste d'admin sur une fiche épreuve ou athlète
 (`CourseAdminPanel`, `AthleteAdminPanel`, fusion, détachement), le scénario
-exact des 05/10 et 06/10.
+exact des 05/10 et 06/10. Et le second temps du mécanisme n'est observable nulle
+part : la violation suppose qu'un `Select` ou une `ScrollArea` de Base UI soit
+montée **pour la première fois après** le refresh (React déduplique le `<style>`
+par `href`). Le premier temps (le refresh) a pu être parcouru ; rien ne dit que
+le second l'a été.
 
 ### Attribution du `<style>` hissé par React DOM
 
@@ -92,7 +102,9 @@ de hissage est dans `1ebmqts7ymq3f.js`, **toujours ligne 31** :
 …querySelector('style[data-href~="'+ty(n.href)+'"]');…var l=_({},n,{"data-href":n.href,"data-precedence":n.precedence,href:null,precedence:null});return e7(r=(e.ownerDocument||e).createElement("style")),…
 ```
 
-Build local de `main` (`d1e01199`, `next@16.4.0`, `react-dom@19.3.0`,
+Build local de `main` (`d1e01199`, exactement le tag `v0.9.0` servi en
+production ; les noms de chunks diffèrent de ceux de la prod, le build
+local n'ayant pas les mêmes variables `NEXT_PUBLIC_*` ; `next@16.4.0`, `react-dom@19.3.0`,
 `@base-ui/react@1.8.0`, `sonner@2.0.8`) : `npm ci && npm run build`, compilé et
 48 pages générées (Next sort ensuite en code 1 sur un avis de sécurité de
 `next@16.4.0`, sans effet sur les chunks). Recherche dans
@@ -107,7 +119,14 @@ $ grep -o 'precedence:"[^"]*"' *.js | sort | uniq -c
       1 2epm04khuu7k1.js:precedence:"base-ui:low"  # le seul <style> à precedence
 $ grep -o '.\{60\}precedence:"base-ui:low".\{20\}' 2epm04khuu7k1.js
 ment,{children:[!I&&(l=A,(0,t.jsx)("style",{nonce:l,href:e$,precedence:"base-ui:low",children:`.${e$}{sc
+$ grep -o '.\{30\}jsxs\?)("style".\{60\}' *.js
+2epm04khuu7k1.js:ment,{children:[!I&&(l=A,(0,t.jsx)("style",{nonce:l,href:e$,precedence:"base-ui:low",children:`.${e$}{
+2pyzn5dhmeldh.js:,r.jsx)("head",{children:(0,r.jsx)("style",{dangerouslySetInnerHTML:{__html:a.errorThemeCss}})}),(0,r.
 ```
+
+Le second `<style>` JSX est celui du `GlobalError` par défaut de Next, **sans
+nonce**. Il ne sert pas : `frontend/app/global-error.tsx` le remplace, sans
+`<style>`. À garder en tête si ce fichier venait à disparaître.
 
 La source est `node_modules/@base-ui/react/utils/styles.mjs`
 (`styleDisableScrollbar.getElement(nonce)`), utilisé par `ScrollArea` et
@@ -121,13 +140,15 @@ Mécanisme, établi par #1286 et toujours valable : `router.refresh()` rejoue le
 layout racine avec le nonce d'une **nouvelle** requête, alors que la CSP du
 document garde celui du chargement. `StableCSPProvider`
 (`frontend/components/layout/StableCSPProvider.tsx`) fige le nonce au premier
-rendu ; il est monté dans le layout racine, donc survit au refresh.
+rendu ; il est monté dans le layout racine, donc survit au refresh. Cas limite :
+un remontage du layout racine (`global-error` puis `reset()`) reprendrait un
+nonce neuf.
 
 ## Ce qui bloque la bascule, et la plus petite correction
 
 | Cause | État | Plus petite correction |
 | --- | --- | --- |
-| Base UI, `<style precedence>` signé d'un nonce neuf après `router.refresh()` | corrigé (#1286, `v0.8.7`) ; 0 violation depuis | rien |
+| Base UI, `<style precedence>` signé d'un nonce neuf après `router.refresh()` | corrigé (#1286, `v0.8.7`) ; 0 rapport reçu du 17/10 au 24/10, 10/10 au 17/10 hors rétention | rien |
 | `sonner`, feuille injectée à l'import | deux hashes épinglés, `proxy.test.ts` échoue à la dérive | rien |
 | `zod`, sonde `new Function("")` | `jitless` (`lib/zod.ts`) | rien |
 | Témoin positif de la chaîne de rapport en production sur la fenêtre | non posé (refusé par le garde-fou de session, écriture en prod) | un `POST` de test, puis lecture de sa ligne dans les logs Render dans les 7 jours |
@@ -154,6 +175,18 @@ curl -sS -o /dev/null -w "%{http_code}\n" -X POST \
   --data '{"csp-report":{"effective-directive":"test-570-sondage","blocked-uri":"inline","document-uri":"https://data.triathlon-club-nantais.com/","source-file":"curl","line-number":0,"disposition":"report"}}'
 # attendu : 204, puis une ligne "CSP violation directive=test-570-sondage" dans list_logs
 ```
+
+Ce `curl` prouve le trajet Vercel → backend → logs, pas l'émission par le
+navigateur ni `Reporting-Endpoints` (il passe `OriginGuardMiddleware` par la
+branche sans `Origin`). Témoin plus fidèle et pas plus intrusif (une ligne de
+log) : sur la prod, dans la console d'un navigateur,
+`document.head.append(Object.assign(document.createElement("style"), {textContent: "/* test-570 */"}))`,
+puis lecture de la ligne `style-src-elem` correspondante.
+
+Autre angle mort : le grep du bundle ne voit pas les extensions PostHog
+chargées à l'exécution par `/ingest/static` (sondages, barre d'outils), qui
+peuvent injecter un `<style>` sans nonce. Seul le zéro empirique, une fois
+témoigné, les couvre.
 
 Rétention : les logs Render ne gardent que 7 jours, toute observation de suite
 doit être lue dans ce délai.
