@@ -57,6 +57,10 @@ export default defineConfig({
     unstubGlobals: true,
     setupFiles: ["./test/setup.ts"],
     exclude: EXCLUDE,
+    // En local, plusieurs worktrees lancent leur suite en même temps : au
+    // défaut (coeurs - 1, soit 7 workers à ~555 Mi en jsdom), le swap sature.
+    // La CI garde le défaut de vitest (#1797).
+    maxWorkers: process.env.CI ? undefined : 3,
     // `environmentMatchGlobs` a été **supprimé** de vitest 4 (pas déprécié) :
     // `projects` est la seule route. `extends: true` fait hériter chaque projet
     // des `plugins`, du `resolve.alias` et des options `test` ci-dessus.
@@ -75,6 +79,10 @@ export default defineConfig({
         test: {
           name: "node",
           environment: "node",
+          // 3 à 5 fois plus rapide sur ce projet (#1797). Jamais sur `jsdom` :
+          // ses `act()` se chevauchent d'un fichier à l'autre et la suite
+          // s'enlise (sondage de #1713).
+          isolate: false,
           // `node` prend le `include` par défaut de vitest **moins** les globs
           // jsdom. La partition est ainsi *structurelle* : tout fichier que
           // vitest collecte tombe dans exactement un projet. Deux listes

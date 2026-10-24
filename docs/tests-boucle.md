@@ -19,6 +19,20 @@ npx vitest related --run <fichiers source>
 npx vitest --changed origin/main
 ```
 
+## Workers vitest
+
+`frontend/vitest.config.ts` plafonne vitest à 3 workers hors CI : au défaut
+(coeurs - 1), un worker jsdom monte à ~555 Mi et une suite complète tient ~4 Go,
+de quoi saturer le swap dès que plusieurs worktrees testent en même temps. La
+CI (`CI` défini) garde le défaut. Pour un essai ponctuel : `npx vitest run
+--maxWorkers=<n>`.
+
+Le projet `node` tourne en `isolate: false` (3 à 5 fois plus rapide), le projet
+`jsdom` garde l'isolation : sans elle, ses `act()` se chevauchent d'un fichier à
+l'autre. Un test `node` ne doit donc pas compter sur un module ou un global
+remis à neuf entre fichiers. Mesures : sondage de #1713
+(`docs/superpowers/specs/2026-10-21-vitest-profil-sondage.md`) et #1797.
+
 ## Une suite complète par branche
 
 Avant `finishing-a-development-branch`, lancer la suite complète de
