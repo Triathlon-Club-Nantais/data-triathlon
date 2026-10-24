@@ -54,16 +54,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // requête et ne touche pas au Data Cache.
   await connection();
 
-  // Nonce relu pour Base UI (#570), voir `StableCSPProvider`.
-  //
-  // Les deux noms d'en-tête sont lus : `proxy.ts` émet l'un ou l'autre selon
-  // que la politique observe ou bloque, et ce layout ne doit pas changer avec
-  // lui.
+  // Nonce relu pour Base UI (#570), voir `StableCSPProvider`. `proxy.ts` ne
+  // pose plus que le nom bloquant.
   const enTetes = await headers();
-  const politique =
-    enTetes.get("content-security-policy") ??
-    enTetes.get("content-security-policy-report-only") ??
-    "";
+  const politique = enTetes.get("content-security-policy") ?? "";
   const nonce = politique.match(/'nonce-([^']+)'/)?.[1];
 
   // Largeur du rail décidée avant la peinture (#482, NAV-3) : le cookie que
