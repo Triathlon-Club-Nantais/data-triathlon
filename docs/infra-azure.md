@@ -80,15 +80,15 @@ Tout part par e-mail aux **trois mêmes destinataires** : la boîte du
 secrétariat `secretaire@triathlonclubnantais.onmicrosoft.com` et les adresses
 personnelles des deux mainteneurs. Elles ne sont pas reproduites ici (dépôt
 public) : la liste de référence est celle de `Monthly_budget_TCN_credit`, à
-lire par `az consumption budget list`. Un changement de destinataire se répète
-sur les quatre objets ci-dessous.
+lire par `az consumption budget list -o json`. Un changement de destinataire se
+répète sur les deux budgets, l'alerte d'anomalie et le groupe d'actions.
 
 | Objet | Nom | Déclenchement |
 |---|---|---|
 | Budget de l'abonnement | `Monthly_budget_TCN_credit` | 120 €/mois : 50 % réel, 80 % et 100 % prévisionnel |
-| Budget de l'abonnement | `Monthly_budget_TCN_low` | 25 €/mois : 100 % réel et 100 % prévisionnel. Voit une dérive de quelques euros au-dessus des ~15,6 € habituels |
+| Budget de l'abonnement | `Monthly_budget_TCN_low` | 25 €/mois : 100 % réel et 100 % prévisionnel. Voit une dérive d'une dizaine d'euros au-dessus des ~15,6 € habituels |
 | Alerte d'anomalie Cost Management (`InsightAlert`) | `daily-anomaly-tcn` | détection quotidienne native, vue `ms:DailyAnomalyByResourceGroup` |
-| Alerte métrique Azure Monitor | `tcndatabdd-storage-80` (RG `TCN_Data_BDD`) | `storage_percent` moyen > 80 % sur 1 h, évaluée toutes les heures, sévérité 2. Le disque est fixe (auto-grow désactivé) : plein, il arrête la base. 13,9 % le 24/10/2026 |
+| Alerte métrique Azure Monitor | `tcndatabdd-storage-80` (RG `TCN_Data_BDD`) | `storage_percent` moyen > 80 % sur 1 h, évaluée toutes les heures, sévérité 2. Le disque est fixe (auto-grow désactivé) : plein, il arrête la base. 13,9 % à la création (24/10/2026) |
 | Groupe d'actions | `ag-tcn-email` (RG `TCN_Data_BDD`) | e-mails seuls, porte l'alerte métrique |
 
 **Coût : 0 €.** Budgets et alertes d'anomalie sont gratuits ; Azure Monitor
@@ -98,14 +98,18 @@ l'abonnement) ; les 1 000 premiers e-mails de notification du mois sont
 gratuits. Pas de relais Slack : il demanderait une Logic App ou un webhook,
 hors budget zéro.
 
+Les deux budgets et l'alerte d'anomalie **expirent le 31/05/2030** : les
+prolonger avant cette date.
+
 Relire l'ensemble (le nom de l'abonnement contient une espace insécable,
 passer son ID) :
 
 ```bash
 S=<subscription-id>
-az consumption budget list --subscription "$S" -o table
+az consumption budget list --subscription "$S" -o json
 az rest --method get --url "https://management.azure.com/subscriptions/$S/providers/Microsoft.CostManagement/scheduledActions?api-version=2023-11-01"
 az monitor metrics alert list --subscription "$S" -o table
+az monitor action-group show --subscription "$S" -g TCN_Data_BDD -n ag-tcn-email
 ```
 
 ## Tenant Entra External ID (#1323)
