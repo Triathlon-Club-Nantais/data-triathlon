@@ -78,9 +78,12 @@ Slack côté Azure pour elle : un jeton en panne alerte déjà par la veille de 
 production, et un échec du workflow passe par `notify-failure.yml`, limité à un
 message par 12 h.
 
-**Les crons de `render-sleep.yml` restent en secours** (décision du 26/09) tant
-que ces fonctions ne sont pas validées en production. Ils passent plus tard, et
-ne font alors plus rien. Leur retrait fera l'objet d'une issue de suivi.
+**Ces fonctions sont le seul déclencheur planifié de `render-sleep.yml`** :
+ses crons d'Actions, gardés en secours depuis le 26/09, ont été retirés par
+#1157 après onze nuits consécutives sans échec (13/10 au 24/10/2026). Un lever
+manqué n'a plus de cron derrière lui : il se rattrape par le `resume` de
+`deploy.yml` ou un `workflow_dispatch` manuel, et l'échec du dispatch alerte
+le canal Slack d'ops (#1320).
 
 **FinOps.** 26 exécutions par jour de plus (24 pour la preview, quelques
 secondes chacune), dans l'octroi gratuit du plan Flex Consumption. Côté GitHub,
@@ -91,7 +94,7 @@ autant de runs courts, gratuits sur un dépôt public.
 | Nom | Rôle |
 |---|---|
 | `CRON_SECRET` | Même valeur que la variable `CRON_SECRET` du projet Vercel de production (`docs/ci-cd.md`). |
-| `GITHUB_DISPATCH_TOKEN` | Jeton *fine-grained* limité au dépôt `data-triathlon`, permission **Actions : read and write** et rien d'autre. Distinct de `GITHUB_BATCH_TOKEN` (Render), pour révoquer l'un sans couper l'autre. Échéance à suivre : un jeton expiré fait échouer `Render-wake`, et seul le cron de secours rallume alors la production. |
+| `GITHUB_DISPATCH_TOKEN` | Jeton *fine-grained* limité au dépôt `data-triathlon`, permission **Actions : read and write** et rien d'autre. Distinct de `GITHUB_BATCH_TOKEN` (Render), pour révoquer l'un sans couper l'autre. Échéance à suivre : un jeton expiré fait échouer `Render-wake`, et la production reste éteinte jusqu'à un déploiement ou un `workflow_dispatch` manuel. |
 | `SLACK_OPS_WEBHOOK_URL` | Même valeur que le secret de dépôt `SLACK_OPS_WEBHOOK_URL` (`notify-failure.yml`). Poste dans le canal d'ops quand `Render-sleep` ou `Render-wake` ne parvient pas à déclencher le workflow (#1320). Absente : pas d'alerte, seulement un warning. |
 | `UPTIMEROBOT_API_KEY` | Clé d'API principale du compte UptimeRobot (`it.triathlonclubnantais@gmail.com`), pour la pause du moniteur backend. |
 | `UPTIMEROBOT_BACKEND_MONITOR_ID` | Identifiant du moniteur « Backend production (Render) » : `804143914`. |
