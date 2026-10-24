@@ -1,9 +1,21 @@
 """DTO des licenciés du club (#1202)."""
+from datetime import date
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
 from app.schemas.ids import StrictDbId
+
+
+class ClubMemberCandidateOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    athlete_id: int
+    nom: str
+    prenom: str
+    course_name: str | None
+    event_date: date | None
+    club: str | None
 
 
 class ClubMemberOut(BaseModel):
@@ -18,6 +30,8 @@ class ClubMemberOut(BaseModel):
     athlete_id: int | None
     link_status: Literal["auto", "manual", "unlinked", "ambiguous"]
     source: Literal["fftri", "file"]
+    # Fiches entre lesquelles trancher : vide sauf pour un licencié `ambiguous`.
+    candidates: list[ClubMemberCandidateOut] = []
 
 
 class ClubMembersSeasonOut(BaseModel):

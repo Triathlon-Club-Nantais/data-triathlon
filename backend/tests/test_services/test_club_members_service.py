@@ -316,3 +316,38 @@ def test_import_file_skips_an_identity_in_the_opposition_register(db_session, ad
     club_members_service.import_file(db_session, season=2024, content=content, filename="l.csv", user_id=admin.id)
 
     assert [m.nom for m in club_member_repository.list_season(db_session, 2024)] == ["DURAND"]
+
+
+def test_an_ambiguous_member_lists_its_candidate_records_with_their_latest_result(db_session, admin, roster):
+    club_record = _athlete(db_session, "DURAND", "Paul")
+    homonym = _athlete(db_session, "DURAND", "Paul", homonym_rank=1)
+    _athlete(db_session, "MARTIN", "Anne")
+    older = course_repository.get_or_create(
+        db_session, name="Angers", event_date=date(2024, 5, 19), event_type="triathlon-m"
+    )
+    newer = course_repository.get_or_create(
+        db_session, name="Nantes", event_date=date(2025, 10, 19), event_type="triathlon-m"
+    )
+    participation_repository.create(
+        db_session, athlete_id=club_record.id, course_id=older.id, bib_number="1", status="finisher",
+        club="AUTRE CLUB",
+    )
+    participation_repository.create(
+        db_session, athlete_id=club_record.id, course_id=newer.id, bib_number="2", status="finisher",
+        club="TRIATHLON CLUB NANTAIS",
+    )
+    club_members_service.sync_from_fftri(db_session, user_id=admin.id)
+    members = club_member_repository.list_season(db_session, 2026)
+
+    candidates = club_members_service.candidates_of(db_session, members)
+
+    ambiguous = next(m for m in members if m.licence_id == "C2")
+    assert candidates == {ambiguous.id: [
+        club_members_service.MemberCandidate(
+            athlete_id=club_record.id, nom="DURAND", prenom="Paul",
+            course_name="Nantes", event_date=date(2025, 10, 19), club="TRIATHLON CLUB NANTAIS",
+        ),
+        club_members_service.MemberCandidate(
+            athlete_id=homonym.id, nom="DURAND", prenom="Paul", course_name=None, event_date=None, club=None,
+        ),
+    ]}

@@ -24,6 +24,7 @@ import {
   useUnlinkClubMember,
 } from "@/lib/queries/admin";
 import type { ClubMember, ClubMembersSeason } from "@/lib/types";
+import { formatDate } from "@/lib/utils/date";
 import { motCompte, plural } from "@/lib/utils/format";
 import { seasonLabel } from "@/lib/utils/season";
 
@@ -46,7 +47,10 @@ export function ClubMembersPanel({
   isLoading: boolean;
 }) {
   const relire = useSyncClubMembers();
-  const aRattacher = (data?.members ?? []).filter((m) => m.athlete_id === null);
+  // Les cas à départager d'abord : noyés parmi les sans fiche, on ne les voyait pas.
+  const aRattacher = (data?.members ?? [])
+    .filter((m) => m.athlete_id === null)
+    .sort((a, b) => Number(b.link_status === "ambiguous") - Number(a.link_status === "ambiguous"));
   const saisons = Array.from(new Set([season, ...(data?.seasons ?? [])])).sort((a, b) => b - a);
 
   return (
@@ -112,6 +116,7 @@ export function ClubMembersPanel({
                   <span className="ml-2 text-sm text-[var(--tcn-text-faint)]">{MOTIF[membre.link_status]}</span>
                 </span>
                 <LienFiche membre={membre} />
+                {membre.candidates.length > 0 && <Candidates membre={membre} />}
               </li>
             ))}
           </ul>
@@ -155,6 +160,52 @@ function ManualLinks({ members }: { members: ClubMember[] }) {
         })
       }
     />
+  );
+}
+
+function Candidates({ membre }: { membre: ClubMember }) {
+  const rattacher = useLinkClubMember();
+  return (
+    <ul className="basis-full space-y-1 border-l-2 border-[var(--tcn-grey-300)] pl-3 text-sm">
+      {membre.candidates.map((fiche) => (
+        <li key={fiche.athlete_id} className="flex flex-wrap items-center justify-between gap-2">
+          <span>
+            <Link href={`/athletes/${fiche.athlete_id}`} className="tcn-lien-action">
+              fiche n° {fiche.athlete_id}
+            </Link>
+            {` ${fiche.nom} ${fiche.prenom} · `}
+            {fiche.course_name ? (
+              <>
+                {`${fiche.course_name}, ${formatDate(fiche.event_date)} · `}
+                <span className={fiche.club ? "" : "text-[var(--tcn-text-faint)]"}>
+                  {fiche.club ?? "sans club publié"}
+                </span>
+              </>
+            ) : (
+              <span className="text-[var(--tcn-text-faint)]">aucun résultat</span>
+            )}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            aria-label={`Rattacher ${membre.nom} ${membre.prenom} à la fiche n° ${fiche.athlete_id}`}
+            disabled={rattacher.isPending}
+            onClick={() =>
+              rattacher.mutate(
+                { memberId: membre.id, athleteId: fiche.athlete_id },
+                {
+                  onSuccess: () =>
+                    toast.success(`${membre.nom} ${membre.prenom} est rattaché à la fiche n° ${fiche.athlete_id}.`),
+                  onError: (erreur: Error) => toast.error(erreur.message),
+                },
+              )
+            }
+          >
+            Rattacher à cette fiche
+          </Button>
+        </li>
+      ))}
+    </ul>
   );
 }
 

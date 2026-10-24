@@ -8,6 +8,7 @@ Ne commite pas : le routeur ou la commande porte la transaction.
 """
 import logging
 from dataclasses import dataclass
+from datetime import date
 
 from sqlalchemy.orm import Session
 
@@ -99,10 +100,15 @@ def _deduplicated(members: list[RosterMember]) -> list[RosterMember]:
     return list(seen.values())
 
 
-def _auto_match(by_key: dict, by_alias: dict, key: tuple) -> tuple[int | None, str]:
+def _candidate_ids(by_key: dict, by_alias: dict, key: tuple) -> set[int]:
     candidates = {a.id for a in by_key.get(key, [])}
     if key in by_alias:
         candidates.add(by_alias[key].id)
+    return candidates
+
+
+def _auto_match(by_key: dict, by_alias: dict, key: tuple) -> tuple[int | None, str]:
+    candidates = _candidate_ids(by_key, by_alias, key)
     if len(candidates) == 1:
         return candidates.pop(), LINK_AUTO
     return None, LINK_AMBIGUOUS if candidates else LINK_UNLINKED
@@ -149,6 +155,43 @@ def _replace(db: Session, season: int, incoming: list[RosterMember], source: str
     touched_athletes.update(row.athlete_id for row in rows if row.athlete_id is not None)
     tcn_count_repository.recompute_counts_for_tcn(db, athlete_ids=touched_athletes)
     return rows
+
+
+@dataclass(frozen=True)
+class MemberCandidate:
+    """Une fiche entre lesquelles trancher, avec son dernier résultat et le club publié dessus."""
+    athlete_id: int
+    nom: str
+    prenom: str
+    course_name: str | None
+    event_date: date | None
+    club: str | None
+
+
+def candidates_of(db: Session, members: list[ClubMember]) -> dict[int, list[MemberCandidate]]:
+    """Les fiches candidates de chaque licencié à départager, par identifiant de licencié."""
+    ambiguous = [m for m in members if m.link_status == LINK_AMBIGUOUS]
+    keys = [athlete_identity_keys(m.nom, m.prenom) for m in ambiguous]
+    by_key = athlete_repository.get_all_ranks_by_identity_keys(db, keys)
+    by_alias = athlete_alias_repository.get_by_keys_batch(db, keys)
+    ids_by_member = {
+        m.id: sorted(_candidate_ids(by_key, by_alias, key)) for m, key in zip(ambiguous, keys, strict=True)
+    }
+    athletes, results = athlete_repository.review_details(db, [i for ids in ids_by_member.values() for i in ids])
+    # Résultats rangés par date : le dernier lu est le plus récent.
+    latest = {row.athlete_id: row for row in results}
+    return {
+        member_id: [
+            MemberCandidate(
+                athlete_id=i, nom=athletes[i].nom, prenom=athletes[i].prenom,
+                course_name=latest[i].name if i in latest else None,
+                event_date=latest[i].event_date if i in latest else None,
+                club=latest[i].club if i in latest else None,
+            )
+            for i in ids
+        ]
+        for member_id, ids in ids_by_member.items()
+    }
 
 
 def sync_from_fftri(db: Session, *, user_id: int | None) -> MembersSyncReport:

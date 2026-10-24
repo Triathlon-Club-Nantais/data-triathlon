@@ -3,14 +3,14 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { ClubMember, ClubMembersSeason } from "@/lib/types";
 
-const { mutate, unlink } = vi.hoisted(() => ({ mutate: vi.fn(), unlink: vi.fn() }));
+const { mutate, unlink, link } = vi.hoisted(() => ({ mutate: vi.fn(), unlink: vi.fn(), link: vi.fn() }));
 vi.mock("@/lib/queries/admin", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/queries/admin")>();
   return {
     ...original,
     useImportClubMembers: () => ({ mutate, isPending: false }),
     useSyncClubMembers: () => ({ mutate: vi.fn(), isPending: false }),
-    useLinkClubMember: () => ({ mutate: vi.fn(), isPending: false }),
+    useLinkClubMember: () => ({ mutate: link, isPending: false }),
     useUnlinkClubMember: () => ({ mutate: unlink, isPending: false }),
   };
 });
@@ -20,7 +20,7 @@ import { ClubMembersImport, ClubMembersPanel } from "./ClubMembersPanel";
 function membre(extra: Partial<ClubMember>): ClubMember {
   return {
     id: 1, season: 2026, licence_id: "C1", nom: "MARTIN", prenom: "Anne", gender: "F",
-    athlete_id: 5, link_status: "auto", source: "fftri", ...extra,
+    athlete_id: 5, link_status: "auto", source: "fftri", candidates: [], ...extra,
   };
 }
 
@@ -145,5 +145,42 @@ describe("ClubMembersPanel", () => {
     );
 
     expect(screen.getByRole("link", { name: "fiche n° 4812" })).toHaveAttribute("href", "/athletes/4812");
+  });
+
+  const departager = membre({
+    id: 7, nom: "GUERIN", prenom: "Antoine", athlete_id: null, link_status: "ambiguous",
+    candidates: [
+      { athlete_id: 162409, nom: "GUERIN", prenom: "Antoine", course_name: "Triathlon d'Angers",
+        event_date: "2024-05-19", club: "TRIATHLON CLUB NANTAIS" },
+      { athlete_id: 167473, nom: "GUERIN", prenom: "Antoine", course_name: null, event_date: null, club: null },
+    ],
+  });
+
+  it("place les licenciés à départager en tête, avant les licenciés sans fiche", () => {
+    render(
+      <ClubMembersPanel
+        {...props}
+        data={saison({
+          total: 2, unlinked: 1, ambiguous: 1,
+          members: [membre({ id: 3, nom: "ABOT", prenom: "Cynthia", athlete_id: null, link_status: "unlinked" }), departager],
+        })}
+      />,
+    );
+
+    const boutons = screen.getAllByRole("button", { name: /à une fiche$/i }).map((b) => b.getAttribute("aria-label"));
+    expect(boutons).toEqual(["Rattacher GUERIN Antoine à une fiche", "Rattacher ABOT Cynthia à une fiche"]);
+  });
+
+  it("montre les fiches candidates d'un licencié à départager et rattache à la fiche choisie en un clic", () => {
+    render(<ClubMembersPanel {...props} data={saison({ total: 1, ambiguous: 1, members: [departager] })} />);
+
+    expect(screen.getByRole("link", { name: "fiche n° 162409" })).toHaveAttribute("href", "/athletes/162409");
+    expect(screen.getByText(/triathlon d'angers/i)).toBeInTheDocument();
+    expect(screen.getByText("TRIATHLON CLUB NANTAIS")).toBeInTheDocument();
+    expect(screen.getByText(/aucun résultat/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Rattacher GUERIN Antoine à la fiche n° 167473" }));
+
+    expect(link).toHaveBeenCalledWith({ memberId: 7, athleteId: 167473 }, expect.anything());
   });
 });

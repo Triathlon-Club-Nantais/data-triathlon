@@ -1926,6 +1926,16 @@ export interface Opposition {
 /** Licenciés du club par saison (#1202). */
 export type ClubMemberLinkStatus = "auto" | "manual" | "unlinked" | "ambiguous";
 
+/** Fiche entre lesquelles trancher, avec son dernier résultat et le club publié dessus. */
+export interface ClubMemberCandidate {
+  athlete_id: number;
+  nom: string;
+  prenom: string;
+  course_name: string | null;
+  event_date: string | null;
+  club: string | null;
+}
+
 export interface ClubMember {
   id: number;
   season: number;
@@ -1936,6 +1946,8 @@ export interface ClubMember {
   athlete_id: number | null;
   link_status: ClubMemberLinkStatus;
   source: "fftri" | "file";
+  /** Vide sauf pour un licencié `ambiguous`. */
+  candidates: ClubMemberCandidate[];
 }
 
 export interface MembersSyncReport {
