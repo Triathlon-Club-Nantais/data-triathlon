@@ -13,6 +13,7 @@ from app.core.permissions import P
 from app.core.season import SEASON_MAX, SEASON_MIN
 from app.models.user import User
 from app.schemas.club_member import (
+    ClubMemberCandidateOut,
     ClubMemberLinkIn,
     ClubMemberOut,
     ClubMembersSeasonOut,
@@ -32,10 +33,16 @@ def list_club_members(
 ):
     members = club_members_service.list_season(db, season)
     report = club_members_service.report_of(season, members)
+    candidates = club_members_service.candidates_of(db, members)
     return ClubMembersSeasonOut(
         **MembersSyncReportOut.model_validate(report).model_dump(),
         seasons=club_members_service.seasons(db),
-        members=[ClubMemberOut.model_validate(m) for m in members],
+        members=[
+            ClubMemberOut.model_validate(m).model_copy(update={
+                "candidates": [ClubMemberCandidateOut.model_validate(c) for c in candidates.get(m.id, [])],
+            })
+            for m in members
+        ],
     )
 
 

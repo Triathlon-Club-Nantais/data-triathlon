@@ -38,8 +38,24 @@ def test_sync_then_read_the_season(client, db_session, roster):
     assert body["seasons"] == [2026]
     assert body["members"][0] | {"id": 0} == {
         "id": 0, "season": 2026, "licence_id": "C1", "nom": "MARTIN", "prenom": "Anne",
-        "gender": "F", "athlete_id": athlete.id, "link_status": "auto", "source": "fftri",
+        "gender": "F", "athlete_id": athlete.id, "link_status": "auto", "source": "fftri", "candidates": [],
     }
+
+
+def test_an_ambiguous_member_comes_with_its_candidate_records(client, db_session, roster):
+    first, second = Athlete(nom="MARTIN", prenom="Anne"), Athlete(nom="MARTIN", prenom="Anne", homonym_rank=1)
+    db_session.add_all([first, second])
+    db_session.commit()
+    client.post("/api/v1/admin/club-members/sync")
+
+    member = client.get("/api/v1/admin/club-members", params={"season": 2026}).json()["members"][0]
+
+    assert member["link_status"] == "ambiguous"
+    assert member["candidates"] == [
+        {"athlete_id": athlete.id, "nom": "MARTIN", "prenom": "Anne", "course_name": None, "event_date": None,
+         "club": None}
+        for athlete in (first, second)
+    ]
 
 
 def test_import_a_past_season_from_a_file(client):
