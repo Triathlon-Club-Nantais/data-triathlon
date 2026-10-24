@@ -58,7 +58,7 @@ export default defineConfig({
     setupFiles: ["./test/setup.ts"],
     exclude: EXCLUDE,
     // En local, plusieurs worktrees lancent leur suite en même temps : au
-    // défaut (coeurs - 1, soit 7 workers à ~555 Mi en jsdom), le swap sature.
+    // défaut (cœurs - 1, soit 7 workers à ~555 Mi en jsdom), le swap sature.
     // La CI garde le défaut de vitest (#1797).
     maxWorkers: process.env.CI ? undefined : 3,
     // `environmentMatchGlobs` a été **supprimé** de vitest 4 (pas déprécié) :
