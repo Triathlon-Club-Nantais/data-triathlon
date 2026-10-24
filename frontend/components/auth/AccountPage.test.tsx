@@ -417,3 +417,41 @@ describe("AccountPage: session states", () => {
     expect(await screen.findByText(SESSION.email)).toBeInTheDocument();
   });
 });
+
+describe("AccountPage: #demande-adhesion anchor", () => {
+  // Chargement direct (#1817) : la carte n'existe qu'après la session, le défilement natif du navigateur la manque.
+  it("scrolls to the membership card once the session arrives", async () => {
+    let resoudre: (session: SessionUser) => void = () => {};
+    getSession.mockReturnValue(new Promise<SessionUser>((resolve) => (resoudre = resolve)));
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    window.location.hash = "#demande-adhesion";
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
+    try {
+      render(
+        <QueryClientProvider client={client}>
+          <AccountPage />
+        </QueryClientProvider>,
+      );
+      expect(screen.getByTestId("squelette-compte")).toBeInTheDocument();
+      expect(scrollIntoView).not.toHaveBeenCalled();
+      resoudre(SESSION);
+
+      await screen.findByRole("heading", { name: "Adhésion au club" });
+      await waitFor(() => expect(scrollIntoView).toHaveBeenCalledTimes(1));
+      expect(scrollIntoView.mock.contexts[0]).toHaveAttribute("id", "demande-adhesion");
+    } finally {
+      window.location.hash = "";
+    }
+  });
+
+  it("does not scroll without the anchor in the URL", async () => {
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    afficher(SESSION);
+
+    await screen.findByRole("heading", { name: "Adhésion au club" });
+    expect(scrollIntoView).not.toHaveBeenCalled();
+  });
+});
